@@ -1,0 +1,158 @@
+# Magenta SOA — MCP Service Catalog
+# Every service is an MCP-wrapped containerized microservice.
+# Agents discover services at runtime via the MCP Bridge.
+
+[schema]
+version = "1.0"
+last_updated = "2026-06-13"
+
+[gateway]
+type = "mcp-bridge"
+transport = "http"
+port = 8080
+discovery_endpoint = "/mcp/discover"
+auth_endpoint = "/mcp/auth"
+
+# ── Core MCP Services ────────────────────────────────────────────────────
+
+[[services]]
+id = "mcp-sentinel"
+version = "1.2.0"
+description = "Microsoft Sentinel SIEM operations"
+transport = "grpc"
+port = 50051
+health_check = "/healthz"
+tools = [
+  "sentinel_query_incidents",
+  "sentinel_update_incident",
+  "sentinel_get_alert",
+  "sentinel_run_kql",
+]
+
+[[services]]
+id = "mcp-entra-id"
+version = "1.1.0"
+description = "Entra ID identity management"
+transport = "grpc"
+port = 50052
+tools = [
+  "entra_disable_account",
+  "entra_get_user",
+  "entra_list_groups",
+  "entra_get_signin_logs",
+]
+
+[[services]]
+id = "mcp-defender"
+version = "1.0.0"
+description = "Microsoft Defender ATP EDR operations"
+transport = "grpc"
+port = 50053
+tools = [
+  "defender_isolate_host",
+  "defender_run_scan",
+  "defender_get_alerts",
+  "defender_list_devices",
+]
+
+[[services]]
+id = "mcp-threat-intel"
+version = "1.1.0"
+description = "Threat intelligence lookups (VT, Shodan, OTX)"
+transport = "http"
+port = 50054
+tools = [
+  "ti_scan_url",
+  "ti_scan_hash",
+  "ti_get_ip_reputation",
+  "ti_get_domain_info",
+]
+
+[[services]]
+id = "mcp-servicenow"
+version = "1.0.0"
+description = "ServiceNow ITSM operations"
+transport = "grpc"
+port = 50055
+tools = [
+  "servicenow_create_ticket",
+  "servicenow_update_ticket",
+  "servicenow_query_cmdb",
+]
+
+# ── Data Mesh MCP Service ────────────────────────────────────────────────
+
+[[services]]
+id = "mcp-data-mesh"
+version = "1.0.0"
+description = "Vectorized data mesh — unified query & ingestion"
+transport = "http"
+port = 8000
+tools = [
+  "mesh_query",
+  "mesh_ingest",
+  "mesh_list_products",
+  "mesh_health",
+]
+
+# ── Agent Operations MCP Services ────────────────────────────────────────
+
+[[services]]
+id = "mcp-agent-ops"
+version = "1.0.0"
+description = "Agent Ops — configuration analysis, IaC, multi-cloud, FinOps"
+transport = "grpc"
+port = 50060
+tools = [
+  # Configuration analysis
+  "config_analyze",
+  "config_validate",
+  "config_audit",
+  "config_reconcile",
+  "config_diff",
+  # IaC management
+  "iac_plan",
+  "iac_apply",
+  "iac_drift_detect",
+  "iac_state_inspect",
+  "iac_destroy",
+  # Multi-cloud orchestration
+  "cloud_provision",
+  "cloud_discover_resources",
+  "cloud_migrate",
+  "cloud_health",
+  # FinOps
+  "finops_cost_analysis",
+  "finops_recommend_rightsize",
+  "finops_forecast",
+  "finops_enforce_budget",
+  "finops_tag_compliance",
+]
+
+[[services]]
+id = "mcp-orchestrator"
+version = "1.0.0"
+description = "Swarm orchestrator — mission lifecycle & agent assignment"
+transport = "grpc"
+port = 50061
+tools = [
+  "orchestrator_create_mission",
+  "orchestrator_assign_agent",
+  "orchestrator_track_progress",
+  "orchestrator_escalate",
+]
+
+# ── FinOps MCP Service ───────────────────────────────────────────────────
+
+[[services]]
+id = "mcp-finops"
+version = "1.0.0"
+description = "Financial operations — cost tracking & optimization"
+transport = "http"
+port = 50062
+tools = [
+  "finops_get_costs",
+  "finops_get_budget_status",
+  "finops_get_recommendations",
+  "finops_get_anomalies",
+]

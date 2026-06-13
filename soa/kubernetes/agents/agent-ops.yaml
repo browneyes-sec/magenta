@@ -1,0 +1,166 @@
+# Agent Ops — Configuration, IaC, Multi-Cloud, FinOps MCP Service
+# The official agent operations service for Magenta SOA.
+# Exposes MCP tools for config analysis, Terraform IaC, multi-cloud provisioning, and FinOps.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-ops
+  namespace: magenta-agents
+  labels:
+    app: agent-ops
+    role: operations
+    agent: ops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-ops
+  template:
+    metadata:
+      labels:
+        app: agent-ops
+        role: operations
+        agent: ops
+    spec:
+      serviceAccountName: agent-ops-sa
+      containers:
+        - name: agent-ops
+          image: magenta/agent-ops:0.1.0
+          ports:
+            - containerPort: 50060
+              name: grpc
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: AGENT_OPS__CONFIG_DIR
+              value: /app/config
+            - name: AGENT_OPS__TERRAFORM_DIR
+              value: /app/terraform
+            - name: AGENT_OPS__CLOUD_PROVIDERS
+              value: azure,aws,gcp
+            - name: AGENT_OPS__FINOPS_ENABLED
+              value: "true"
+            - name: AGENT_OPS__LOG_LEVEL
+              value: INFO
+            - name: AZURE_SUBSCRIPTION_ID
+              valueFrom:
+                secretKeyRef:
+                  name: cloud-credentials
+                  key: azure-subscription-id
+            - name: AZURE_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: cloud-credentials
+                  key: azure-tenant-id
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: cloud-credentials
+                  key: aws-access-key-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cloud-credentials
+                  key: aws-secret-access-key
+          resources:
+            requests:
+              cpu: "1"
+              memory: "2Gi"
+            limits:
+              cpu: "4"
+              memory: "4Gi"
+          livenessProbe:
+            httpGet:
+              path: /mcp/agent-ops/health
+              port: 50060
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+            - name: terraform
+              mountPath: /app/terraform
+            - name: terraform-state
+              mountPath: /app/state
+      volumes:
+        - name: config
+          configMap:
+            name: soa-config
+        - name: terraform
+          configMap:
+            name: terraform-modules
+        - name: terraform-state
+          persistentVolumeClaim:
+            claimName: terraform-state-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-ops
+  namespace: magenta-agents
+  labels:
+    app: agent-ops
+    role: operations
+spec:
+  ports:
+    - name: grpc
+      port: 50060
+      targetPort: 50060
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+  selector:
+    app: agent-ops
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agent-ops-sa
+  namespace: magenta-agents
+  annotations:
+    azure.workload.identity/client-id: "${AGENT_OPS_CLIENT_ID}"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: terraform-state-pvc
+  namespace: magenta-agents
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: agent-ops-role
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces", "nodes", "pods", "services", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "create", "delete"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+    verbs: ["get", "list", "watch", "create", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: agent-ops-rolebinding
+subjects:
+  - kind: ServiceAccount
+    name: agent-ops-sa
+    namespace: magenta-agents
+roleRef:
+  kind: ClusterRole
+  name: agent-ops-role
+  apiGroup: rbac.authorization.k8s.io

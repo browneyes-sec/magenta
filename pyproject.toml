@@ -79,4 +79,11 @@ select = ["E", "F", "I", "N", "W", "UP"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests"]
+testpaths = ["magnet"]
+filterwarnings = ["ignore::UserWarning", "ignore::DeprecationWarning"]
+markers = [
+    "api: tests for API endpoints",
+    "cli: tests for CLI commands",
+    "core: tests for framework core logic",
+    "agents: tests for agent implementations",
+]

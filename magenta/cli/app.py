@@ -8,6 +8,8 @@ from magenta.cli.automate import automate_app
 from magenta.cli.response import response_app
 from magenta.cli.health import health_app
 from magenta.cli.lab import lab_app
+from magenta.cli.dictator import dictator_app
+from magenta.cli.state import state_app
 from magenta import __about__
 
 
@@ -48,6 +50,18 @@ def create_app() -> typer.Typer:
         lab_app,
         name="lab",
         help="Simulation, testing, model comparison, and evaluation",
+        rich_help_panel="Commands",
+    )
+    app.add_typer(
+        dictator_app,
+        name="dictator",
+        help="Super-agent orchestration: command agents, probes, policies, and missions",
+        rich_help_panel="Commands",
+    )
+    app.add_typer(
+        state_app,
+        name="state",
+        help="Probe, attestation, and regression testing layer",
         rich_help_panel="Commands",
     )
 

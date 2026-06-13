@@ -1,0 +1,109 @@
+# Magenta SOA — Multi-Cloud Topology
+# Defines the multi-cloud and hybrid topology for resource placement,
+# failover, data residency, and workload distribution.
+
+[schema]
+version = "1.0"
+description = "Multi-cloud and hybrid cloud topology for Magenta ASOAR"
+
+[topology]
+type = "hybrid"  # public + private + edge
+primary_cloud = "azure"
+secondary_cloud = "aws"
+private_cloud = "vsphere"
+edge_platform = "k3s"
+global_load_balancer = "azure-traffic-manager"
+
+# ── Workload Placement ───────────────────────────────────────────────────
+
+[[workloads]]
+name = "agent-runtime"
+type = "compute"
+primary = { provider = "azure", region = "eastus2", cluster = "magenta-aks" }
+secondary = { provider = "aws", region = "us-east-1", cluster = "magenta-eks" }
+fallback = { provider = "vsphere", datacenter = "dc-01" }
+data_residency = ["US"]
+
+[[workloads]]
+name = "vector-store"
+type = "storage"
+primary = { provider = "azure", region = "eastus2" }
+replica = { provider = "azure", region = "westus2" }
+data_residency = ["US"]
+
+[[workloads]]
+name = "data-lake"
+type = "storage"
+primary = { provider = "azure", region = "eastus2" }
+archive = { provider = "azure", region = "usgov-virginia" }
+compliance = "IL5"
+data_residency = ["US-Gov"]
+
+[[workloads]]
+name = "embedding-inference"
+type = "compute-gpu"
+primary = { provider = "azure", region = "eastus2", sku = "Standard_NC24s_v3" }
+edge = { provider = "edge-k3s", location = "edge-01" }  # local inference for low-latency
+
+[[workloads]]
+name = "threat-intel-cache"
+type = "database"
+primary = { provider = "azure", region = "eastus2", service = "redis-enterprise" }
+replica = { provider = "aws", region = "us-east-1", service = "elasticache" }
+
+# ── Data Residency Zones ─────────────────────────────────────────────────
+
+[[residency_zones]]
+name = "US-Commercial"
+regions = [
+  { provider = "azure", region = "eastus2" },
+  { provider = "azure", region = "westus2" },
+  { provider = "aws", region = "us-east-1" },
+  { provider = "gcp", region = "us-central1" },
+]
+
+[[residency_zones]]
+name = "US-Gov"
+regions = [
+  { provider = "azure", region = "usgov-virginia" },
+  { provider = "aws", region = "us-gov-west-1" },
+]
+
+[[residency_zones]]
+name = "EU"
+regions = [
+  { provider = "azure", region = "northeurope" },
+  { provider = "aws", region = "eu-west-1" },
+  { provider = "gcp", region = "europe-west1" },
+]
+
+# ── Failover Rules ───────────────────────────────────────────────────────
+
+[failover]
+strategy = "active-passive"
+health_check_interval_seconds = 15
+failover_threshold = 3  # consecutive failures before failover
+auto_failback = true
+failback_stabilization_minutes = 30
+
+[failover.priority]
+compute = ["azure:eastus2", "aws:us-east-1", "gcp:us-central1", "vsphere:dc-01"]
+storage = ["azure:eastus2", "aws:us-east-1", "azure:westus2"]
+database = ["azure:eastus2", "aws:us-east-1"]
+
+# ── Cost Allocation by Topology ──────────────────────────────────────────
+
+[[cost_allocation]]
+provider = "azure"
+percentage = 0.65  # 65% of workload on Azure
+rationale = "Primary cloud, Sentinel integration, Entra ID dependency"
+
+[[cost_allocation]]
+provider = "aws"
+percentage = 0.25  # 25% for DR and secondary workloads
+rationale = "Disaster recovery, cross-cloud redundancy"
+
+[[cost_allocation]]
+provider = "vsphere"
+percentage = 0.10  # 10% on-prem for data residency requirements
+rationale = "Private cloud for regulated data workloads"

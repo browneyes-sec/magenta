@@ -1,0 +1,73 @@
+# MCP Service Definition: mcp-data-mesh
+# Wraps the vectorized data mesh as an MCP-consumable service.
+
+[service]
+id = "mcp-data-mesh"
+name = "Data Mesh Service"
+version = "1.0.0"
+description = "Vectorized data mesh — unified semantic query and ingestion for agent memory and context"
+transport = "http"
+host = "0.0.0.0"
+port = 8000
+
+[discovery]
+endpoint = "/api/v1/mesh/health"
+interval_seconds = 15
+
+[auth]
+type = "jwt"
+issuer = "magenta-iam"
+audience = "magenta-mesh"
+
+[resources]
+cpu = "1.0"
+memory = "2Gi"
+replicas_min = 2
+replicas_max = 6
+
+[mcp]
+protocol_version = "2025-03-26"
+capabilities = ["tools", "resources", "streaming"]
+
+[observability]
+metrics_port = 9090
+traces_endpoint = "http://tempo.magenta-soa:4317"
+logs_endpoint = "http://loki.magenta-soa:3100"
+
+# ── Tool Definitions ─────────────────────────────────────────────────────
+
+[[tools]]
+name = "mesh_query"
+description = "Hybrid search across data products (dense + sparse + metadata)"
+input_schema = { type = "object", properties = {
+  query = { type = "string", description = "Natural language query" },
+  products = { type = "array", items = { type = "string" }, description = "Data product IDs" },
+  filters = { type = "object", description = "Metadata filters" },
+  top_k = { type = "integer", default = 10 },
+  hybrid = { type = "boolean", default = true },
+}}
+output_schema = { type = "array", items = { type = "object" }}
+
+[[tools]]
+name = "mesh_ingest"
+description = "Push documents for vectorization and indexing"
+input_schema = { type = "object", properties = {
+  product = { type = "string" },
+  documents = { type = "array", items = { type = "object", properties = {
+    id = { type = "string" },
+    text = { type = "string" },
+    metadata = { type = "object" },
+  }}},
+  batch_size = { type = "integer", default = 32 },
+}}
+output_schema = { type = "object", properties = {
+  ingested = { type = "integer" },
+  failed = { type = "integer" },
+  errors = { type = "array", items = { type = "string" } },
+}}
+
+[[tools]]
+name = "mesh_list_products"
+description = "List available data products with schemas and health"
+input_schema = { type = "object" }
+output_schema = { type = "array", items = { type = "object" }}

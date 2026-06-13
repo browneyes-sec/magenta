@@ -1,7 +1,6 @@
 """API routes — agents management."""
 
 from fastapi import APIRouter, HTTPException
-from typing import list
 
 from magenta.core.models import AgentConfig
 from magenta.core.agent import agent_registry

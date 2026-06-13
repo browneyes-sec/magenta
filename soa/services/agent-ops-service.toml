@@ -1,0 +1,202 @@
+# MCP Service Definition: mcp-agent-ops
+# Official Agent Operations service: configuration analysis, IaC, multi-cloud orchestration, FinOps.
+# Every Magenta deployment includes this service as the governance and operations backbone.
+
+[service]
+id = "mcp-agent-ops"
+name = "Agent Operations Service"
+version = "1.0.0"
+description = "Configuration analysis, multi-cloud IaC management, resource provisioning, and FinOps cost optimization"
+transport = "grpc"
+host = "0.0.0.0"
+port = 50060
+
+[discovery]
+endpoint = "/mcp/agent-ops/health"
+interval_seconds = 10
+
+[auth]
+type = "mTLS"
+ca_cert = "/etc/magenta/certs/ca.pem"
+
+[resources]
+cpu = "2.0"
+memory = "4Gi"
+replicas_min = 1
+replicas_max = 3
+storage = "10Gi"
+
+[mcp]
+protocol_version = "2025-03-26"
+capabilities = ["tools", "resources", "notifications", "streaming"]
+
+[observability]
+metrics_port = 9090
+traces_endpoint = "http://tempo.magenta-soa:4317"
+
+# ── Tool Categories ──────────────────────────────────────────────────────
+# 1. CONFIGURATION ANALYSIS
+# ──────────────────────────────────────────────────────────────────────────
+
+[[tools]]
+name = "config_analyze"
+description = "Analyze configuration files for correctness, security, and compliance"
+input_schema = { type = "object", properties = {
+  path = { type = "string", description = "Glob path to config files" },
+  format = { type = "string", enum = ["toml", "yaml", "json", "hcl"], default = "toml" },
+  checks = { type = "array", items = { type = "string", enum = [
+    "syntax", "schema", "security", "compliance", "deprecation", "best_practice"
+  ]}, default = ["syntax", "schema"] },
+}}
+output_schema = { type = "object", properties = {
+  files_analyzed = { type = "integer" },
+  errors = { type = "array", items = { type = "object" }},
+  warnings = { type = "array", items = { type = "object" }},
+  summary = { type = "object" },
+}}
+
+[[tools]]
+name = "config_validate"
+description = "Validate config against JSON Schema or TOML schema registry"
+input_schema = { type = "object", properties = {
+  file = { type = "string" },
+  schema_ref = { type = "string", description = "Schema registry reference" },
+}}
+output_schema = { type = "object", properties = {
+  valid = { type = "boolean" },
+  errors = { type = "array", items = { type = "string" }},
+}}
+
+[[tools]]
+name = "config_diff"
+description = "Show diff between current and target configuration"
+input_schema = { type = "object", properties = {
+  current_path = { type = "string" },
+  target_path = { type = "string" },
+  format = { type = "string", default = "unified" },
+}}
+
+# ──────────────────────────────────────────────────────────────────────────
+# 2. INFRASTRUCTURE AS CODE
+# ──────────────────────────────────────────────────────────────────────────
+
+[[tools]]
+name = "iac_plan"
+description = "Generate Terraform plan for an environment"
+input_schema = { type = "object", properties = {
+  environment = { type = "string", enum = ["dev", "staging", "production"] },
+  module_path = { type = "string", default = "terraform/" },
+  variables = { type = "object" },
+}}
+
+[[tools]]
+name = "iac_apply"
+description = "Apply Terraform plan to provision or update infrastructure"
+input_schema = { type = "object", properties = {
+  plan_ref = { type = "string" },
+  auto_approve = { type = "boolean", default = false },
+}}
+
+[[tools]]
+name = "iac_drift_detect"
+description = "Detect drift between Terraform state and actual cloud resources"
+input_schema = { type = "object", properties = {
+  environment = { type = "string" },
+}}
+output_schema = { type = "object", properties = {
+  drifted_resources = { type = "integer" },
+  details = { type = "array", items = { type = "object" }},
+}}
+
+# ──────────────────────────────────────────────────────────────────────────
+# 3. MULTI-CLOUD ORCHESTRATION
+# ──────────────────────────────────────────────────────────────────────────
+
+[[tools]]
+name = "cloud_provision"
+description = "Provision compute or storage resources across any cloud provider"
+input_schema = { type = "object", properties = {
+  provider = { type = "string", enum = ["azure", "aws", "gcp", "vsphere"] },
+  resource_type = { type = "string", enum = ["compute", "storage", "kubernetes", "network"] },
+  spec = { type = "object", description = "Provider-agnostic resource spec" },
+  region = { type = "string" },
+}}
+
+[[tools]]
+name = "cloud_discover_resources"
+description = "Discover existing resources across all configured cloud providers"
+input_schema = { type = "object", properties = {
+  providers = { type = "array", items = { type = "string" }, default = [] },
+  tags = { type = "object" },
+}}
+
+[[tools]]
+name = "cloud_migrate"
+description = "Generate migration plan between cloud providers or regions"
+input_schema = { type = "object", properties = {
+  source = { type = "object", properties = {
+    provider = { type = "string" }, resource_id = { type = "string" }}},
+  target = { type = "object", properties = {
+    provider = { type = "string" }, region = { type = "string" }}},
+}}
+
+# ──────────────────────────────────────────────────────────────────────────
+# 4. FINOPS — COST OPTIMIZATION
+# ──────────────────────────────────────────────────────────────────────────
+
+[[tools]]
+name = "finops_cost_analysis"
+description = "Analyze current compute and storage costs per provider, service, tag"
+input_schema = { type = "object", properties = {
+  period = { type = "string", enum = ["7d", "30d", "90d"], default = "30d" },
+  group_by = { type = "array", items = { type = "string", enum = [
+    "provider", "service", "region", "tag", "environment"
+  ]}, default = ["provider", "service"] },
+}}
+output_schema = { type = "object", properties = {
+  total_cost = { type = "number" },
+  breakdown = { type = "array", items = { type = "object" }},
+  trends = { type = "object" },
+}}
+
+[[tools]]
+name = "finops_recommend_rightsize"
+description = "Generate right-sizing recommendations for over-provisioned resources"
+input_schema = { type = "object", properties = {
+  providers = { type = "array", items = { type = "string" }, default = [] },
+  threshold = { type = "number", default = 0.2, description = "Minimum utilization for recommendation" },
+}}
+output_schema = { type = "object", properties = {
+  recommendations = { type = "array", items = { type = "object" }},
+  estimated_savings = { type = "number" },
+}}
+
+[[tools]]
+name = "finops_forecast"
+description = "Forecast future costs based on historical consumption"
+input_schema = { type = "object", properties = {
+  horizon_days = { type = "integer", default = 90 },
+  model = { type = "string", enum = ["linear", "arima", "prophet"], default = "prophet" },
+}}
+
+[[tools]]
+name = "finops_enforce_budget"
+description = "Enforce budget thresholds: alert, block, or tag non-compliant resources"
+input_schema = { type = "object", properties = {
+  budget_id = { type = "string" },
+  action = { type = "string", enum = ["alert", "block", "tag"] },
+}}
+
+[[tools]]
+name = "finops_tag_compliance"
+description = "Audit resource tagging compliance across all cloud providers"
+input_schema = { type = "object", properties = {
+  required_tags = { type = "array", items = { type = "string" }, default = [
+    "environment", "cost-center", "owner", "project"
+  ]},
+}}
+output_schema = { type = "object", properties = {
+  compliant = { type = "integer" },
+  non_compliant = { type = "integer" },
+  details = { type = "array", items = { type = "object" }},
+}}

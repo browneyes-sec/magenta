@@ -1,0 +1,40 @@
+# MCP Protocol Bridge — Universal Tool Gateway
+# Discovers, routes, and authenticates all MCP service calls between agents and backend services.
+# Supports gRPC and HTTP transports with mTLS, rate-limiting, and observability.
+
+FROM python:3.12-slim AS builder
+
+WORKDIR /app
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Install dependencies
+COPY pyproject.toml /app/
+RUN uv sync --frozen
+
+# ── Runtime ───────────────────────────────────────────────────────────────
+
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# System deps: gRPC health probes, networking tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    grpcurl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/.venv /app/.venv
+COPY mcp_bridge/ /app/mcp_bridge/
+COPY config/ /app/config/
+
+ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 8080 50051 9090
+
+HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
+    CMD curl -sf http://localhost:8080/mcp/health || exit 1
+
+ENTRYPOINT ["python", "-m", "mcp_bridge.server"]
+CMD ["--config", "/app/config/system.toml", "--port", "8080"]

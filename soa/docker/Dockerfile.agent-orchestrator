@@ -1,0 +1,37 @@
+# Agent Orchestrator — Swarm Manager Runtime
+# Manages mission lifecycle, agent assignment, task decomposition, and escalation routing.
+# Consumes all MCP services through the MCP Bridge.
+
+FROM python:3.12-slim AS builder
+
+WORKDIR /app
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY pyproject.toml /app/
+RUN uv sync --frozen
+
+# ── Runtime ───────────────────────────────────────────────────────────────
+
+FROM python:3.12-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/.venv /app/.venv
+COPY agent_orchestrator/ /app/agent_orchestrator/
+COPY soa/config/ /app/config/
+COPY magenta/core/ /app/magenta/core/
+
+ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 50061 9090
+
+HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
+    CMD curl -sf http://localhost:50061/mcp/orchestrator/health || exit 1
+
+ENTRYPOINT ["python", "-m", "agent_orchestrator.server"]
+CMD ["--config", "/app/config/system.toml", "--port", "50061"]

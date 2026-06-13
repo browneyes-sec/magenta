@@ -1,0 +1,47 @@
+# Magenta SOA — Multi-Tenant Namespaces
+# Each namespace isolates a logical layer of the SOA architecture.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: magenta-soa
+  labels:
+    name: magenta-soa
+    layer: service-mesh
+    component: magenta
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: magenta-agents
+  labels:
+    name: magenta-agents
+    layer: agent-runtime
+    component: magenta
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: magenta-mesh
+  labels:
+    name: magenta-mesh
+    layer: data-mesh
+    component: magenta
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: magenta-finops
+  labels:
+    name: magenta-finops
+    layer: cost-governance
+    component: magenta
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: magenta-observability
+  labels:
+    name: magenta-observability
+    layer: observability
+    component: magenta

@@ -1,0 +1,91 @@
+# Magenta SOA — FinOps Configuration
+# Budget governance, cost allocation rules, and optimization policies.
+
+[schema]
+version = "1.0"
+description = "Financial operations governance for compute and storage resources"
+
+[governance]
+currency = "USD"
+default_period_days = 30
+anomaly_detection_enabled = true
+auto_tag_enforcement = true
+
+# ── Budgets ──────────────────────────────────────────────────────────────
+
+[[budgets]]
+id = "budget-compute-prod"
+name = "Production Compute"
+scope = "provider:all service:compute environment:production"
+monthly_limit = 3000.00
+alert_at = [0.5, 0.8, 0.9, 1.0]
+action_on_exceed = "alert"
+
+[[budgets]]
+id = "budget-storage-prod"
+name = "Production Storage"
+scope = "provider:all service:storage environment:production"
+monthly_limit = 1000.00
+alert_at = [0.7, 0.9, 1.0]
+action_on_exceed = "alert"
+
+[[budgets]]
+id = "budget-kubernetes-prod"
+name = "Production Kubernetes"
+scope = "provider:all service:kubernetes environment:production"
+monthly_limit = 2000.00
+alert_at = [0.6, 0.8, 0.95]
+action_on_exceed = "block"  # prevent further scale-out
+
+[[budgets]]
+id = "budget-dev"
+name = "Dev/Staging Environments"
+scope = "environment:dev environment:staging"
+monthly_limit = 500.00
+alert_at = [0.8, 1.0]
+action_on_exceed = "block"
+
+# ── Right-Sizing Rules ───────────────────────────────────────────────────
+
+[rightsizing]
+enabled = true
+analysis_period_days = 14
+min_savings_threshold = 10.00  # only recommend if savings > $10/month
+
+[[rightsizing.rules]]
+resource_type = "compute"
+metric = "cpu_utilization"
+threshold = 0.2  # recommend downsize if avg CPU < 20% for 14 days
+action = "recommend_downsize"
+
+[[rightsizing.rules]]
+resource_type = "compute"
+metric = "memory_utilization"
+threshold = 0.3
+action = "recommend_downsize"
+
+[[rightsizing.rules]]
+resource_type = "storage"
+metric = "access_frequency"
+threshold = 30  # days since last access
+action = "recommend_cool_tier"
+
+[[rightsizing.rules]]
+resource_type = "kubernetes"
+metric = "node_utilization"
+threshold = 0.4  # recommend downsize if cluster avg < 40%
+action = "recommend_node_reduction"
+
+# ── Tag Compliance ───────────────────────────────────────────────────────
+
+[tag_compliance]
+enabled = true
+remediation = "tag"  # auto-tag non-compliant resources
+
+[tag_compliance.required_tags]
+cost-center = { required = true, values = [
+  "security-operations", "finops", "engineering", "compliance"
+]}
+environment = { required = true, values = ["dev", "staging", "production"] }
+owner = { required = true }
+project = { required = true, values = ["magenta"] }

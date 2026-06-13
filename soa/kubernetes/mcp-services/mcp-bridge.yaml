@@ -1,0 +1,125 @@
+# MCP Bridge — Universal Tool Gateway
+# Routes all agent-to-service MCP calls with auth, rate-limiting, and observability.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-bridge
+  namespace: magenta-soa
+  labels:
+    app: mcp-bridge
+    component: service-mesh
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mcp-bridge
+  template:
+    metadata:
+      labels:
+        app: mcp-bridge
+        component: service-mesh
+    spec:
+      serviceAccountName: mcp-bridge-sa
+      containers:
+        - name: bridge
+          image: magenta/mcp-bridge:0.1.0
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 50051
+              name: grpc
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: MCP__SERVICE_CATALOG
+              value: /app/config/catalog.toml
+            - name: MCP__AUTH_ENABLED
+              value: "true"
+            - name: MCP__AUTH_JWKS_URL
+              value: "http://magenta-iam.magenta-soa:8080/.well-known/jwks.json"
+            - name: MCP__RATE_LIMIT_PER_AGENT
+              value: "100"
+            - name: MCP__LOG_LEVEL
+              value: INFO
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /mcp/health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            - name: certs
+              mountPath: /etc/magenta/certs
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: soa-config
+        - name: certs
+          secret:
+            secretName: mcp-tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-bridge
+  namespace: magenta-soa
+  labels:
+    app: mcp-bridge
+    component: service-mesh
+spec:
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+    - name: grpc
+      port: 50051
+      targetPort: 50051
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+  selector:
+    app: mcp-bridge
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-bridge-sa
+  namespace: magenta-soa
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mcp-bridge-role
+rules:
+  - apiGroups: [""]
+    resources: ["services", "endpoints", "pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mcp-bridge-rolebinding
+subjects:
+  - kind: ServiceAccount
+    name: mcp-bridge-sa
+    namespace: magenta-soa
+roleRef:
+  kind: ClusterRole
+  name: mcp-bridge-role
+  apiGroup: rbac.authorization.k8s.io

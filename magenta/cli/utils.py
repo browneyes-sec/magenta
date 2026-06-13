@@ -57,6 +57,11 @@ def print_info(msg: str) -> None:
     console.print(f"[blue]{msg}[/blue]")
 
 
+def print_warning(msg: str) -> None:
+    """Print a warning message."""
+    console.print(f"[yellow]WARNING:[/yellow] {msg}")
+
+
 def status_badge(status: str) -> str:
     """Return colored status badge."""
     colors = {

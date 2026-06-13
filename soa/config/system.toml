@@ -1,0 +1,36 @@
+# Magenta SOA — System Configuration
+# Global settings for the service-oriented architecture layer.
+
+[system]
+name = "magenta-soa"
+version = "1.0.0"
+environment = "dev"
+description = "Magenta ASOAR — Service-Oriented Architecture for MCP"
+
+[network]
+domain = "magenta.internal"
+dns_provider = "coredns"
+service_mesh = "istio"
+mtls_enabled = true
+
+[gateway]
+type = "mcp-bridge"
+transport = "http+grpc"
+http_port = 8080
+grpc_port = 50051
+discovery_endpoint = "/mcp/discover"
+
+[auth]
+provider = "magenta-iam"
+protocol = "jwt"
+jwks_url = "http://magenta-iam.magenta-soa:8080/.well-known/jwks.json"
+token_ttl_seconds = 3600
+
+[observability]
+tracing = { provider = "tempo", endpoint = "http://tempo.magenta-observability:4317" }
+metrics = { provider = "prometheus", port = 9090 }
+logging = { provider = "loki", endpoint = "http://loki.magenta-observability:3100" }
+
+[archives]
+config_backup_bucket = "magenta-config-backups"
+retention_days = 90

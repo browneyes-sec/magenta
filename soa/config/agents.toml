@@ -1,0 +1,103 @@
+# Magenta SOA — Agent Configuration
+# Defines every agent role in the operations suite with MCP bindings,
+# model routing, resource quotas, and FinOps cost allocation.
+
+[schema]
+version = "1.0"
+
+# ── Agent Ops — Configuration & Infrastructure Agent ─────────────────────
+# The official agent for config analysis, IaC, multi-cloud, and FinOps.
+
+[[agents]]
+id = "agent-ops"
+name = "Agent Operations"
+description = "Configuration analysis, multi-cloud IaC, resource provisioning, and FinOps cost optimization"
+mcp_service = "mcp-agent-ops"
+mcp_port = 50060
+transport = "grpc"
+
+[agents.model]
+provider = "ollama"
+primary = "qwen2.5:7b"
+fallback = "mistral:7b"
+temperature = 0.1  # low temp for deterministic ops tasks
+
+[agents.resources]
+cpu = "2.0"
+memory = "4Gi"
+storage = "10Gi"
+replicas_min = 1
+replicas_max = 3
+
+[agents.cost_allocation]
+cost_center = "security-operations"
+budget_code = "MAG-INFRA-OPS"
+
+[agents.capabilities]
+configuration_analysis = true
+iac_management = true
+multi_cloud_orchestration = true
+finops = true
+drift_detection = true
+compliance_audit = true
+
+[agents.guardrails]
+allow_destructive_actions = false  # requires human approval for terraform destroy
+max_budget_overrun_pct = 10
+require_approval_for = ["destroy", "migration", "budget_override"]
+
+# ── Agent Orchestrator ───────────────────────────────────────────────────
+
+[[agents]]
+id = "agent-orchestrator"
+name = "Swarm Orchestrator"
+description = "Mission lifecycle management, agent assignment, task decomposition"
+mcp_service = "mcp-orchestrator"
+mcp_port = 50061
+transport = "grpc"
+
+[agents.model]
+provider = "ollama"
+primary = "mixtral:8x7b"
+temperature = 0.2
+
+[agents.resources]
+cpu = "4.0"
+memory = "8Gi"
+replicas_min = 1
+replicas_max = 3
+
+[agents.cost_allocation]
+cost_center = "security-operations"
+budget_code = "MAG-SWARM-OPS"
+
+# ── Agent FinOps ─────────────────────────────────────────────────────────
+
+[[agents]]
+id = "agent-finops"
+name = "FinOps Agent"
+description = "Cost analysis, budget enforcement, and resource right-sizing"
+mcp_service = "mcp-finops"
+mcp_port = 50062
+transport = "http"
+
+[agents.model]
+provider = "ollama"
+primary = "phi4:14b"
+temperature = 0.0  # deterministic for financial decisions
+
+[agents.resources]
+cpu = "1.0"
+memory = "2Gi"
+replicas_min = 1
+replicas_max = 2
+
+[agents.cost_allocation]
+cost_center = "finops"
+budget_code = "MAG-FINOPS"
+
+[agents.finops_config]
+daily_budget_usd = 200.00
+monthly_budget_usd = 6000.00
+anomaly_threshold = 0.2
+auto_remediate = false  # recommend only, no auto-actions

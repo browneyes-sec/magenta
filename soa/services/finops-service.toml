@@ -1,0 +1,71 @@
+# MCP Service Definition: mcp-finops
+# Standalone FinOps service for cost analysis, budget enforcement, and resource optimization.
+
+[service]
+id = "mcp-finops"
+name = "FinOps Service"
+version = "1.0.0"
+description = "Financial operations — multi-cloud cost tracking, budget governance, and resource right-sizing"
+transport = "http"
+host = "0.0.0.0"
+port = 50062
+
+[discovery]
+endpoint = "/mcp/finops/health"
+interval_seconds = 30
+
+[auth]
+type = "jwt"
+audience = "magenta-finops"
+
+[resources]
+cpu = "0.5"
+memory = "1Gi"
+replicas_min = 1
+replicas_max = 2
+
+[mcp]
+protocol_version = "2025-03-26"
+capabilities = ["tools", "notifications"]
+
+[providers]
+azure_cost_management = { enabled = true, scope = "/subscriptions/${AZURE_SUBSCRIPTION_ID}" }
+aws_cost_explorer = { enabled = true, region = "us-east-1" }
+gcp_billing = { enabled = false }
+
+[billing]
+currency = "USD"
+default_period_days = 30
+anomaly_threshold = 0.2  # alert if >20% above baseline
+
+[[tools]]
+name = "finops_get_costs"
+description = "Get current and historical cost data"
+input_schema = { type = "object", properties = {
+  time_range = { type = "string", enum = ["7d", "30d", "90d", "1y"] },
+  granularity = { type = "string", enum = ["daily", "monthly"] },
+  group_by = { type = "array", items = { type = "string" }},
+}}
+
+[[tools]]
+name = "finops_get_budget_status"
+description = "Get budget consumption and remaining allowances"
+input_schema = { type = "object", properties = {
+  budget_ids = { type = "array", items = { type = "string" }, default = [] },
+}}
+
+[[tools]]
+name = "finops_get_anomalies"
+description = "Detect cost anomalies across services and regions"
+input_schema = { type = "object", properties = {
+  sensitivity = { type = "string", enum = ["low", "medium", "high"], default = "medium" },
+}}
+
+[[tools]]
+name = "finops_get_recommendations"
+description = "Get cost optimization recommendations"
+input_schema = { type = "object", properties = {
+  types = { type = "array", items = { type = "string", enum = [
+    "rightsize", "reserved_instance", "spot", "storage_tier", "delete_idle"
+  ]}, default = ["rightsize", "delete_idle"] },
+}}

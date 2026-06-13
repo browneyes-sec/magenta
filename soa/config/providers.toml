@@ -1,0 +1,93 @@
+# Magenta SOA — Cloud Provider Configuration
+# Defines all cloud providers in the multi-cloud topology.
+# Agent Ops uses this to provision, discover, and manage resources.
+
+[schema]
+version = "1.0"
+description = "Multi-cloud provider registry for Magenta ASOAR"
+
+# ── Public Cloud Providers ───────────────────────────────────────────────
+
+[[providers]]
+id = "azure"
+name = "Microsoft Azure"
+type = "public"
+enabled = true
+priority = 1
+default_region = "eastus2"
+regions = ["eastus2", "westus2", "northeurope", "southeastasia"]
+services = ["compute", "storage", "kubernetes", "database", "ai", "identity"]
+auth_method = "workload_identity"
+
+[providers.finops]
+cost_api = "azure-cost-management"
+currency = "USD"
+daily_budget = 50.00
+monthly_budget = 1500.00
+
+[[providers]]
+id = "aws"
+name = "Amazon Web Services"
+type = "public"
+enabled = false
+priority = 2
+default_region = "us-east-1"
+regions = ["us-east-1", "us-west-2", "eu-west-1"]
+services = ["compute", "storage", "kubernetes", "database"]
+auth_method = "iam_role"
+
+[providers.finops]
+cost_api = "aws-cost-explorer"
+currency = "USD"
+daily_budget = 50.00
+monthly_budget = 1500.00
+
+[[providers]]
+id = "gcp"
+name = "Google Cloud Platform"
+type = "public"
+enabled = false
+priority = 3
+default_region = "us-central1"
+regions = ["us-central1", "europe-west1"]
+services = ["compute", "storage", "kubernetes", "database", "ai"]
+auth_method = "service_account"
+
+[providers.finops]
+cost_api = "gcp-billing"
+currency = "USD"
+daily_budget = 40.00
+monthly_budget = 1200.00
+
+# ── Private Cloud ────────────────────────────────────────────────────────
+
+[[providers]]
+id = "vsphere"
+name = "VMware vSphere"
+type = "private"
+enabled = false
+priority = 4
+default_region = "dc-01"
+datacenters = ["dc-01", "dc-02"]
+services = ["compute", "storage", "network"]
+auth_method = "username_password"
+
+[providers.finops]
+cost_api = "vsphere-costing"
+currency = "USD"
+monthly_budget = 2000.00
+
+# ── Edge / Hybrid ────────────────────────────────────────────────────────
+
+[[providers]]
+id = "edge-k3s"
+name = "Edge Kubernetes (k3s)"
+type = "edge"
+enabled = false
+priority = 5
+default_region = "edge-01"
+services = ["compute"]
+auth_method = "kubeconfig"
+
+[providers.finops]
+cost_api = "none"
