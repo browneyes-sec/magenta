@@ -1,0 +1,48 @@
+env: dev
+verbose: false
+quiet: false
+format: text
+
+data_dir: data
+config_dir: config
+
+sql:
+  url: sqlite+aiosqlite:///data/magenta.db
+  echo: false
+  pool_size: 5
+  max_overflow: 10
+
+elastic:
+  hosts:
+    - http://localhost:9200
+  username: null
+  password: null
+  index_prefix: magenta
+  ilm_policy: magenta-hot-warm-cold
+
+lake:
+  connection_string: null
+  container: magenta-lake
+  root: /data/magenta/lake
+  parquet_compression: snappy
+
+nosql:
+  connection_string: null
+  database_name: magenta
+
+eventhub:
+  connection_string: null
+  namespace: magenta-agent-bus
+  topics:
+    raw_alerts: raw-alerts
+    enriched_alerts: enriched-alerts
+    actions: actions
+    audit: audit
+
+models:
+  default_provider: ollama
+  default_model: qwen2.5:7b
+  ollama_host: http://localhost:11434
+  openrouter_key: null
+  gemini_key: null
+  groq_key: null

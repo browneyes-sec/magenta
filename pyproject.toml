@@ -1,0 +1,82 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "magenta"
+version = "0.1.0"
+description = "Agentic System Orchestration Automation and Response (ASOAR) framework"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Magenta Team"},
+]
+
+dependencies = [
+    "typer>=0.12.0",
+    "rich>=13.0.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "pyyaml>=6.0",
+    "httpx>=0.26.0",
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.25.0",
+    "sqlalchemy[asyncio]>=2.0.25",
+    "alembic>=1.13.0",
+    "asyncpg>=0.29.0",
+    "aiosqlite>=0.19.0",
+    "elasticsearch[async]>=8.12.0",
+    "adlfs>=2024.2.0",
+    "pyarrow>=15.0.0",
+    "deltalake>=0.16.0",
+    "azure-identity>=1.15.0",
+    "azure-monitor-opentelemetry>=1.0.0",
+    "azure-storage-blob>=12.19.0",
+    "azure-eventhub>=5.11.0",
+    "kafka-python>=2.0.2",
+    "langchain>=0.1.0",
+    "langchain-community>=0.1.0",
+    "chromadb>=0.4.22",
+    "openai>=1.12.0",
+    "tomli>=2.0.0",
+    "python-multipart>=0.0.6",
+    "pyjwt>=2.8.0",
+    "python-dateutil>=2.8.0",
+    "tabulate>=0.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "black>=24.0.0",
+    "ruff>=0.2.0",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0",
+    "httpx>=0.26.0",
+]
+test = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.26.0",
+]
+
+[project.scripts]
+magenta = "magenta.main:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["magenta"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Environment
+.env
+.env.*
+venv/
+.venv/
+.venv
+
+# uv
+.uv-cache/
+
+# Data
+data/
+*.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config overrides (keep default.yaml)
+config/*.local.yaml
+config/prod.yaml
+
+# Lake storage
+lake/
+
+# Logs
+*.log
