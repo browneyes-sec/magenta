@@ -5,7 +5,7 @@ from typing import Optional, Any
 from datetime import datetime
 import random
 
-from magenta.models.base import BaseModelClient, ModelRequest, ModelResponse
+from magenta.models.base import BaseModelClient, ModelRequest, ModelResponse, PolicyDecision
 from magenta.models.ollama import OllamaClient
 from magenta.models.openrouter import OpenRouterClient
 from magenta.models.gemini import GeminiClient
@@ -118,6 +118,39 @@ class ModelRouter:
             except Exception:
                 results[name] = False
         return results
+
+    async def route_with_policy(
+        self,
+        request: ModelRequest,
+        decision: PolicyDecision,
+    ) -> ModelResponse:
+        """Route a request based on a policy decision (used by the LLM Gateway)."""
+
+        provider_tier_map = {
+            "openrouter": "cost_save",
+            "gemini": "cost_save",
+            "groq": "cost_save",
+            "ollama": "speed",
+        }
+        tier = provider_tier_map.get(decision.provider, "speed")
+
+        if decision.provider == "ollama":
+            return await self.route(request, tier=tier)
+
+        client_key = None
+        for name, client in self._clients.items():
+            if decision.provider in name:
+                client_key = name
+                break
+
+        if client_key:
+            client = self._clients[client_key]
+            try:
+                return await client.generate(request)
+            except Exception:
+                pass
+
+        return await self.route(request, tier=tier)
 
     def get_available_models(self) -> list[dict]:
         """Get list of all configured models."""

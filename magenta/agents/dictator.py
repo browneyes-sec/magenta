@@ -40,6 +40,8 @@ class DictatorAgent(LLMAgent):
       - Maintains real-time oversight of all active missions
       - Can override teaming structures, inject probes, halt missions
     """
+    sensitivity_level = "high"
+    task_type = "command"
 
     def __init__(self, config: Optional[AgentConfig] = None):
         if config is None:

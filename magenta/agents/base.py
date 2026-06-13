@@ -10,6 +10,15 @@ from magenta.models.base import ModelRequest, ModelResponse
 from magenta.models.router import model_router
 from magenta.core.mission import mission_manager
 
+USE_GATEWAY = True
+
+try:
+    from magenta.gateway.engine import LLMGateway
+    _gateway = LLMGateway()
+except ImportError:
+    _gateway = None
+    USE_GATEWAY = False
+
 
 class LLMAgent(BaseAgent, ABC):
     """Agent that uses an LLM for reasoning and tool use."""
@@ -17,11 +26,25 @@ class LLMAgent(BaseAgent, ABC):
     def __init__(self, config: AgentConfig):
         super().__init__(config)
         self.system_prompt = self._build_system_prompt()
+        self.sensitivity_level: str = "low"
+        self.task_type: str = "generic"
 
     def _build_system_prompt(self) -> str:
         return self.config.instructions or f"""You are a {self.config.role} agent in a SOC environment.
 You have access to the following tools: {', '.join(self.config.tools)}.
 Always reason step by step. Log all findings."""
+
+    def _resolve_sensitivity(self) -> str:
+        return getattr(self, "sensitivity_level", "low")
+
+    def _resolve_priority(self) -> str:
+        return getattr(self, "priority", "interactive")
+
+    def _resolve_task_type(self) -> str:
+        return getattr(self, "task_type", "generic")
+
+    def _get_redaction_policy(self) -> Optional[dict]:
+        return None
 
     async def llm_generate(
         self,
@@ -33,7 +56,16 @@ Always reason step by step. Log all findings."""
             messages=[{"role": "user", "content": prompt}],
             system=self.system_prompt,
             temperature=temperature,
+            correlation_id="",
+            task_type=self._resolve_task_type(),
+            sensitivity_level=self._resolve_sensitivity(),
+            priority=self._resolve_priority(),
+            redaction_policy=self._get_redaction_policy(),
         )
+
+        if USE_GATEWAY and _gateway:
+            return await _gateway.route(request)
+
         return await model_router.route(request, tier=tier)
 
     async def log_activity(self, mission: Mission, action: str, status: ActionStatus) -> None:

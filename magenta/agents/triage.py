@@ -10,6 +10,8 @@ from magenta.core.mission import mission_manager
 
 class TriageAgent(LLMAgent):
     """Assesses incoming alerts, assigns severity, and routes."""
+    sensitivity_level = "medium"
+    task_type = "triage"
 
     def __init__(self, config: AgentConfig):
         config.instructions = config.instructions or """You are a Triage Agent in a SOC environment.
@@ -51,6 +53,8 @@ Provide:
 
 class EnrichAgent(LLMAgent):
     """Enrichment Agent — adds context from CMDB, threat intel, identity."""
+    sensitivity_level = "medium"
+    task_type = "enrich"
 
     def __init__(self, config: AgentConfig):
         config.instructions = config.instructions or """You are an Enrichment Agent.
@@ -88,6 +92,8 @@ Provide:
 
 class ContainAgent(LLMAgent):
     """Containment Agent — executes isolation, disable, block actions."""
+    sensitivity_level = "high"
+    task_type = "contain"
 
     def __init__(self, config: AgentConfig):
         config.instructions = config.instructions or """You are a Containment Specialist.
@@ -122,6 +128,8 @@ List actions with risk scores and whether each needs approval."""
 
 class InvestigateAgent(LLMAgent):
     """Investigation Agent — deep forensic analysis, timeline reconstruction."""
+    sensitivity_level = "medium"
+    task_type = "investigate"
 
     def __init__(self, config: AgentConfig):
         config.instructions = config.instructions or """You are a Forensic Investigator.
@@ -152,6 +160,8 @@ Provide:
 
 class ComplianceAgent(LLMAgent):
     """Compliance Agent — ensures regulatory compliance, preserves audit trail."""
+    sensitivity_level = "medium"
+    task_type = "compliance"
 
     def __init__(self, config: AgentConfig):
         config.instructions = config.instructions or """You are a Compliance Agent.
@@ -172,6 +182,8 @@ Ensure evidence is preserved and audit trail is complete."""
 
 class ReportAgent(LLMAgent):
     """Reporting Agent — generates incident summaries and stakeholder briefs."""
+    sensitivity_level = "low"
+    task_type = "report"
 
     def __init__(self, config: AgentConfig):
         config.instructions = config.instructions or """You are a Reporting Agent.

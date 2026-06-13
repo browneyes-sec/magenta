@@ -57,6 +57,37 @@ class ModelSettings(BaseSettings):
     groq_key: Optional[str] = None
 
 
+class CacheSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="MAGENTA_GATEWAY_CACHE_")
+    enabled: bool = True
+    ttl_seconds: int = 3600
+    min_similarity: float = 0.92
+
+
+class RedactionSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="MAGENTA_GATEWAY_REDACTION_")
+    enabled: bool = True
+    default_fields: list[str] = ["usernames", "ips", "email_addresses"]
+
+
+class AuditSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="MAGENTA_GATEWAY_AUDIT_")
+    enabled: bool = True
+    batch_size: int = 10
+    flush_interval_seconds: int = 5
+
+
+class GatewaySettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="MAGENTA_GATEWAY_")
+    enabled: bool = True
+    mode: Literal["shadow", "enforcing"] = "shadow"
+    policy_file: str = "config/llm-routing.yaml"
+    redis_url: str = "redis://localhost:6379/0"
+    cache: CacheSettings = Field(default_factory=CacheSettings)
+    redaction: RedactionSettings = Field(default_factory=RedactionSettings)
+    audit: AuditSettings = Field(default_factory=AuditSettings)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="MAGENTA_",
@@ -79,6 +110,7 @@ class Settings(BaseSettings):
     nosql: NoSQLSettings = Field(default_factory=NoSQLSettings)
     eventhub: EventHubSettings = Field(default_factory=EventHubSettings)
     models: ModelSettings = Field(default_factory=ModelSettings)
+    gateway: GatewaySettings = Field(default_factory=GatewaySettings)
 
     @classmethod
     def settings_customise_sources(

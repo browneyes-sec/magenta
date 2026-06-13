@@ -14,6 +14,8 @@ from magenta.core.agent import agent_registry
 
 class SwarmManagerAgent(LLMAgent):
     """Meta-agent that orchestrates the multi-agent swarm for a mission."""
+    sensitivity_level = "medium"
+    task_type = "orchestrate"
 
     def __init__(self, config: AgentConfig):
         config.instructions = config.instructions or """You are the Swarm Manager — the orchestrator of the Magenta multi-agent system.
