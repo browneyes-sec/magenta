@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Magenta Multi-Cloud Topology",
+  "description": "JSON Schema for soa/config/multicloud.toml",
+  "type": "object",
+  "required": ["schema", "topology"],
+  "properties": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "version": { "type": "string" }
+      }
+    },
+    "topology": {
+      "type": "object",
+      "required": ["type", "primary_cloud"],
+      "properties": {
+        "type": { "type": "string", "enum": ["public", "private", "hybrid", "multi-cloud"] },
+        "primary_cloud": { "type": "string", "enum": ["azure", "aws", "gcp", "vsphere"] },
+        "secondary_cloud": { "type": "string" },
+        "private_cloud": { "type": "string" },
+        "global_load_balancer": { "type": "string" }
+      }
+    },
+    "workloads": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type", "primary"],
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["compute", "storage", "database", "compute-gpu"] },
+          "primary": {
+            "type": "object",
+            "required": ["provider"],
+            "properties": {
+              "provider": { "type": "string" },
+              "region": { "type": "string" }
+            }
+          },
+          "data_residency": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "failover": {
+      "type": "object",
+      "properties": {
+        "strategy": { "type": "string", "enum": ["active-active", "active-passive"] },
+        "auto_failback": { "type": "boolean" }
+      }
+    },
+    "cost_allocation": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["provider", "percentage"],
+        "properties": {
+          "provider": { "type": "string" },
+          "percentage": { "type": "number", "minimum": 0, "maximum": 1 },
+          "rationale": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,100 @@
+# Production Overlay — 3 replicas, production tags, HA resources, private TLS
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+patches:
+  - target:
+      kind: Deployment
+      name: mcp-bridge
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "4"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "4Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "1"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "1Gi"
+      - op: add
+        path: /spec/template/spec/tolerations
+        value:
+          - key: CriticalAddonsOnly
+            operator: Exists
+            effect: NoSchedule
+  - target:
+      kind: Deployment
+      name: agent-ops
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "8"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "8Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "2"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "4Gi"
+  - target:
+      kind: Deployment
+      name: agent-orchestrator
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+  - target:
+      kind: Deployment
+      name: mcp-web
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+  - target:
+      kind: Deployment
+      name: mcp-finops
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+  - target:
+      kind: PersistentVolumeClaim
+      name: terraform-state-pvc
+    patch: |-
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: "50Gi"
+  - target:
+      kind: PersistentVolumeClaim
+      name: orchestrator-state-pvc
+    patch: |-
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: "20Gi"
+
+images:
+  - name: magenta/mcp-bridge
+    newTag: 0.1.0
+  - name: magenta/agent-ops
+    newTag: 0.1.0
+  - name: magenta/agent-orchestrator
+    newTag: 0.1.0
+  - name: magenta/mcp-web
+    newTag: 0.1.0
+  - name: magenta/mcp-finops
+    newTag: 0.1.0

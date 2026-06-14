@@ -1,0 +1,128 @@
+# MCP FinOps — Financial Operations Service
+# Cost analysis, budget governance, anomaly detection, and right-sizing recommendations.
+# Exposes HTTP MCP tools at port 50062.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-finops
+  namespace: magenta-finops
+  labels:
+    app: mcp-finops
+    component: finops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-finops
+  template:
+    metadata:
+      labels:
+        app: mcp-finops
+        component: finops
+    spec:
+      serviceAccountName: mcp-finops-sa
+      containers:
+        - name: finops
+          image: magenta/mcp-finops:0.1.0
+          ports:
+            - containerPort: 50062
+              name: http
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: FINOPS__CONFIG_DIR
+              value: /app/config
+            - name: FINOPS__LOG_LEVEL
+              value: INFO
+            - name: FINOPS__CURRENCY
+              value: USD
+            - name: FINOPS__ANOMALY_THRESHOLD
+              value: "0.2"
+            - name: AZURE_SUBSCRIPTION_ID
+              valueFrom:
+                secretKeyRef:
+                  name: cloud-credentials
+                  key: azure-subscription-id
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: cloud-credentials
+                  key: aws-access-key-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cloud-credentials
+                  key: aws-secret-access-key
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /mcp/finops/health
+              port: 50062
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: soa-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-finops
+  namespace: magenta-finops
+  labels:
+    app: mcp-finops
+    component: finops
+spec:
+  ports:
+    - name: http
+      port: 50062
+      targetPort: 50062
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+  selector:
+    app: mcp-finops
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-finops-sa
+  namespace: magenta-finops
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mcp-finops-role
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces", "pods", "nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mcp-finops-rolebinding
+subjects:
+  - kind: ServiceAccount
+    name: mcp-finops-sa
+    namespace: magenta-finops
+roleRef:
+  kind: ClusterRole
+  name: mcp-finops-role
+  apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,68 @@
+# Dev Overlay — Single replica, dev image tags, minimal resources
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+patches:
+  - target:
+      kind: Deployment
+      name: mcp-bridge
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "250m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "256Mi"
+  - target:
+      kind: Deployment
+      name: agent-ops
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "500m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "1Gi"
+  - target:
+      kind: Deployment
+      name: agent-orchestrator
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target:
+      kind: Deployment
+      name: mcp-web
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target:
+      kind: Deployment
+      name: mcp-finops
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+
+images:
+  - name: magenta/mcp-bridge
+    newTag: dev
+  - name: magenta/agent-ops
+    newTag: dev
+  - name: magenta/agent-orchestrator
+    newTag: dev
+  - name: magenta/mcp-web
+    newTag: dev
+  - name: magenta/mcp-finops
+    newTag: dev

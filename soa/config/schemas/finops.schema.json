@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Magenta FinOps Configuration",
+  "description": "JSON Schema for soa/config/finops.toml",
+  "type": "object",
+  "required": ["schema", "governance"],
+  "properties": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "version": { "type": "string" }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "required": ["currency"],
+      "properties": {
+        "currency": { "type": "string", "enum": ["USD", "EUR", "GBP"] },
+        "anomaly_detection_enabled": { "type": "boolean" },
+        "auto_tag_enforcement": { "type": "boolean" }
+      }
+    },
+    "budgets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "monthly_limit"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^budget-" },
+          "name": { "type": "string" },
+          "scope": { "type": "string" },
+          "monthly_limit": { "type": "number", "minimum": 0 },
+          "alert_at": {
+            "type": "array",
+            "items": { "type": "number", "minimum": 0, "maximum": 1 }
+          },
+          "action_on_exceed": { "type": "string", "enum": ["alert", "block", "tag"] }
+        }
+      }
+    },
+    "rightsizing": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "analysis_period_days": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "tag_compliance": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "required_tags": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "required": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

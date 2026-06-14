@@ -1,0 +1,70 @@
+# MCP Service Definition: mcp-web
+# Wraps the Magenta web and application layer (HTTP REST API) as an MCP service.
+# Allows agents to query web resources, manage sessions, and proxy API calls.
+
+[service]
+id = "mcp-web"
+name = "Web Application MCP Service"
+version = "1.0.0"
+description = "Web and application layer MCP wrapping for HTTP/REST API resources"
+transport = "http"
+host = "0.0.0.0"
+port = 8081
+
+[discovery]
+endpoint = "/mcp/web/health"
+interval_seconds = 15
+
+[auth]
+type = "jwt"
+audience = "magenta-web"
+
+[resources]
+cpu = "0.5"
+memory = "1Gi"
+replicas_min = 1
+replicas_max = 3
+
+[mcp]
+protocol_version = "2025-03-26"
+capabilities = ["tools", "resources"]
+
+[proxy]
+upstream = "http://magenta-api:8000"
+timeout_seconds = 30
+allowed_paths = ["/api/v1/", "/docs", "/openapi.json"]
+
+# ── Tool Definitions ─────────────────────────────────────────────────────
+
+[[tools]]
+name = "web_proxy_request"
+description = "Proxy an HTTP request to the Magenta API layer"
+input_schema = { type = "object", properties = {
+  method = { type = "string", enum = ["GET", "POST", "PUT", "PATCH", "DELETE"], default = "GET" },
+  path = { type = "string", description = "API path relative to upstream" },
+  headers = { type = "object" },
+  body = { type = "string" },
+}}
+output_schema = { type = "object", properties = {
+  status = { type = "integer" },
+  headers = { type = "object" },
+  body = { type: "string" },
+}}
+
+[[tools]]
+name = "web_health"
+description = "Check web application layer health"
+input_schema = { type = "object" }
+output_schema = { type = "object", properties = {
+  status = { type = "string" },
+  upstream = { type = "string" },
+  latency_ms = { type = "number" },
+}}
+
+[[tools]]
+name = "web_discover_endpoints"
+description = "Discover available API endpoints from OpenAPI schema"
+input_schema = { type = "object", properties = {
+  filter = { type = "string", default = "" },
+}}
+output_schema = { type = "array", items = { type = "object" }}

@@ -1,0 +1,216 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "title": "Magenta — Multi-Cloud Cost Overview",
+  "description": "Aggregated cost dashboard across Azure, AWS, GCP, and vSphere. Tracks monthly burn rate, budget utilization, provider breakdown, and forecast.",
+  "tags": ["finops", "cost", "magenta"],
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "1h",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": ["5m", "15m", "30m", "1h", "2h", "1d"]
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "provider",
+        "type": "custom",
+        "query": "azure, aws, gcp, vsphere, all",
+        "current": {"value": "all"},
+        "label": "Cloud Provider"
+      },
+      {
+        "name": "environment",
+        "type": "custom",
+        "query": "dev, staging, production, all",
+        "current": {"value": "all"},
+        "label": "Environment"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Monthly Cost (MTD)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "targets": [{
+        "expr": "sum(magenta_cost_monthly{provider=~\"$provider\"})",
+        "legendFormat": "MTD Cost"
+      }],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 0,
+          "thresholds": {
+            "steps": [
+              {"color": "green"},
+              {"value": 3000, "color": "orange"},
+              {"value": 4000, "color": "red"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Budget Utilization",
+      "type": "gauge",
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+      "targets": [{
+        "expr": "magenta_budget_utilization_pct{provider=~\"$provider\"}",
+        "legendFormat": "{{provider}}"
+      }],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              {"color": "green"},
+              {"value": 60, "color": "yellow"},
+              {"value": 80, "color": "orange"},
+              {"value": 95, "color": "red"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Cost Trend (7d)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 4},
+      "targets": [{
+        "expr": "sum(rate(magenta_cost_daily{provider=~\"$provider\"}[7d]))",
+        "legendFormat": "{{provider}}"
+      }],
+      "options": {
+        "legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD/day",
+          "decimals": 0
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Cost by Provider",
+      "type": "piechart",
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 4},
+      "targets": [{
+        "expr": "sum(magenta_cost_monthly) by (provider)",
+        "legendFormat": "{{provider}}"
+      }],
+      "options": {
+        "pieType": "pie",
+        "displayLabels": ["name", "percent", "value"],
+        "legend": {"displayMode": "table", "placement": "right", "values": ["percent", "value"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 0
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Cost by Environment",
+      "type": "barchart",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 12},
+      "targets": [{
+        "expr": "sum(magenta_cost_monthly) by (environment)",
+        "legendFormat": "{{environment}}"
+      }],
+      "options": {
+        "orientation": "auto",
+        "groupWidth": 70,
+        "barWidth": 0.5,
+        "showValue": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 0
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Top 10 Services by Cost",
+      "type": "table",
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 12},
+      "targets": [{
+        "expr": "topk(10, sum(magenta_cost_monthly) by (service))",
+        "legendFormat": "{{service}}",
+        "format": "table"
+      }],
+      "options": {
+        "sortBy": [{"displayName": "Value", "desc": true}]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 0,
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "service"},
+            "properties": [{"id": "custom.width", "value": 300}]
+          }
+        ]
+      }
+    },
+    {
+      "id": 7,
+      "title": "Forecast (30d)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 16, "x": 0, "y": 20},
+      "targets": [
+        {
+          "expr": "sum(magenta_cost_daily{provider=~\"$provider\"})",
+          "legendFormat": "Actual"
+        },
+        {
+          "expr": "predict_linear(magenta_cost_daily{provider=~\"$provider\"}[30d], 86400 * 30)",
+          "legendFormat": "Forecast"
+        }
+      ],
+      "options": {
+        "legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 0
+        }
+      }
+    }
+  ]
+}
