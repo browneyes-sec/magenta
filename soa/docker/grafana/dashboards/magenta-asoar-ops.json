@@ -1,0 +1,200 @@
+{
+  "title": "Magenta ASOAR — Operations",
+  "uid": "magenta-asoar-ops",
+  "version": 1,
+  "tags": ["magenta", "asoar", "operations"],
+  "timezone": "browser",
+  "editable": false,
+  "panels": [
+    {
+      "title": "Directive Issuance Rate",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "rate(magenta_directive_issued_total[5m])", "legendFormat": "Rate"}],
+      "fieldConfig": {
+        "defaults": {"unit": "ops", "min": 0},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Dead Letter Queue Size",
+      "type": "stat",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "magenta_directive_failed_total", "legendFormat": "Failed"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "orange", "value": 10},
+            {"color": "red", "value": 50}
+          ]}
+        }
+      }
+    },
+    {
+      "title": "Connector Health",
+      "type": "stat",
+      "gridPos": {"x": 12, "y": 0, "w": 4, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "magenta_connector_healthy{connector=~\"sentinel|entra|defender\"}", "legendFormat": "{{connector}}"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "red", "value": null},
+            {"color": "green", "value": 1}
+          ]}
+        }
+      }
+    },
+    {
+      "title": "Approval Queue Depth",
+      "type": "timeseries",
+      "gridPos": {"x": 16, "y": 0, "w": 8, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "magenta_approval_pending_total", "legendFormat": "Pending"},
+                  {"expr": "magenta_approval_approved_total", "legendFormat": "Approved"},
+                  {"expr": "magenta_approval_denied_total", "legendFormat": "Denied"}],
+      "fieldConfig": {
+        "defaults": {"unit": "none", "min": 0},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Mission Throughput",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 6, "w": 8, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "magenta_mission_active_total", "legendFormat": "Active"},
+                  {"expr": "magenta_mission_completed_total", "legendFormat": "Completed"},
+                  {"expr": "magenta_mission_failed_total", "legendFormat": "Failed"}],
+      "fieldConfig": {
+        "defaults": {"unit": "none", "min": 0},
+        "overrides": []
+      }
+    },
+    {
+      "title": "LLM Budget Utilization",
+      "type": "gauge",
+      "gridPos": {"x": 8, "y": 6, "w": 4, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "magenta_llm_budget_utilization_ratio", "legendFormat": "{{provider}}"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "orange", "value": 70},
+            {"color": "red", "value": 90}
+          ]}
+        }
+      }
+    },
+    {
+      "title": "LLM Token Usage by Provider",
+      "type": "barchart",
+      "gridPos": {"x": 12, "y": 6, "w": 8, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "sum(rate(magenta_llm_tokens_total[5m])) by (provider)", "legendFormat": "{{provider}}"}],
+      "fieldConfig": {
+        "defaults": {"unit": "short"},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Cache Hit Rate",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 12, "w": 8, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "rate(magenta_cache_hits_total[5m]) / (rate(magenta_cache_hits_total[5m]) + rate(magenta_cache_misses_total[5m])) * 100", "legendFormat": "Hit Rate"}],
+      "fieldConfig": {
+        "defaults": {"unit": "percent", "min": 0, "max": 100},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Normalization Pipeline Throughput",
+      "type": "timeseries",
+      "gridPos": {"x": 8, "y": 12, "w": 8, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "rate(magenta_normalization_total[5m])", "legendFormat": "Total"},
+                  {"expr": "rate(magenta_normalization_errors_total[5m])", "legendFormat": "Errors"}],
+      "fieldConfig": {
+        "defaults": {"unit": "ops", "min": 0},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Normalization Latency (P95)",
+      "type": "timeseries",
+      "gridPos": {"x": 16, "y": 12, "w": 8, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "histogram_quantile(0.95, rate(magenta_normalization_duration_seconds_bucket[5m]))", "legendFormat": "P95"}],
+      "fieldConfig": {
+        "defaults": {"unit": "s", "min": 0},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Directive Type Breakdown",
+      "type": "piechart",
+      "gridPos": {"x": 0, "y": 18, "w": 8, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "sum(magenta_directive_issued_total) by (type)", "legendFormat": "{{type}}"}],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "title": "System Health Summary",
+      "type": "stat",
+      "gridPos": {"x": 8, "y": 18, "w": 4, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "magenta_system_healthy", "legendFormat": "Health"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "red", "value": null},
+            {"color": "green", "value": 1}
+          ]}
+        }
+      }
+    },
+    {
+      "title": "Active Agents by Role",
+      "type": "barchart",
+      "gridPos": {"x": 12, "y": 18, "w": 6, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "magenta_agent_active_total", "legendFormat": "{{role}}"}],
+      "fieldConfig": {
+        "defaults": {"unit": "none"},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Policy Override Activity",
+      "type": "timeseries",
+      "gridPos": {"x": 18, "y": 18, "w": 6, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "rate(magenta_policy_override_total[5m])", "legendFormat": "Overrides"}],
+      "fieldConfig": {
+        "defaults": {"unit": "ops", "min": 0},
+        "overrides": []
+      }
+    }
+  ],
+  "schemaVersion": 38,
+  "time": {"from": "now-6h", "to": "now"},
+  "refresh": "30s"
+}

@@ -7,7 +7,7 @@ from datetime import datetime
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from magenta.api.routes import agents, missions, playbooks, health, search, dictator
+from magenta.api.routes import agents, missions, playbooks, health, search, dictator, approvals, monitoring, instrumentation
 from magenta import __about__
 
 
@@ -43,6 +43,9 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix="/api/v1/health", tags=["Health"])
     app.include_router(search.router, prefix="/api/v1/search", tags=["Search"])
     app.include_router(dictator.router, prefix="/api/v1/dictator", tags=["Dictator"])
+    app.include_router(approvals.router, prefix="/api/v1/approvals", tags=["Approvals"])
+    app.include_router(monitoring.router, prefix="/api/v1/monitoring", tags=["Monitoring"])
+    app.include_router(instrumentation.router, prefix="/api/v1/instrumentation", tags=["Instrumentation"])
 
     @app.get("/")
     async def root():

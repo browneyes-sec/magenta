@@ -1,13 +1,17 @@
-"""Response execution — action executor, approval gate."""
+"""Response execution — action executor, approval gate with Redis persistence."""
 
 from typing import Any, Optional, Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import uuid4
+import json
+import logging
 
 from magenta.core.models import (
     ActionType, ActionStatus, ApprovalState, ApprovalRequest, Target, TargetType
 )
 from magenta.exceptions import ApprovalError
+
+logger = logging.getLogger(__name__)
 
 
 class ActionExecutor:
@@ -68,8 +72,6 @@ class ActionExecutor:
         risk_score: int,
     ) -> ApprovalRequest:
         """Request human approval for a high-risk action."""
-        from datetime import timedelta
-
         request = ApprovalRequest(
             correlation_id=str(uuid4()),
             agent_id="executor",
@@ -79,6 +81,9 @@ class ActionExecutor:
             reasoning=f"Risk score {risk_score} exceeds threshold of 60",
             expires_at=datetime.utcnow() + timedelta(minutes=15),
         )
+
+        # Persist to Redis (best-effort, in-memory fallback)
+        await _persist_approval(request)
 
         for cb in self._approval_callbacks:
             await cb(request)
@@ -114,7 +119,7 @@ class ActionExecutor:
 
 
 class ApprovalGate:
-    """Manages the approval lifecycle."""
+    """Manages the approval lifecycle with Redis persistence."""
 
     def __init__(self):
         self._approvals: dict[str, ApprovalRequest] = {}
@@ -127,6 +132,8 @@ class ApprovalGate:
 
         if datetime.utcnow() > request.expires_at:
             raise ApprovalError(f"Approval {approval_id} has expired")
+
+        await _remove_persisted(approval_id)
 
         return {
             "status": "approved",
@@ -142,6 +149,8 @@ class ApprovalGate:
         if not request:
             raise ApprovalError(f"Approval {approval_id} not found")
 
+        await _remove_persisted(approval_id)
+
         return {
             "status": "rejected",
             "approval_id": approval_id,
@@ -151,17 +160,73 @@ class ApprovalGate:
 
     async def list_pending(self) -> list[dict]:
         """List pending approvals."""
+        await _load_persisted_approvals(self._approvals)
+
         return [
             {
                 "id": cid,
                 "action": req.action.value,
                 "target": req.target.id,
                 "risk_score": req.risk_score,
+                "reasoning": req.reasoning[:80],
                 "expires_at": req.expires_at.isoformat(),
             }
             for cid, req in self._approvals.items()
             if req.expires_at > datetime.utcnow()
         ]
+
+
+async def _persist_approval(request: ApprovalRequest) -> None:
+    """Persist approval request to Redis (best-effort, in-memory fallback)."""
+    key = f"approval:{request.correlation_id}"
+    try:
+        from magenta.gateway.redis_client import redis_client
+        await redis_client.setex(key, 900, request.model_dump_json())
+    except Exception:
+        logger.debug("Redis unavailable, approval stored in-memory only")
+    from magenta.response.executor import approval_gate
+    approval_gate._approvals[request.correlation_id] = request
+
+
+async def _remove_persisted(approval_id: str) -> None:
+    """Remove persisted approval after it's handled."""
+    key = f"approval:{approval_id}"
+    try:
+        from magenta.gateway.redis_client import redis_client
+        await redis_client.delete(key)
+    except Exception:
+        pass
+    from magenta.response.executor import approval_gate
+    approval_gate._approvals.pop(approval_id, None)
+
+
+async def _load_persisted_approvals(in_memory: dict) -> None:
+    """Load approvals from Redis into in-memory store (best-effort)."""
+    try:
+        from magenta.gateway.redis_client import redis_client
+        keys = await redis_client.keys("approval:*")
+        for key in keys:
+            if key not in in_memory:
+                data = await redis_client.get(key)
+                if data:
+                    parsed = json.loads(data)
+                    expires = datetime.fromisoformat(
+                        parsed["expires_at"].replace("Z", "+00:00")[:19]
+                    )
+                    if expires > datetime.utcnow():
+                        request = ApprovalRequest(
+                            correlation_id=parsed["correlation_id"],
+                            agent_id=parsed["agent_id"],
+                            action=ActionType(parsed["action"]),
+                            target=Target(**parsed["target"]),
+                            risk_score=parsed["risk_score"],
+                            reasoning=parsed["reasoning"],
+                            expires_at=expires,
+                            model=parsed.get("model", ""),
+                        )
+                        in_memory[request.correlation_id] = request
+    except Exception:
+        pass
 
 
 action_executor = ActionExecutor()

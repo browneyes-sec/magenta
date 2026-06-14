@@ -54,7 +54,10 @@ def issue_directive(
     reason: str = "",
     priority: DirectivePriority = DirectivePriority.normal,
 ) -> Directive:
-    """Create and log a new directive through the Dictator state."""
+    """Create and log a new directive through the Dictator state.
+
+    Emits OTel span and writes to Elasticsearch (best-effort).
+    """
     from magenta.dictator.state import dictator_state
 
     directive = Directive(
@@ -66,4 +69,16 @@ def issue_directive(
         reason=reason,
     )
     dictator_state.log_directive(directive.dict())
+
+    # Telemetry — best-effort, non-blocking
+    from magenta.dictator.telemetry import emit_directive_span
+    emit_directive_span(directive.dict())
+
+    try:
+        from magenta.dictator.telemetry import write_directive_to_elastic
+        import asyncio
+        asyncio.ensure_future(write_directive_to_elastic(directive.dict()))
+    except Exception:
+        pass
+
     return directive
