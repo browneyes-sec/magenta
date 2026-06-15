@@ -135,6 +135,18 @@ Every data product is a versioned, documented, queryable asset published by a so
 | `agent.memory.semantic` | Knowledge base, playbooks, runbooks | `mem-semantic` | Indefinite |
 | `agent.memory.procedural` | Tool usage patterns, delegation history | `mem-procedural` | 30 days |
 
+### 3.7 Endpoint & Cloud Log Data Products (ADR-011)
+
+| Product | Source | Vectorized | Qdrant Collection | Primary Consumer |
+|---|---|---|---|---|
+| `endpoint.windows.events` | WEF / AMA / WAC | Yes | `endpoint_windows` | Investigate agent |
+| `endpoint.linux.syslog` | rsyslog / Fluent Bit | Yes | `endpoint_linux` | Investigate agent |
+| `customer.logs.custom` | SFTP / HTTPS drops | Yes | `customer_custom` | Mission-specific RAG |
+| `cloud.azure.activity` | Azure Monitor / DCR | Yes | `cloud_azure` | Enrichment, compliance |
+| `cloud.azure.identity` | Entra ID Graph API | Yes | `cloud_azure_identity` | Identity audit |
+| `cloud.aws.activity` | CloudTrail → Event Hubs | Yes | `cloud_aws` | Enrichment |
+| `cloud.gcp.activity` | Cloud Logging → Event Hubs | Yes | `cloud_gcp` | Enrichment |
+
 ---
 
 ## 4. Vectorization Pipeline
@@ -150,6 +162,11 @@ Every data product is a versioned, documented, queryable asset published by a so
 | Identity directory | Entity → embedding | N/A | N/A |
 | Threat intel reports | Semantic split (paragraph) | 1024 tokens | 128 tokens |
 | Agent decision logs | Turn-level | 2048 tokens | 256 tokens |
+| Windows Event XML | Semantic split on message body | 512 tokens | 64 tokens |
+| Linux syslog (single-line) | Line-level | 256 tokens | 0 |
+| Linux syslog (multi-line stack trace) | Stack trace grouping | 1024 tokens | 128 tokens |
+| Cloud JSON (Azure/AWS/GCP activity) | Document-level (one activity = one embedding) | N/A | N/A |
+| Customer custom (CSV/JSON/CEF) | Configurable per-source (TOML defined) | 512 tokens | 64 tokens |
 
 ### 4.2 Embedding Configuration
 
@@ -475,11 +492,13 @@ Each data product publishes its schema to a central registry:
 - [x] Architecture documented
 - [x] Docker Compose for local dev
 - [x] K8s manifests for Qdrant, OLLAMA, mesh-gateway
+- [ ] Telemetry collection plane (ADR-011): raw-logs topic, Log Normalizer, ingest API
 - [ ] Vectorization pipeline: chunker → embedder → indexer
 - [ ] CDC connectors for external SQL (Debezium)
 - [ ] CDC connectors for NoSQL (MongoDB, Cosmos)
 - [ ] Mesh gateway: `/query`, `/ingest`, `/products`, `/health`
 - [ ] Agent memory integration: episodic + semantic writes
+- [ ] Endpoint/cloud data product ingestion in mesh catalog
 
 ### Phase 2 (Next) — Analytics + Binary
 

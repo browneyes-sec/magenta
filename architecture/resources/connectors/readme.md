@@ -151,6 +151,47 @@ async def handle_webhook(payload: dict) -> dict:
     return {"mission_id": mission.mission_id, "status": "mission_created"}
 ```
 
+## Endpoint & Cloud Collectors (ADR-011)
+
+New collector types extending the connector inventory for Tier 2 (Cloud) and Tier 3 (Endpoint/Customer):
+
+### Collector Inventory (Additions)
+
+| Collector | Source | Trigger | Protocol | Auth | Code Location |
+|---|---|---|---|---|---|
+| Azure DCR Collector | Azure Monitor / LA | Diagnostic Settings → Event Hubs | Event Hubs | Managed Identity | `integration/collectors/azure_dcr.py` |
+| Entra ID Log Poller | Microsoft Graph API | Timer (5 min) | REST API (`/auditLogs`) | Entra ID App + MI | `integration/collectors/entra_logs.py` |
+| AWS CloudTrail Collector | CloudTrail S3 / EventBridge | S3 Event → Event Hubs | S3 + EventBridge | AWS IAM Role | `integration/collectors/aws_cloudtrail.py` |
+| GCP Cloud Logging Collector | Cloud Logging | Pub/Sub push → Event Hubs | Pub/Sub + Event Hubs bridge | GCP SA + Workload Identity | `integration/collectors/gcp_logging.py` |
+| Linux Fluent Bit Collector | rsyslog / journald | HTTPS POST to ingest API | TLS 1.3 + mTLS | mTLS certificate | `integration/collectors/linux_fluentbit.py` |
+| Windows WAC Collector | Windows Event Log | WAC gateway → HTTPS → ingest API | TLS 1.3 + Entra ID | Entra ID + RBAC | `integration/collectors/windows_wac.py` |
+| Windows WinRM Collector | Windows Event Log | WinRM over SSL (5986) | TLS + gMSA | gMSA | `integration/collectors/windows_winrm.py` |
+| Customer SFTP Collector | Customer file drops | SFTP/FTPS poll → ingest API | SSH / TLS | SSH key / cert | `integration/collectors/customer_sftp.py` |
+| Generic HTTPS Ingest | Any source with HTTPS | POST to `POST /ingest/v1/logs` | TLS 1.3 | mTLS or HMAC-SHA256 | `api/routes/ingest.py` |
+
+### Terraform Modules
+
+Collector infrastructure is provisioned via per-provider Terraform modules (per ADR-005):
+
+| Module | Provider | Location |
+|---|---|---|
+| `collectors/azure-dcr/` | Azure | `soa/terraform/modules/collectors/azure-dcr/` |
+| `collectors/aws-cloudtrail/` | AWS | `soa/terraform/modules/collectors/aws-cloudtrail/` |
+| `collectors/gcp-logging/` | GCP | `soa/terraform/modules/collectors/gcp-logging/` |
+| `collectors/ingest-gateway/` | Multi-cloud | `soa/terraform/modules/collectors/ingest-gateway/` |
+
+### Error Handling (Collectors)
+
+| Scenario | Behavior |
+|---|---|
+| Source unavailable | Buffer locally on collector, exponential backoff retry, alert if > 5 min |
+| Ingest API unreachable | Buffer to local disk (Spillover), replay on recovery |
+| Payload too large | Split into 1 MB chunks, publish with `chunk_seq` header |
+| Auth failure | Disable collector, alert operations, log to dead-letter |
+| TLS cert expiry | Alert 30 days before expiry, auto-renew via ACME / Key Vault |
+
+---
+
 ## Connector Health
 
 ```python
@@ -160,6 +201,9 @@ async def connector_health():
         "sentinel": {"status": "healthy", "last_poll": "...", "missed_polls": 0, "alerts_today": 142},
         "splunk": {"status": "healthy", "last_poll": "...", "missed_polls": 1, "alerts_today": 89},
         "soar_audit": {"status": "degraded", "last_poll": "5m ago", "missed_polls": 3},
+        "azure_dcr": {"status": "healthy", "bytes_ingested": 2048576, "eps": 1420},
+        "aws_cloudtrail": {"status": "healthy", "bytes_ingested": 894567, "eps": 340},
+        "linux_fluentbit": {"status": "healthy", "connected_hosts": 12, "eps": 280},
     }
 ```
 
@@ -172,3 +216,7 @@ async def connector_health():
 | Webhook failure rate > 2% | Warning |
 | API rate limit hits > 0 | Warning — adjust poll interval |
 | Payload parse error rate > 2% | Investigate schema drift |
+| Collector ingest throughput drop > 20% | Warning — source or network issue |
+| TLS cert expiry < 30 days | Warning |
+| Local collector buffer > 80% | Warning — replay needed |
+| Consumer group lag (log-normalizer) > 1000 | Critical |
