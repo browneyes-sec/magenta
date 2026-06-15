@@ -46,7 +46,7 @@ class MockAgent(BaseAgent):
 # ── Fixtures ──────────────────────────────────────────────────────
 
 @pytest.fixture(autouse=True)
-def reset_state():
+async def reset_state():
     """Reset all global state before each test."""
     # Reset Dictator state
     dictator_state.active_missions.clear()
@@ -62,7 +62,7 @@ def reset_state():
     mission_manager._missions.clear()
 
     # Reset policy overrides
-    policy_engine.clear_overrides()
+    await policy_engine.clear_overrides()
 
     yield
 

@@ -10,15 +10,94 @@ from magenta.core.models import (
     ActionType, ActionStatus, ApprovalState, ApprovalRequest, Target, TargetType
 )
 from magenta.exceptions import ApprovalError
+from magenta.orchestration.state import InMemoryStateStore
 
 logger = logging.getLogger(__name__)
+
+
+class DurableApprovalStore:
+    """Redis-backed persistence for approval requests.
+
+    Owns its Redis connection. Falls back to in-memory if Redis is unavailable.
+    """
+
+    def __init__(self, redis_url: str = ""):
+        self._redis_url = redis_url or "redis://localhost:6379/0"
+        self._redis = None
+        self._in_memory: dict[str, ApprovalRequest] = {}
+
+    async def _ensure_redis(self) -> Any:
+        if self._redis is not None:
+            return self._redis
+        try:
+            import redis.asyncio as aioredis
+            client = aioredis.from_url(self._redis_url, decode_responses=True)
+            await client.ping()
+            self._redis = client
+        except Exception:
+            self._redis = False
+        return self._redis
+
+    async def save(self, request: ApprovalRequest, ttl: int = 900) -> None:
+        key = f"approval:{request.correlation_id}"
+        self._in_memory[request.correlation_id] = request
+        client = await self._ensure_redis()
+        if client:
+            try:
+                await client.setex(key, ttl, request.model_dump_json())
+            except Exception as exc:
+                logger.debug("Redis save failed for %s: %s", key, exc)
+
+    async def remove(self, approval_id: str) -> None:
+        self._in_memory.pop(approval_id, None)
+        client = await self._ensure_redis()
+        if client:
+            try:
+                await client.delete(f"approval:{approval_id}")
+            except Exception:
+                pass
+
+    async def load_all(self) -> dict[str, ApprovalRequest]:
+        now = datetime.utcnow()
+        client = await self._ensure_redis()
+        if client:
+            try:
+                keys = await client.keys("approval:*")
+                for key in keys:
+                    name = key.split(":", 1)[1]
+                    if name in self._in_memory:
+                        continue
+                    data = await client.get(key)
+                    if data:
+                        parsed = json.loads(data)
+                        expires = datetime.fromisoformat(
+                            parsed["expires_at"].replace("Z", "+00:00")[:19]
+                        )
+                        if expires > now:
+                            self._in_memory[name] = ApprovalRequest(
+                                correlation_id=parsed["correlation_id"],
+                                agent_id=parsed["agent_id"],
+                                action=ActionType(parsed["action"]),
+                                target=Target(**parsed["target"]),
+                                risk_score=parsed["risk_score"],
+                                reasoning=parsed["reasoning"],
+                                expires_at=expires,
+                                model=parsed.get("model", ""),
+                            )
+            except Exception:
+                pass
+        return self._in_memory
+
+    def get(self, approval_id: str) -> Optional[ApprovalRequest]:
+        return self._in_memory.get(approval_id)
 
 
 class ActionExecutor:
     """Executes response actions with idempotency and approval gating."""
 
-    def __init__(self):
+    def __init__(self, approval_store: Optional[DurableApprovalStore] = None):
         self._approval_callbacks: list[Callable] = []
+        self._approval_store = approval_store or DurableApprovalStore()
 
     async def execute(
         self,
@@ -30,10 +109,19 @@ class ActionExecutor:
         """Execute an action, checking approval gate first."""
         from magenta.orchestration.state import state_store
 
-        # Idempotency check
-        idempotency_key = f"{action.value}:{target.id}"
-        if await state_store.exists(f"idempotency:{idempotency_key}"):
-            return {"status": "duplicate", "action": action.value, "target": target.id}
+        # Idempotency check using SETNX atomicity
+        idempotency_key = f"idempotency:{action.value}:{target.id}"
+        if isinstance(state_store, InMemoryStateStore):
+            if await state_store.exists(idempotency_key):
+                return {"status": "duplicate", "action": action.value, "target": target.id}
+        else:
+            set_ok = await state_store.setnx(
+                idempotency_key,
+                {"executed_at": datetime.utcnow().isoformat()},
+                ttl_seconds=86400,
+            )
+            if not set_ok:
+                return {"status": "duplicate", "action": action.value, "target": target.id}
 
         # Approval gate
         risk_score = self._calculate_risk(action, target)
@@ -51,12 +139,13 @@ class ActionExecutor:
                     "risk_score": risk_score,
                 }
 
-        # Execute
-        await state_store.set(
-            f"idempotency:{idempotency_key}",
-            {"executed_at": datetime.utcnow().isoformat()},
-            ttl_seconds=86400,
-        )
+        # Execute (mark idempotency for in-memory store)
+        if isinstance(state_store, InMemoryStateStore):
+            await state_store.set(
+                idempotency_key,
+                {"executed_at": datetime.utcnow().isoformat()},
+                ttl_seconds=86400,
+            )
 
         return {
             "status": "executed",
@@ -82,8 +171,7 @@ class ActionExecutor:
             expires_at=datetime.utcnow() + timedelta(minutes=15),
         )
 
-        # Persist to Redis (best-effort, in-memory fallback)
-        await _persist_approval(request)
+        await self._approval_store.save(request)
 
         for cb in self._approval_callbacks:
             await cb(request)
@@ -121,11 +209,16 @@ class ActionExecutor:
 class ApprovalGate:
     """Manages the approval lifecycle with Redis persistence."""
 
-    def __init__(self):
+    def __init__(self, approval_store: Optional[DurableApprovalStore] = None):
+        self._store = approval_store or DurableApprovalStore()
         self._approvals: dict[str, ApprovalRequest] = {}
+
+    async def _refresh(self) -> None:
+        self._approvals = await self._store.load_all()
 
     async def approve(self, approval_id: str, approver_id: str, comment: str = "") -> dict:
         """Approve a pending action."""
+        await self._refresh()
         request = self._approvals.get(approval_id)
         if not request:
             raise ApprovalError(f"Approval {approval_id} not found")
@@ -133,7 +226,7 @@ class ApprovalGate:
         if datetime.utcnow() > request.expires_at:
             raise ApprovalError(f"Approval {approval_id} has expired")
 
-        await _remove_persisted(approval_id)
+        await self._store.remove(approval_id)
 
         return {
             "status": "approved",
@@ -145,11 +238,12 @@ class ApprovalGate:
 
     async def reject(self, approval_id: str, reason: str = "") -> dict:
         """Reject a pending action."""
+        await self._refresh()
         request = self._approvals.get(approval_id)
         if not request:
             raise ApprovalError(f"Approval {approval_id} not found")
 
-        await _remove_persisted(approval_id)
+        await self._store.remove(approval_id)
 
         return {
             "status": "rejected",
@@ -160,7 +254,7 @@ class ApprovalGate:
 
     async def list_pending(self) -> list[dict]:
         """List pending approvals."""
-        await _load_persisted_approvals(self._approvals)
+        await self._refresh()
 
         return [
             {
@@ -174,59 +268,6 @@ class ApprovalGate:
             for cid, req in self._approvals.items()
             if req.expires_at > datetime.utcnow()
         ]
-
-
-async def _persist_approval(request: ApprovalRequest) -> None:
-    """Persist approval request to Redis (best-effort, in-memory fallback)."""
-    key = f"approval:{request.correlation_id}"
-    try:
-        from magenta.gateway.redis_client import redis_client
-        await redis_client.setex(key, 900, request.model_dump_json())
-    except Exception:
-        logger.debug("Redis unavailable, approval stored in-memory only")
-    from magenta.response.executor import approval_gate
-    approval_gate._approvals[request.correlation_id] = request
-
-
-async def _remove_persisted(approval_id: str) -> None:
-    """Remove persisted approval after it's handled."""
-    key = f"approval:{approval_id}"
-    try:
-        from magenta.gateway.redis_client import redis_client
-        await redis_client.delete(key)
-    except Exception:
-        pass
-    from magenta.response.executor import approval_gate
-    approval_gate._approvals.pop(approval_id, None)
-
-
-async def _load_persisted_approvals(in_memory: dict) -> None:
-    """Load approvals from Redis into in-memory store (best-effort)."""
-    try:
-        from magenta.gateway.redis_client import redis_client
-        keys = await redis_client.keys("approval:*")
-        for key in keys:
-            if key not in in_memory:
-                data = await redis_client.get(key)
-                if data:
-                    parsed = json.loads(data)
-                    expires = datetime.fromisoformat(
-                        parsed["expires_at"].replace("Z", "+00:00")[:19]
-                    )
-                    if expires > datetime.utcnow():
-                        request = ApprovalRequest(
-                            correlation_id=parsed["correlation_id"],
-                            agent_id=parsed["agent_id"],
-                            action=ActionType(parsed["action"]),
-                            target=Target(**parsed["target"]),
-                            risk_score=parsed["risk_score"],
-                            reasoning=parsed["reasoning"],
-                            expires_at=expires,
-                            model=parsed.get("model", ""),
-                        )
-                        in_memory[request.correlation_id] = request
-    except Exception:
-        pass
 
 
 action_executor = ActionExecutor()

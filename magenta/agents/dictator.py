@@ -271,7 +271,7 @@ teaming structures, inject probes, halt missions, and escalate incidents.""",
 
     async def apply_policy_override(self, policy: OrchestrationPolicy) -> dict:
         """Apply a temporary policy override."""
-        policy_engine.set_override(policy)
+        await policy_engine.set_override(policy)
         issue_directive(
             dtype=DirectiveType.policy_override,
             target="policy_engine",
@@ -283,7 +283,7 @@ teaming structures, inject probes, halt missions, and escalate incidents.""",
 
     async def clear_policy_overrides(self) -> dict:
         """Clear all active policy overrides."""
-        policy_engine.clear_overrides()
+        await policy_engine.clear_overrides()
         return {"status": "overrides_cleared"}
 
     # ── Oversight ─────────────────────────────────────────────────

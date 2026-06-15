@@ -234,6 +234,26 @@ module "vsphere_cluster" {
   tags = merge(var.common_tags, { provider = "vsphere" })
 }
 
+# ── Event Hubs Capture → ADLS ─────────────────────────────────────────────
+
+module "capture" {
+  source = "./modules/capture"
+  count  = var.enable_capture ? 1 : 0
+
+  environment         = var.environment
+  resource_prefix     = var.resource_prefix
+  resource_group_name = "${var.resource_prefix}-data"
+  location            = var.azure_location
+  common_tags         = var.common_tags
+
+  capture_topics       = var.capture_topics
+  topic_partitions     = var.capture_topic_partitions
+  topic_retention_days = var.capture_topic_retention_days
+  eventhub_sku         = var.capture_eventhub_sku
+  eventhub_capacity    = var.capture_eventhub_capacity
+  consumer_groups      = var.capture_consumer_groups
+}
+
 # ── Budget Management (Azure) ──────────────────────────────────────────────
 
 module "budget" {

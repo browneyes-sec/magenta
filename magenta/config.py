@@ -57,6 +57,44 @@ class ModelSettings(BaseSettings):
     groq_key: Optional[str] = None
 
 
+class CorsSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="MAGENTA_CORS_")
+    origins: list[str] = ["http://localhost:3000"]
+    allow_credentials: bool = True
+    allow_methods: list[str] = ["*"]
+    allow_headers: list[str] = ["*"]
+
+
+class AzureAuthSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="MAGENTA_AZURE_AUTH_")
+    use_default_credential: bool = True
+    tenant_id: str = ""
+    client_id: str = ""
+    client_secret: str = ""
+
+
+class EntraJWTSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="MAGENTA_ENTRA_JWT_")
+    enabled: bool = False
+    tenant_id: str = "common"
+    audience: str = "api://magenta-asoar"
+    issuer: str = "https://login.microsoftonline.com/common/v2.0"
+
+
+class SecurityHeadersSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="MAGENTA_SECURITY_HEADERS_")
+    enabled: bool = True
+    headers: dict[str, str] = {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Content-Security-Policy": "default-src 'self'",
+        "X-XSS-Protection": "0",
+        "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    }
+
+
 class CacheSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="MAGENTA_GATEWAY_CACHE_")
     enabled: bool = True
@@ -108,6 +146,10 @@ class Settings(BaseSettings):
     elastic: ElasticSettings = Field(default_factory=ElasticSettings)
     lake: LakeSettings = Field(default_factory=LakeSettings)
     nosql: NoSQLSettings = Field(default_factory=NoSQLSettings)
+    cors: CorsSettings = Field(default_factory=CorsSettings)
+    security_headers: SecurityHeadersSettings = Field(default_factory=SecurityHeadersSettings)
+    azure_auth: AzureAuthSettings = Field(default_factory=AzureAuthSettings)
+    entra_jwt: EntraJWTSettings = Field(default_factory=EntraJWTSettings)
     eventhub: EventHubSettings = Field(default_factory=EventHubSettings)
     models: ModelSettings = Field(default_factory=ModelSettings)
     gateway: GatewaySettings = Field(default_factory=GatewaySettings)

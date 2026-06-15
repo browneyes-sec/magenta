@@ -1,13 +1,23 @@
 """Entra ID (Azure AD) connector via Microsoft Graph API."""
 
 from typing import Any, Optional
+import logging
+
 import httpx
 
 from magenta.exceptions import IntegrationError
+from magenta.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class EntraIDConnector:
-    """Connector for Microsoft Entra ID via Graph API."""
+    """Connector for Microsoft Entra ID via Graph API.
+
+    Uses DefaultAzureCredential for managed identity when no explicit
+    credentials are provided. Falls back to client_credentials flow
+    for local development with explicit tenant/client/secret.
+    """
 
     def __init__(
         self,
@@ -15,14 +25,22 @@ class EntraIDConnector:
         client_id: str = "",
         client_secret: str = "",
     ):
-        self.tenant_id = tenant_id
-        self.client_id = client_id
-        self.client_secret = client_secret
+        self.tenant_id = tenant_id or settings.azure_auth.tenant_id
+        self.client_id = client_id or settings.azure_auth.client_id
+        self.client_secret = client_secret or settings.azure_auth.client_secret
         self._token: Optional[str] = None
+        self._credential = None
+        self._use_default = (
+            settings.azure_auth.use_default_credential
+            and not (self.client_id and self.client_secret)
+        )
 
     async def _get_token(self) -> str:
         if self._token:
             return self._token
+
+        if self._use_default:
+            return await self._acquire_via_default_credential()
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
@@ -38,6 +56,21 @@ class EntraIDConnector:
             data = response.json()
             self._token = data["access_token"]
             return self._token
+
+    async def _acquire_via_default_credential(self) -> str:
+        try:
+            from azure.identity.aio import DefaultAzureCredential
+
+            if self._credential is None:
+                self._credential = DefaultAzureCredential()
+            token = await self._credential.get_token(
+                "https://graph.microsoft.com/.default"
+            )
+            self._token = token.token
+            return self._token
+        except Exception as exc:
+            logger.warning("DefaultAzureCredential failed: %s", exc)
+            raise IntegrationError("Unable to authenticate with DefaultAzureCredential")
 
     async def _graph_get(self, path: str, params: dict = None) -> dict:
         token = await self._get_token()

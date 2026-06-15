@@ -312,6 +312,64 @@ variable "vsphere_worker_cidr" {
   default     = "192.168.11.0/24"
 }
 
+# ── Capture / Event Hubs ─────────────────────────────────────────────────
+
+variable "enable_capture" {
+  description = "Enable Event Hubs Capture → ADLS Gen2 module"
+  type        = bool
+  default     = false
+}
+
+variable "capture_topics" {
+  description = "Event Hubs topics with Capture enabled"
+  type        = list(string)
+  default     = ["raw-logs", "raw-alerts", "enriched-alerts", "enriched-events", "audit", "dead-letter"]
+}
+
+variable "capture_topic_partitions" {
+  description = "Partition count per capture topic"
+  type        = map(number)
+  default = {
+    "raw-logs"        = 16
+    "raw-alerts"      = 8
+    "enriched-alerts" = 8
+    "enriched-events" = 8
+    "audit"           = 4
+    "dead-letter"     = 1
+  }
+}
+
+variable "capture_topic_retention_days" {
+  description = "Message retention in days per capture topic"
+  type        = map(number)
+  default = {
+    "raw-logs"        = 7
+    "raw-alerts"      = 7
+    "enriched-alerts" = 1
+    "enriched-events" = 1
+    "audit"           = 7
+    "dead-letter"     = 2
+  }
+}
+
+variable "capture_eventhub_sku" {
+  description = "Event Hubs SKU for capture namespace"
+  type        = string
+  default     = "Standard"
+}
+
+variable "capture_eventhub_capacity" {
+  description = "Event Hubs throughput units"
+  type        = number
+  default     = 2
+}
+
+variable "capture_consumer_groups" {
+  description = "Consumer groups per capture topic"
+  type        = list(string)
+  default     = ["$Default", "normalizer", "log-normalizer", "vectorizer-logs", "orchestrator", "registry", "dlq-debug"]
+}
+
 # ── Budget ────────────────────────────────────────────────────────────────
 
 variable "budget_monthly_total" {

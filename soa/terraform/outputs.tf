@@ -48,6 +48,17 @@ output "vsphere_vms" {
   }, null)
 }
 
+output "capture" {
+  description = "Event Hubs Capture → ADLS Gen2 details"
+  value = try({
+    storage_account      = module.capture[0].storage_account_name
+    eventhub_namespace   = module.capture[0].eventhub_namespace_name
+    topic_names          = module.capture[0].topic_names
+    lake_containers      = module.capture[0].lake_containers
+    consumer_group_count = length(module.capture[0].consumer_groups)
+  }, null)
+}
+
 output "budget" {
   description = "Budget configuration summary"
   value = try({

@@ -9,8 +9,9 @@ from datetime import datetime
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from magenta.api.routes import agents, missions, playbooks, health, search, dictator, approvals, monitoring, instrumentation
+from magenta.api.routes import agents, missions, playbooks, health, search, dictator, approvals, monitoring, instrumentation, ingest
 from magenta import __about__
+from magenta.config import settings
 from magenta.dictator.state import dictator_state
 
 logger = logging.getLogger(__name__)
@@ -46,12 +47,20 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
+    if settings.entra_jwt.enabled:
+        from magenta.api.middleware.auth import EntraJWTAuthMiddleware
+        app.add_middleware(EntraJWTAuthMiddleware)
+
+    if settings.security_headers.enabled:
+        from magenta.api.middleware.security import SecurityHeadersMiddleware
+        app.add_middleware(SecurityHeadersMiddleware)
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_origins=settings.cors.origins,
+        allow_credentials=settings.cors.allow_credentials,
+        allow_methods=settings.cors.allow_methods,
+        allow_headers=settings.cors.allow_headers,
     )
 
     app.include_router(agents.router, prefix="/api/v1/agents", tags=["Agents"])
@@ -63,6 +72,7 @@ def create_app() -> FastAPI:
     app.include_router(approvals.router, prefix="/api/v1/approvals", tags=["Approvals"])
     app.include_router(monitoring.router, prefix="/api/v1/monitoring", tags=["Monitoring"])
     app.include_router(instrumentation.router, prefix="/api/v1/instrumentation", tags=["Instrumentation"])
+    app.include_router(ingest.router, prefix="/ingest", tags=["Ingest"])
 
     @app.get("/")
     async def root():
