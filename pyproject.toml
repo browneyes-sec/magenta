@@ -65,6 +65,25 @@ test = [
     "httpx>=0.26.0",
 ]
 
+# Phase 2 — Cloud connector dependencies
+aws = [
+    "aioboto3>=12.0.0",
+    "boto3>=1.34.0",
+]
+gcp = [
+    "google-cloud-pubsub>=2.21.0",
+    "google-cloud-logging>=3.10.0",
+]
+
+# Phase 3 — Endpoint collector dependencies
+collectors = [
+    "paramiko>=3.4.0",
+    "pywinrm>=0.5.0",
+    "cryptography>=42.0.0",
+]
+
+finops = ["prophet>=1.1.0"]
+
 [project.scripts]
 magenta = "magenta.main:app"
 

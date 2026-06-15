@@ -1,0 +1,81 @@
+# Collectors Configuration — Magenta Telemetry Collection Framework
+# Per ADR-003 (TOML Config Plane) and ADR-011 (Telemetry Collection Plane).
+# Each section defines a collector instance. Source onboarding follows TCF Gates 1-6.
+
+[collector.azure-monitor-prod]
+type = "azure_monitor"
+description = "Azure Monitor Log Analytics — production workspace"
+enabled = false
+poll_interval_seconds = 300
+batch_size = 5000
+options.workspace_id = ""
+options.tables = ["AzureActivity", "SecurityEvent", "SigninLogs", "Syslog"]
+options.lookback_hours = 1
+
+[collector.entra-id-prod]
+type = "entra_id"
+description = "Entra ID audit and sign-in logs via Graph API"
+enabled = false
+poll_interval_seconds = 300
+batch_size = 1000
+options.tenant_id = ""
+options.client_id = ""
+options.client_secret = ""
+options.lookback_hours = 1
+
+[collector.aws-cloudtrail-prod]
+type = "aws_cloudtrail"
+description = "AWS CloudTrail logs via S3 bucket"
+enabled = false
+poll_interval_seconds = 600
+batch_size = 5000
+options.s3_bucket = ""
+options.s3_prefix = "AWSLogs/"
+options.region = "us-east-1"
+
+[collector.gcp-logging-prod]
+type = "gcp_logging"
+description = "GCP Cloud Logging via Pub/Sub"
+enabled = false
+poll_interval_seconds = 60
+batch_size = 100
+options.gcp_project = ""
+options.pubsub_subscription = ""
+options.credentials_path = ""
+
+[collector.linux-syslog-corp]
+type = "linux_syslog"
+description = "Corporate Linux fleet — syslog via SFTP"
+enabled = false
+poll_interval_seconds = 300
+batch_size = 10000
+options.sftp_host = ""
+options.sftp_port = 22
+options.sftp_username = ""
+options.ssh_key_path = "/etc/magenta/keys/linux-collector"
+options.remote_path = "/var/log/export"
+options.file_pattern = "*.log"
+
+[collector.windows-events-corp]
+type = "windows_event"
+description = "Corporate Windows fleet — Event Log via WinRM-SSL"
+enabled = false
+poll_interval_seconds = 300
+batch_size = 5000
+options.host = ""
+options.winrm_port = 5986
+options.username = "svc-magenta-collector"
+options.password = ""
+options.transport = "ssl"
+options.event_logs = ["Security", "System", "Application"]
+options.lookback_hours = 24
+
+[collector.customer-acme-siem]
+type = "customer_sftp"
+description = "Acme Corp — SIEM log drops via SFTP"
+enabled = false
+poll_interval_seconds = 600
+batch_size = 5000
+options.sftp_host = ""
+options.drop_path = "/incoming/acme"
+options.file_pattern = "*.log"
