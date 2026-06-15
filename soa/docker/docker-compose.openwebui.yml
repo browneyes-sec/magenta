@@ -36,6 +36,7 @@ services:
       OLLAMA_NUM_PARALLEL: 2
     volumes:
       - magenta-ollama-data:/root/.ollama
+    mem_limit: 1024m
     healthcheck:
       test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/11434"]
       interval: 30s
@@ -57,11 +58,12 @@ services:
       WEBUI_SECRET_KEY: "${WEBUI_SECRET_KEY:-change-me-in-production}"
       WEBUI_NAME: Magenta ASOAR
       ENABLE_SIGNUP: "false"
-      DEFAULT_MODELS: qwen2.5:7b
+      DEFAULT_MODELS: qwen2.5:0.5b
       OPENAI_API_BASE_URL: http://magenta-pipelines:9099
       OPENAI_API_KEY: "${OPENAI_API_KEY:-sk-magenta-pipeline}"
     volumes:
       - magenta-openwebui-data:/app/backend/data
+    mem_limit: 1024m
     depends_on:
       magenta-ollama:
         condition: service_healthy
@@ -90,11 +92,12 @@ services:
     volumes:
       - ./pipelines:/app/pipelines
       - magenta-pipelines-data:/app/data
+    mem_limit: 256m
     depends_on:
       magenta-redis:
         condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:9099/health"]
+      test: ["CMD", "curl", "-sf", "http://localhost:9099/"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -107,19 +110,20 @@ services:
   magenta-mcpo:
     image: ghcr.io/open-webui/mcpo:latest
     container_name: magenta-mcpo
+    command: ["--config", "/app/mcpo-config.json", "--port", "8001"]
     ports:
       - "8001:8001"
     environment:
-      MCPO_CONFIG: /app/mcpo-config.json
       MCPO_PORT: 8001
       LOG_LEVEL: info
     volumes:
       - ./mcpo-config.json:/app/mcpo-config.json:ro
+    mem_limit: 256m
     depends_on:
       magenta-redis:
         condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8001/health"]
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/8001"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -138,8 +142,9 @@ services:
       DEFAULT_SHELL: /bin/bash
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 256m
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8082/health"]
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/8000"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -160,14 +165,12 @@ services:
     volumes:
       - ./otel/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
     command: ["--config", "/etc/otel-collector-config.yaml"]
+    mem_limit: 256m
     depends_on:
       magenta-prometheus:
         condition: service_started
     healthcheck:
-      test: ["CMD", "grpc_health_probe", "-addr=localhost:4317"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+      disable: true
     networks:
       - magenta-internal
     restart: unless-stopped
@@ -188,6 +191,7 @@ services:
       - "--storage.tsdb.path=/prometheus"
       - "--storage.tsdb.retention.time=7d"
       - "--web.enable-lifecycle"
+    mem_limit: 256m
     healthcheck:
       test: ["CMD", "wget", "-q", "-O-", "http://localhost:9090/-/healthy"]
       interval: 30s
@@ -212,6 +216,7 @@ services:
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
       - ./grafana/dashboards:/etc/grafana/dashboards:ro
       - magenta-grafana-data:/var/lib/grafana
+    mem_limit: 256m
     depends_on:
       magenta-prometheus:
         condition: service_started
@@ -241,6 +246,7 @@ services:
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: "${INFLUXDB_TOKEN:-magenta-token}"
     volumes:
       - magenta-influxdb-data:/var/lib/influxdb2
+    mem_limit: 256m
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8086/health"]
       interval: 30s
@@ -261,6 +267,7 @@ services:
       REDIS_APPENDONLY: "yes"
     volumes:
       - magenta-redis-data:/data
+    mem_limit: 128m
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s

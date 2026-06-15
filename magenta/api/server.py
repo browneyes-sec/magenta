@@ -1,5 +1,7 @@
 """FastAPI server for Magenta REST API."""
 
+import logging
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 from datetime import datetime
@@ -9,14 +11,29 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from magenta.api.routes import agents, missions, playbooks, health, search, dictator, approvals, monitoring, instrumentation
 from magenta import __about__
+from magenta.dictator.state import dictator_state
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    # Startup — connect to Redis for policy persistence
+    redis_url = os.environ.get("REDIS_URL", "redis://magenta-redis:6379/0")
+    try:
+        import redis.asyncio as aioredis
+        redis_client = aioredis.from_url(redis_url, decode_responses=True)
+        await redis_client.ping()
+        object.__setattr__(dictator_state, "_redis_client", redis_client)
+        await dictator_state.load_from_redis()
+        logger.info("Connected to Redis at %s and loaded policy overrides", redis_url)
+    except Exception as exc:
+        logger.warning("Redis unavailable at %s, continuing without persistence: %s", redis_url, exc)
     yield
     # Shutdown
-    pass
+    if dictator_state._redis_client is not None:
+        await dictator_state._redis_client.close()
+        logger.info("Redis connection closed")
 
 
 def create_app() -> FastAPI:

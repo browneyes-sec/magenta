@@ -95,8 +95,13 @@ class PolicyEngine:
 
     def set_override(self, policy: OrchestrationPolicy) -> None:
         self._overrides[policy.name] = policy
+        from magenta.dictator.state import dictator_state
+        dictator_state.set_policy(policy.name, policy.model_dump())
 
     def clear_overrides(self) -> None:
+        from magenta.dictator.state import dictator_state
+        for name in list(self._overrides.keys()):
+            dictator_state.clear_policy(name)
         self._overrides.clear()
 
     def evaluate(self, mission) -> dict[str, Any]:
