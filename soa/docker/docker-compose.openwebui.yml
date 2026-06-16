@@ -277,6 +277,53 @@ services:
       - magenta-internal
     restart: unless-stopped
 
+  # ── 11. Log Collector Sidecar ─────────────────────────────
+  # Runs magenta collector processes: Linux SFTP pull, Cloud API pollers,
+  # Customer SFTP adapter. Windows collection via WAC/WinRM runs externally.
+  magenta-collector-sidecar:
+    build:
+      context: ../..
+      dockerfile: soa/docker/Dockerfile.collector
+    container_name: magenta-collector-sidecar
+    environment:
+      MAGENTA_CONFIG_PATH: /config/collectors.toml
+      MAGENTA_EVENTHUB_CONNECTION_STRING: "${EVENTHUB_CONNECTION_STRING:-}"
+      MAGENTA_EVENTHUB_NAMESPACE: "${EVENTHUB_NAMESPACE:-}"
+      MAGENTA_AZURE_WORKSPACE_ID: "${AZURE_WORKSPACE_ID:-}"
+      MAGENTA_AZURE_TENANT_ID: "${AZURE_TENANT_ID:-}"
+      MAGENTA_AZURE_CLIENT_ID: "${AZURE_CLIENT_ID:-}"
+      MAGENTA_AZURE_CLIENT_SECRET: "${AZURE_CLIENT_SECRET:-}"
+      MAGENTA_AWS_S3_BUCKET: "${AWS_S3_BUCKET:-}"
+      MAGENTA_AWS_REGION: "${AWS_REGION:-us-east-1}"
+      MAGENTA_GCP_PROJECT: "${GCP_PROJECT:-}"
+      MAGENTA_GCP_PUBSUB_SUBSCRIPTION: "${GCP_PUBSUB_SUBSCRIPTION:-}"
+      MAGENTA_LINUX_SFTP_HOST: "${LINUX_SFTP_HOST:-}"
+      MAGENTA_LINUX_SFTP_USER: "${LINUX_SFTP_USER:-magenta-collector}"
+      MAGENTA_LINUX_SSH_KEY_PATH: /config/keys/linux-collector
+      MAGENTA_CUSTOMER_SFTP_HOST: "${CUSTOMER_SFTP_HOST:-}"
+      MAGENTA_CUSTOMER_DROP_PATH: "${CUSTOMER_DROP_PATH:-/incoming}"
+      MAGENTA_WINDOWS_WINRM_HOST: "${WINDOWS_WINRM_HOST:-}"
+      MAGENTA_WINDOWS_WINRM_USER: "${WINDOWS_WINRM_USER:-svc-magenta-collector}"
+      MAGENTA_WINDOWS_WINRM_PASSWORD: "${WINDOWS_WINRM_PASSWORD:-}"
+      MAGENTA_WINDOWS_WINRM_PORT: "5986"
+      MAGENTA_LOG_LEVEL: "INFO"
+    volumes:
+      - ./config/collectors.toml:/config/collectors.toml:ro
+      - ./config/keys:/config/keys:ro
+    mem_limit: 512m
+    depends_on:
+      magenta-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import magenta.integration.collectors; print('OK')"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
+    networks:
+      - magenta-internal
+    restart: unless-stopped
+
 volumes:
   magenta-ollama-data:
   magenta-openwebui-data:

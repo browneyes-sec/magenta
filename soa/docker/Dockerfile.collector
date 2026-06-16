@@ -1,0 +1,37 @@
+# Magenta Collector Sidecar
+# Runs Linux SFTP, Cloud API, and Customer SFTP collectors as a background service.
+
+FROM python:3.12-slim
+
+# System deps for paramiko (cryptography), pywinrm (kerberos), and cloud SDKs
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libffi-dev \
+    libssl-dev \
+    libkrb5-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python deps (core + collectors extras)
+COPY pyproject.toml uv.lock ./
+RUN pip install --no-cache-dir uv && \
+    uv pip install --system --no-cache -e ".[collectors,aws,gcp]"
+
+# Copy source
+COPY magenta/ ./magenta/
+COPY soa/config/collectors.toml ./soa/config/collectors.toml
+
+# Collector entrypoint
+COPY soa/docker/collector-entrypoint.sh /collector-entrypoint.sh
+RUN chmod +x /collector-entrypoint.sh
+
+# Non-root user
+RUN useradd -m -u 1000 magenta && \
+    mkdir -p /config/keys && \
+    chown -R magenta:magenta /app /config
+USER magenta
+
+ENTRYPOINT ["/collector-entrypoint.sh"]
+CMD ["python", "-m", "magenta.integration.collectors.runner"]
