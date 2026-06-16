@@ -17,6 +17,16 @@ except ImportError:
     _gateway = None
     USE_GATEWAY = False
 
+try:
+    from magenta.config import settings
+    from magenta.gateway.redact import RedactionLayer
+    _redact_layer = RedactionLayer(
+        enabled=settings.gateway.redaction.enabled,
+        default_fields=settings.gateway.redaction.default_fields,
+    )
+except Exception:
+    _redact_layer = None
+
 
 class LLMAgent(BaseAgent, ABC):
     """Agent that uses an LLM for reasoning and tool use."""
@@ -67,6 +77,9 @@ class LLMAgent(BaseAgent, ABC):
 
         if USE_GATEWAY and _gateway:
             return await _gateway.route(request)
+
+        if _redact_layer and _redact_layer.enabled:
+            request = await _redact_layer.apply(request)
 
         return await model_router.route(request, tier=tier)
 

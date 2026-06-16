@@ -10,6 +10,12 @@ from magenta.mesh.pipeline import VectorizationPipeline
 
 logger = logging.getLogger(__name__)
 
+try:
+    from magenta.telemetry import get_tracer
+    _tracer = get_tracer("mesh.memory")
+except Exception:
+    _tracer = None
+
 
 class MemoryMCPServer:
     """MCP tools for agent memory operations.
@@ -35,17 +41,14 @@ class MemoryMCPServer:
         correlation_id: str = "",
         metadata: dict | None = None,
     ) -> dict:
-        """Write an episodic memory (mission transcript, agent decision).
-
-        Args:
-            agent_role: Role of the agent (triage, enrichment, orchestrator, etc.)
-            mission_id: Mission this episode belongs to.
-            turn_number: Turn number within the mission.
-            text: The episode text (decision, finding, action taken).
-            correlation_id: Optional correlation ID linking to source alert.
-            metadata: Additional metadata to store with the episode.
-        """
+        """Write an episodic memory (mission transcript, agent decision)."""
+        span = _tracer.start_span("memory.write_episode") if _tracer else None
         try:
+            if span:
+                span.set_attribute("memory.type", "episodic")
+                span.set_attribute("memory.agent_role", agent_role)
+                span.set_attribute("memory.mission_id", mission_id)
+
             payload = {
                 "agent_role": agent_role,
                 "mission_id": mission_id,
@@ -64,6 +67,9 @@ class MemoryMCPServer:
                 }],
             )
 
+            if span:
+                span.set_attribute("memory.chunks_ingested", result["ingested"])
+
             return {
                 "status": "success" if result["ingested"] > 0 else "error",
                 "memory_type": "episodic",
@@ -75,7 +81,13 @@ class MemoryMCPServer:
             }
         except Exception as exc:
             logger.exception("Failed to write episodic memory")
+            if span:
+                span.set_attribute("error", True)
+                span.set_attribute("error.message", str(exc))
             return {"status": "error", "error": str(exc)}
+        finally:
+            if span:
+                span.end()
 
     async def search_episodes(
         self,
@@ -84,15 +96,13 @@ class MemoryMCPServer:
         mission_id: str = "",
         top_k: int = 5,
     ) -> dict:
-        """Search episodic memory for past agent decisions.
-
-        Args:
-            query: Natural language query.
-            agent_role: Optional filter by agent role.
-            mission_id: Optional filter by mission.
-            top_k: Number of results to return.
-        """
+        """Search episodic memory for past agent decisions."""
+        span = _tracer.start_span("memory.search_episodes") if _tracer else None
         try:
+            if span:
+                span.set_attribute("memory.type", "episodic")
+                span.set_attribute("memory.query", query[:200])
+
             filters = {}
             if agent_role:
                 filters["agent_role"] = agent_role
@@ -106,6 +116,9 @@ class MemoryMCPServer:
                 top_k=top_k,
             )
 
+            if span:
+                span.set_attribute("memory.results_count", len(results))
+
             return {
                 "status": "success",
                 "memory_type": "episodic",
@@ -113,7 +126,12 @@ class MemoryMCPServer:
                 "count": len(results),
             }
         except Exception as exc:
+            if span:
+                span.set_attribute("error", True)
             return {"status": "error", "error": str(exc)}
+        finally:
+            if span:
+                span.end()
 
     # ── Semantic Memory ─────────────────────────────────────────────────
 
@@ -125,16 +143,13 @@ class MemoryMCPServer:
         tags: list[str] | None = None,
         metadata: dict | None = None,
     ) -> dict:
-        """Write semantic memory (playbook, runbook, policy, knowledge).
-
-        Args:
-            text: The knowledge text.
-            product: Data product ID.
-            source: Source of the knowledge.
-            tags: Tags for categorization.
-            metadata: Additional metadata.
-        """
+        """Write semantic memory (playbook, runbook, policy, knowledge)."""
+        span = _tracer.start_span("memory.write_semantic") if _tracer else None
         try:
+            if span:
+                span.set_attribute("memory.type", "semantic")
+                span.set_attribute("memory.product", product)
+
             payload = {
                 "product": product,
                 "source": source,
@@ -152,6 +167,9 @@ class MemoryMCPServer:
                 }],
             )
 
+            if span:
+                span.set_attribute("memory.chunks_ingested", result["ingested"])
+
             return {
                 "status": "success" if result["ingested"] > 0 else "error",
                 "memory_type": "semantic",
@@ -160,7 +178,12 @@ class MemoryMCPServer:
             }
         except Exception as exc:
             logger.exception("Failed to write semantic memory")
+            if span:
+                span.set_attribute("error", True)
             return {"status": "error", "error": str(exc)}
+        finally:
+            if span:
+                span.end()
 
     async def search_semantic(
         self,
@@ -169,15 +192,13 @@ class MemoryMCPServer:
         tags: list[str] | None = None,
         top_k: int = 5,
     ) -> dict:
-        """Search semantic memory for reusable knowledge.
-
-        Args:
-            query: Natural language query.
-            product: Optional filter by data product.
-            tags: Optional filter by tags.
-            top_k: Number of results to return.
-        """
+        """Search semantic memory for reusable knowledge."""
+        span = _tracer.start_span("memory.search_semantic") if _tracer else None
         try:
+            if span:
+                span.set_attribute("memory.type", "semantic")
+                span.set_attribute("memory.query", query[:200])
+
             filters = {}
             if product:
                 filters["product"] = product
@@ -191,6 +212,9 @@ class MemoryMCPServer:
                 top_k=top_k,
             )
 
+            if span:
+                span.set_attribute("memory.results_count", len(results))
+
             return {
                 "status": "success",
                 "memory_type": "semantic",
@@ -198,7 +222,12 @@ class MemoryMCPServer:
                 "count": len(results),
             }
         except Exception as exc:
+            if span:
+                span.set_attribute("error", True)
             return {"status": "error", "error": str(exc)}
+        finally:
+            if span:
+                span.end()
 
     # ── Procedural Memory ───────────────────────────────────────────────
 
@@ -210,19 +239,16 @@ class MemoryMCPServer:
         mission_id: str = "",
         metadata: dict | None = None,
     ) -> dict:
-        """Write procedural memory (tool invocation pattern).
-
-        Args:
-            tool_name: Name of the tool invoked.
-            text: Description of the tool usage pattern.
-            parameters: Parameters used in the invocation.
-            mission_id: Mission where this pattern was observed.
-            metadata: Additional metadata.
-        """
+        """Write procedural memory (tool invocation pattern)."""
         import hashlib
         import json
 
+        span = _tracer.start_span("memory.write_procedure") if _tracer else None
         try:
+            if span:
+                span.set_attribute("memory.type", "procedural")
+                span.set_attribute("memory.tool_name", tool_name)
+
             params_hash = hashlib.sha256(
                 json.dumps(parameters or {}, sort_keys=True, default=str).encode()
             ).hexdigest()[:16]
@@ -244,6 +270,9 @@ class MemoryMCPServer:
                 }],
             )
 
+            if span:
+                span.set_attribute("memory.chunks_ingested", result["ingested"])
+
             return {
                 "status": "success" if result["ingested"] > 0 else "error",
                 "memory_type": "procedural",
@@ -253,7 +282,12 @@ class MemoryMCPServer:
             }
         except Exception as exc:
             logger.exception("Failed to write procedural memory")
+            if span:
+                span.set_attribute("error", True)
             return {"status": "error", "error": str(exc)}
+        finally:
+            if span:
+                span.end()
 
     async def search_procedures(
         self,
@@ -261,14 +295,13 @@ class MemoryMCPServer:
         tool_name: str = "",
         top_k: int = 5,
     ) -> dict:
-        """Search procedural memory for tool usage patterns.
-
-        Args:
-            query: Natural language query.
-            tool_name: Optional filter by tool name.
-            top_k: Number of results to return.
-        """
+        """Search procedural memory for tool usage patterns."""
+        span = _tracer.start_span("memory.search_procedures") if _tracer else None
         try:
+            if span:
+                span.set_attribute("memory.type", "procedural")
+                span.set_attribute("memory.query", query[:200])
+
             filters = {}
             if tool_name:
                 filters["tool_name"] = tool_name
@@ -280,6 +313,9 @@ class MemoryMCPServer:
                 top_k=top_k,
             )
 
+            if span:
+                span.set_attribute("memory.results_count", len(results))
+
             return {
                 "status": "success",
                 "memory_type": "procedural",
@@ -287,7 +323,12 @@ class MemoryMCPServer:
                 "count": len(results),
             }
         except Exception as exc:
+            if span:
+                span.set_attribute("error", True)
             return {"status": "error", "error": str(exc)}
+        finally:
+            if span:
+                span.end()
 
     # ── MCP Tool Definitions ────────────────────────────────────────────
 

@@ -3,17 +3,27 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import re
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
 from uuid import uuid4
 
-from magenta.exceptions import IntegrationError
 from magenta.integration.eventhub import IdempotencyGuard
 
 logger = logging.getLogger(__name__)
+
+# ── PII Redaction for Log Envelopes ────────────────────────────────────────
+
+_PII_FIELDS_TO_REDACT = {
+    "username", "user", "email", "ipaddress", "ip_address",
+    "hostname", "source_host", "ActorUsername", "TargetIPAddress",
+    "ProcessName", "SubjectUserName", "IpAddress",
+}
+
+_PII_KEY_PATTERNS = re.compile(
+    r"(?:user(?:name)?|email|ip(?:_?address)?|hostname|password|api[_-]?key|token|secret)",
+    re.I,
+)
 
 # ── Source Detection ───────────────────────────────────────────────────────
 
@@ -26,16 +36,34 @@ WINDOWS_EVENT_PATTERNS = [
 SYSLOG_PRIORITY_RE = re.compile(r"<(\d+)>")
 
 
+def _flatten_dict(d: dict, prefix: str = "") -> dict:
+    """Flatten nested dict for pattern matching."""
+    items = {}
+    for k, v in d.items():
+        new_key = f"{prefix}.{k}" if prefix else k
+        if isinstance(v, dict):
+            items.update(_flatten_dict(v, new_key))
+        else:
+            items[new_key] = v
+    return items
+
+
 def detect_source(payload: dict, raw_body: str = "") -> str:
     """Detect source_system from payload shape or raw text."""
+    # Check for Windows Event structure (System/EventID nested)
+    flat = _flatten_dict(payload)
+    if any("EventID" in k for k in flat.keys()):
+        return "windows_event"
     if any(p.search(str(payload)) for p in WINDOWS_EVENT_PATTERNS):
         return "windows_event"
     if SYSLOG_PRIORITY_RE.match(raw_body.lstrip()):
         return "linux_syslog"
-    if "Records" in payload or "operationName" in payload:
-        return "cloud.azure"
+    # Check AWS CloudTrail first (has Records with eventSource)
     if "Records" in payload and "eventSource" in payload.get("Records", [{}])[0]:
         return "cloud.aws"
+    # Then Azure (has Records or operationName)
+    if "Records" in payload or "operationName" in payload:
+        return "cloud.azure"
     if "insertId" in payload or "jsonPayload" in payload:
         return "cloud.gcp"
     return "customer.custom"
@@ -51,12 +79,6 @@ class WindowsEventMapper:
     @classmethod
     def map(cls, payload: dict) -> dict:
         system = payload.get("System", payload)
-        event_data = payload.get("EventData", {}).get("Data", [])
-        data_map = {d.get("" if isinstance(d, str) else d.get("@Name", "")).replace("{", "").replace("}", ""):
-                    d.get("#text", d) if isinstance(d, dict) else d
-                    for d in (event_data if isinstance(event_data, list) else [])}
-
-        severity_num = str(system.get("Level", "4"))
         data_map = {}
         raw_data = payload.get("EventData", {})
         if isinstance(raw_data, dict):
@@ -67,6 +89,8 @@ class WindowsEventMapper:
                         name = item.get("@Name", "")
                         val = item.get("#text", "")
                         data_map[name] = val
+
+        severity_num = str(system.get("Level", "4"))
 
         return {
             "normalized_fields": {
@@ -121,7 +145,7 @@ class SyslogMapper:
 
     @staticmethod
     def _extract_user(msg: str) -> str:
-        m = re.search(r"(?:user|USER)\s+(\S+)", msg)
+        m = re.search(r"(?:for|user|USER)\s+(\S+)", msg)
         return m.group(1) if m else ""
 
     @staticmethod
@@ -160,17 +184,26 @@ class CloudMapper:
         identity = record.get("identity", {}) or {}
         claims = identity.get("claims", {}) if isinstance(identity, dict) else {}
 
+        # Support both claims-based and simple caller field
+        actor = claims.get("name", claims.get("upn", ""))
+        if not actor:
+            actor = record.get("caller", "")
+
         return {
             "normalized_fields": {
                 "EventID": record.get("correlationId", ""),
-                "ActorUsername": claims.get("name", claims.get("upn", "")),
-                "TargetIPAddress": record.get("callerIpAddress", ""),
+                "ActorUsername": actor,
+                "TargetIPAddress": record.get("callerIpAddress", record.get("callerIp", "")),
                 "ProcessName": "",
             },
             "source_host": "",
             "timestamp": record.get("eventTimestamp", record.get("time", "")),
             "severity": _azure_severity(record.get("level", "")),
-            "category": record.get("operationName", "").split("/")[-1] if "/" in record.get("operationName", "") else record.get("operationName", ""),
+            "category": (
+                record.get("operationName", "").split("/")[-1]
+                if "/" in record.get("operationName", "")
+                else record.get("operationName", "")
+            ),
             "tags": ["resource:" + record.get("resourceId", "").split("/")[-1]],
         }
 
@@ -235,7 +268,7 @@ class LogNormalizer:
         self,
         raw_event: dict,
         raw_body: str = "",
-    ) -> Optional[dict]:
+    ) -> dict | None:
         source = detect_source(raw_event, raw_body)
         mapper_cls = MAPPERS.get(source)
 
@@ -257,6 +290,27 @@ class LogNormalizer:
                 logger.debug("Duplicate event dropped idem_key=%s", idem_key[:16])
                 return None
 
+        if self._redact_pii:
+            envelope = self._redact_envelope_pii(envelope)
+
+        return envelope
+
+    def _redact_envelope_pii(self, envelope: dict) -> dict:
+        """Redact PII from normalized_fields and source_host in the envelope."""
+        fields = envelope.get("normalized_fields", {})
+        for key, value in fields.items():
+            if key in _PII_FIELDS_TO_REDACT or _PII_KEY_PATTERNS.search(key):
+                if isinstance(value, str) and value:
+                    fields[key] = "[REDACTED]"
+
+        source_host = envelope.get("source_host", "")
+        if source_host and _PII_KEY_PATTERNS.search(source_host):
+            envelope["source_host"] = "[REDACTED]"
+
+        for tag in envelope.get("tags", []):
+            if isinstance(tag, str) and _PII_KEY_PATTERNS.search(tag):
+                envelope["tags"][envelope["tags"].index(tag)] = "[REDACTED]"
+
         return envelope
 
     def _build_envelope(self, raw: dict, source: str, mapped: dict) -> dict:
@@ -265,9 +319,11 @@ class LogNormalizer:
 
         timestamp = mapped.get("timestamp") or raw.get("timestamp", "")
         if not timestamp:
-            timestamp = datetime.now(timezone.utc).isoformat()
+            timestamp = datetime.now(UTC).isoformat()
 
-        idem_raw = f"{source}|{timestamp}|{mapped.get('source_host', '')}|{merged.get('EventID', event_id[:8])}"
+        source_host = mapped.get("source_host", "")
+        event_id_field = merged.get("EventID", event_id[:8])
+        idem_raw = f"{source}|{timestamp}|{source_host}|{event_id_field}"
         idempotency_key = hashlib.sha256(idem_raw.encode()).hexdigest()
 
         return {

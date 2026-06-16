@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+from magenta.mesh.bm25 import TantivyBM25Sidecar
 from magenta.mesh.config import MeshConfig
 
 logger = logging.getLogger(__name__)
@@ -188,7 +189,11 @@ class QdrantIndexer:
 # ── Pipeline ──────────────────────────────────────────────────────────────
 
 class VectorizationPipeline:
-    """Full pipeline: chunk -> embed -> index. Used by mesh_ingest and memory writes."""
+    """Full pipeline: chunk -> embed -> index. Used by mesh_ingest and memory writes.
+
+    Supports hybrid search via Reciprocal Rank Fusion (RRF) combining
+    dense vector search (Qdrant) and sparse lexical search (BM25).
+    """
 
     def __init__(self, config: MeshConfig | None = None):
         self.config = config or MeshConfig.from_env()
@@ -198,6 +203,12 @@ class VectorizationPipeline:
         )
         self.embedder = OllamaEmbedder(self.config)
         self.indexer = QdrantIndexer(self.config)
+        self._bm25_sidecars: dict[str, TantivyBM25Sidecar] = {}
+
+    def _get_bm25(self, collection: str) -> TantivyBM25Sidecar:
+        if collection not in self._bm25_sidecars:
+            self._bm25_sidecars[collection] = TantivyBM25Sidecar(collection=collection)
+        return self._bm25_sidecars[collection]
 
     async def ingest(
         self,
@@ -252,6 +263,18 @@ class VectorizationPipeline:
                     result = await self.indexer.upsert(collection, ids, vectors, payloads)
                     ingested += result
 
+                    bm25 = self._get_bm25(collection)
+                    for chunk, payload in zip(
+                        [doc.get("text", "")] if len(chunks) == 1 else chunks,
+                        payloads,
+                    ):
+                        bm25.add_document(
+                            doc_id=payload.get("doc_id", ""),
+                            text=chunk,
+                            metadata=payload,
+                        )
+                    bm25.commit()
+
             except Exception as e:
                 failed += 1
                 errors.append(f"Document {doc_id}: {e}")
@@ -264,9 +287,65 @@ class VectorizationPipeline:
         query: str,
         filters: dict | None = None,
         top_k: int = 10,
+        hybrid: bool = True,
     ) -> list[dict[str, Any]]:
-        """Search: embed query, search Qdrant, return ranked results."""
+        """Search: embed query, search Qdrant, return ranked results.
+
+        When hybrid=True, combines dense vector search with sparse BM25
+        search via Reciprocal Rank Fusion (RRF).
+
+        RRF score = sum(1 / (k + rank_i)) for each ranking i,
+        where k=60 is the RRF constant (standard value).
+        """
         query_embedding = await self.embedder.embed_single(query)
         if not query_embedding:
             return []
-        return await self.indexer.search(collection, query_embedding, filters, top_k)
+
+        vector_results = await self.indexer.search(collection, query_embedding, filters, top_k)
+
+        if not hybrid:
+            return vector_results
+
+        bm25 = self._get_bm25(collection)
+        bm25_results = bm25.search(query, top_k=top_k)
+
+        return self._rrf_fusion(vector_results, bm25_results, top_k)
+
+    @staticmethod
+    def _rrf_fusion(
+        vector_results: list[dict],
+        bm25_results: list[dict],
+        top_k: int,
+        k: int = 60,
+    ) -> list[dict[str, Any]]:
+        """Reciprocal Rank Fusion of vector and BM25 results.
+
+        Args:
+            vector_results: Dense vector search results.
+            bm25_results: Sparse BM25 search results.
+            top_k: Number of results to return.
+            k: RRF constant (default 60, standard in literature).
+        """
+        doc_scores: dict[str, float] = {}
+        doc_data: dict[str, dict] = {}
+
+        for rank, result in enumerate(vector_results):
+            doc_id = result.get("id", "")
+            doc_scores[doc_id] = doc_scores.get(doc_id, 0) + 1.0 / (k + rank + 1)
+            doc_data[doc_id] = result
+
+        for rank, result in enumerate(bm25_results):
+            doc_id = result.get("id", "")
+            doc_scores[doc_id] = doc_scores.get(doc_id, 0) + 1.0 / (k + rank + 1)
+            if doc_id not in doc_data:
+                doc_data[doc_id] = result
+
+        sorted_ids = sorted(doc_scores.keys(), key=lambda x: doc_scores[x], reverse=True)[:top_k]
+
+        return [
+            {
+                **doc_data[doc_id],
+                "rrf_score": doc_scores[doc_id],
+            }
+            for doc_id in sorted_ids
+        ]

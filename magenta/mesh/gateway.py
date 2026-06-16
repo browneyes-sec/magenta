@@ -13,6 +13,12 @@ from magenta.mesh.pipeline import VectorizationPipeline
 
 logger = logging.getLogger(__name__)
 
+try:
+    from magenta.telemetry import get_tracer
+    _tracer = get_tracer("mesh.gateway")
+except Exception:
+    _tracer = None
+
 
 class MeshGateway:
     """Unified gateway for vectorized data mesh operations.
@@ -66,50 +72,57 @@ class MeshGateway:
         hybrid: bool = True,
         explain: bool = False,
     ) -> dict[str, Any]:
-        """Hybrid search across data products using reciprocal rank fusion.
-
-        Args:
-            query: Natural language query.
-            products: Optional list of collection names to search. If None, search all.
-            filters: Metadata filters (product, severity, source, timestamp range, etc.)
-            top_k: Number of results to return.
-            hybrid: Enable dense + sparse fusion.
-            explain: Include scoring breakdown.
-        """
+        """Hybrid search across data products using reciprocal rank fusion."""
+        span_context = _tracer.start_span("mesh.query") if _tracer else None
         start = time.time()
         collections = products or [p["name"] for p in self._products]
         all_results: list[dict[str, Any]] = []
 
-        for collection in collections:
-            if collection not in COLLECTIONS:
-                continue
+        try:
+            for collection in collections:
+                if collection not in COLLECTIONS:
+                    continue
 
-            results = await self.pipeline.search(
-                collection=collection,
-                query=query,
-                filters=filters,
-                top_k=top_k,
-            )
+                results = await self.pipeline.search(
+                    collection=collection,
+                    query=query,
+                    filters=filters,
+                    top_k=top_k,
+                )
 
-            for r in results:
-                r["collection"] = collection
-            all_results.extend(results)
+                for r in results:
+                    r["collection"] = collection
+                all_results.extend(results)
 
-        all_results.sort(key=lambda x: x.get("score", 0), reverse=True)
-        top_results = all_results[:top_k]
+            all_results.sort(key=lambda x: x.get("score", 0), reverse=True)
+            top_results = all_results[:top_k]
 
-        latency_ms = (time.time() - start) * 1000
+            latency_ms = (time.time() - start) * 1000
 
-        return {
-            "results": top_results,
-            "federation": {
-                "collections_searched": len(collections),
-                "total_candidates": len(all_results),
-                "returned": len(top_results),
-                "latency_ms": round(latency_ms, 2),
-                "hybrid": hybrid,
-            },
-        }
+            if span_context:
+                span_context.set_attribute("mesh.query.collections_searched", len(collections))
+                span_context.set_attribute("mesh.query.total_candidates", len(all_results))
+                span_context.set_attribute("mesh.query.returned", len(top_results))
+                span_context.set_attribute("mesh.query.latency_ms", round(latency_ms, 2))
+
+            return {
+                "results": top_results,
+                "federation": {
+                    "collections_searched": len(collections),
+                    "total_candidates": len(all_results),
+                    "returned": len(top_results),
+                    "latency_ms": round(latency_ms, 2),
+                    "hybrid": hybrid,
+                },
+            }
+        except Exception as exc:
+            if span_context:
+                span_context.set_attribute("error", True)
+                span_context.set_attribute("error.message", str(exc))
+            raise
+        finally:
+            if span_context:
+                span_context.end()
 
     async def ingest(
         self,
@@ -117,19 +130,35 @@ class MeshGateway:
         documents: list[dict[str, Any]],
         batch_size: int = 32,
     ) -> dict[str, Any]:
-        """Ingest documents into a data product collection.
+        """Ingest documents into a data product collection."""
+        span_context = _tracer.start_span("mesh.ingest") if _tracer else None
+        try:
+            if product not in COLLECTIONS:
+                return {
+                    "error": f"Unknown product: {product}",
+                    "ingested": 0,
+                    "failed": len(documents),
+                }
 
-        Args:
-            product: Target collection name.
-            documents: List of documents with 'id', 'text', 'metadata'.
-            batch_size: Embedding batch size.
-        """
-        if product not in COLLECTIONS:
-            return {"error": f"Unknown product: {product}", "ingested": 0, "failed": len(documents)}
+            if span_context:
+                span_context.set_attribute("mesh.ingest.product", product)
+                span_context.set_attribute("mesh.ingest.document_count", len(documents))
 
-        result = await self.pipeline.ingest(product, documents)
-        result["product"] = product
-        return result
+            result = await self.pipeline.ingest(product, documents)
+            result["product"] = product
+
+            if span_context:
+                span_context.set_attribute("mesh.ingest.ingested", result.get("ingested", 0))
+
+            return result
+        except Exception as exc:
+            if span_context:
+                span_context.set_attribute("error", True)
+                span_context.set_attribute("error.message", str(exc))
+            raise
+        finally:
+            if span_context:
+                span_context.end()
 
     async def list_products(self) -> list[dict[str, Any]]:
         """List available data products with schemas and health."""
