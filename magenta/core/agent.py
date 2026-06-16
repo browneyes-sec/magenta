@@ -5,22 +5,66 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Optional
 from uuid import uuid4
+import time
 
 from magenta.core.models import AgentConfig, AgentStatus, Mission, AutomationActivity
 from magenta.exceptions import AgentError
 from magenta.config import settings
+from magenta.telemetry import get_tracer, get_meter
+from magenta.logging import StructuredLogger, get_structured_logger
 
 
 class BaseAgent(ABC):
     """Abstract base for all Magenta agent roles."""
 
+    _tracer = get_tracer("magenta.agent")
+    _meter = get_meter("magenta.agent")
+
+    # Prometheus metrics (class-level, shared across instances)
+    _mission_duration = None
+    _mission_errors = None
+    _model_requests = None
+    _model_errors = None
+    _tool_latency = None
+
+    @classmethod
+    def _ensure_metrics(cls):
+        if cls._mission_duration is None:
+            cls._mission_duration = cls._meter.create_histogram(
+                "magenta_mission_duration_seconds",
+                description="Agent mission processing duration",
+                unit="s",
+            )
+            cls._mission_errors = cls._meter.create_counter(
+                "magenta_agent_errors_total",
+                description="Agent processing errors",
+            )
+            cls._model_requests = cls._meter.create_counter(
+                "magenta_model_requests_total",
+                description="LLM model requests by agent",
+            )
+            cls._model_errors = cls._meter.create_counter(
+                "magenta_model_errors_total",
+                description="LLM model errors by agent",
+            )
+            cls._tool_latency = cls._meter.create_histogram(
+                "magenta_tool_latency_seconds",
+                description="Tool execution latency",
+                unit="s",
+            )
+
     def __init__(self, config: AgentConfig):
+        self._ensure_metrics()
         self.config = config
         self.status = AgentStatus.idle
         self.current_mission: Optional[Mission] = None
         self.turn_count = 0
         self.started_at: Optional[datetime] = None
         self._heartbeat_count = 0
+        self._logger = StructuredLogger(
+            get_structured_logger(f"magenta.agent.{config.role}"),
+            agent_id=config.agent_id,
+        )
 
     @property
     def agent_id(self) -> str:
@@ -35,11 +79,69 @@ class BaseAgent(ABC):
         self.status = AgentStatus.idle
 
     @abstractmethod
+    async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
+        """Process a mission task and return results. Override in subclasses."""
+
     async def process(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
-        """Process a mission task and return results."""
+        """Wrap _process_impl with OTel tracing and metrics."""
+        start = time.monotonic()
+        mission_id = mission.mission_id if hasattr(mission, "mission_id") else ""
+        correlation_id = mission.correlation_id if hasattr(mission, "correlation_id") else ""
+
+        self._logger = self._logger.bind(
+            mission_id=mission_id,
+            correlation_id=correlation_id,
+        )
+
+        with self._tracer.start_as_current_span(
+            f"agent.{self.role}.process",
+            attributes={
+                "mission.id": mission_id,
+                "mission.severity": getattr(mission, "severity", ""),
+                "mission.risk_score": getattr(mission, "risk_score", 0),
+                "agent.id": self.agent_id,
+                "agent.role": self.role,
+                "agent.model": self.config.model_name,
+            },
+        ) as span:
+            try:
+                self.status = AgentStatus.executing
+                self.current_mission = mission
+                self.turn_count += 1
+                self._logger.info(f"Agent {self.role} processing mission")
+                result = await self._process_impl(mission, context)
+                span.set_status(1)  # OK
+                self._logger.info(f"Agent {self.role} completed mission", action="process", status="succeeded")
+                return result
+            except Exception as exc:
+                span.set_status(2, str(exc))  # ERROR
+                self._mission_errors.add(1, {"role": self.role, "error": type(exc).__name__})
+                self._logger.error(f"Agent {self.role} failed: {exc}", action="process", status="failed")
+                raise
+            finally:
+                elapsed = time.monotonic() - start
+                self._mission_duration.record(elapsed, {"role": self.role})
+                self.status = AgentStatus.idle
 
     async def execute_tool(self, tool_name: str, params: dict[str, Any]) -> Any:
-        """Execute a tool by name. Override in subclasses."""
+        """Execute a tool by name with latency metrics. Override in subclasses."""
+        start = time.monotonic()
+        is_llm = tool_name.startswith("llm_") or tool_name.startswith("model_")
+        try:
+            if is_llm:
+                self._model_requests.add(1, {"role": self.role, "tool": tool_name})
+            result = await self._execute_tool_impl(tool_name, params)
+            return result
+        except Exception as exc:
+            if is_llm:
+                self._model_errors.add(1, {"role": self.role, "tool": tool_name, "error": type(exc).__name__})
+            raise
+        finally:
+            elapsed = time.monotonic() - start
+            self._tool_latency.record(elapsed, {"role": self.role, "tool": tool_name})
+
+    async def _execute_tool_impl(self, tool_name: str, params: dict[str, Any]) -> Any:
+        """Tool execution logic. Override in subclasses."""
         raise NotImplementedError(f"Tool {tool_name} not implemented in {self.role}")
 
     async def heartbeat(self) -> dict[str, Any]:

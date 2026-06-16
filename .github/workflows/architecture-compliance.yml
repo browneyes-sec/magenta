@@ -1,0 +1,76 @@
+name: Architecture Compliance Gate
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main]
+
+jobs:
+  security-compliance:
+    name: WAF Security Pillar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: CORS wildcard check
+        run: |
+          grep -r 'allow_origins=\["\\*"\]' magenta/ && exit 1 || echo "CORS clean"
+      - name: Auth stub check
+        run: |
+          grep -r 'authenticated.*True.*tenant.*default' magenta/api/ && exit 1 || echo "Auth clean"
+      - name: Plaintext secret check
+        run: |
+          grep -rn 'client_secret.*=.*"[^"]\+[^"]*"' magenta/ && exit 1 || echo "Secrets clean"
+
+  schema-compliance:
+    name: Schema Registry Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]"
+      - name: Validate AutomationActivity schema
+        run: python scripts/validate_schema.py
+
+  outbox-relay-test:
+    name: Outbox Durability Test
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: magenta_test
+          POSTGRES_PASSWORD: test
+        ports: ["5432:5432"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+      - name: Run reliability tests
+        run: pytest magnet/ -m "reliability" --tb=short
+
+  togaf-adm-gate:
+    name: TOGAF ADM Phase G Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check ADR count
+        run: |
+          ADR_COUNT=$(find architecture/ADR/ -name "*.md" 2>/dev/null | wc -l)
+          echo "ADR count: $ADR_COUNT"
+          [ "$ADR_COUNT" -ge 13 ] || (echo "Missing ADRs (need 13)" && exit 1)
+      - name: Check deviation log
+        run: |
+          python scripts/check_deviation_log.py --max-open 3

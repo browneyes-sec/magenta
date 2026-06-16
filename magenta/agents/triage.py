@@ -20,9 +20,7 @@ Assess incoming alerts and assign severity (1-5):
 Route based on severity and alert type."""
         super().__init__(config)
 
-    async def process(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
-        self.status = "executing"
-        self.turn_count += 1
+    async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
         alert_desc = context.get("description", mission.description)
 
         prompt = f"""Assess this security alert:
@@ -46,8 +44,6 @@ Provide:
         }
 
         await self.log_activity(mission, "triage", ActionStatus.succeeded)
-
-        self.status = "done"
         return result
 
 
@@ -62,10 +58,7 @@ Gather context from CMDB, threat intel platforms, and identity systems.
 Correlate IoCs, check asset criticality, and expand the picture."""
         super().__init__(config)
 
-    async def process(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
-        self.status = "executing"
-        self.turn_count += 1
-
+    async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
         prompt = f"""Enrich this security incident with context:
 Alert ID: {mission.alert_id}
 Description: {mission.description}
@@ -86,7 +79,6 @@ Provide:
         }
 
         await self.log_activity(mission, "enrich", ActionStatus.succeeded)
-        self.status = "done"
         return result
 
 
@@ -102,10 +94,7 @@ Assess blast radius and risk before acting.
 Require approval for actions with risk score > 60."""
         super().__init__(config)
 
-    async def process(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
-        self.status = "executing"
-        self.turn_count += 1
-
+    async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
         prompt = f"""Determine containment actions for this incident:
 Alert ID: {mission.alert_id}
 Description: {mission.description}
@@ -122,7 +111,6 @@ List actions with risk scores and whether each needs approval."""
         }
 
         await self.log_activity(mission, "contain", ActionStatus.succeeded)
-        self.status = "done"
         return result
 
 
@@ -137,10 +125,7 @@ Build detailed timelines, reconstruct attack paths, extract IoCs.
 Use deep reasoning to identify root cause and scope."""
         super().__init__(config)
 
-    async def process(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
-        self.status = "executing"
-        self.turn_count += 1
-
+    async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
         prompt = f"""Investigate this security incident in depth:
 Alert ID: {mission.alert_id}
 Description: {mission.description}
@@ -154,7 +139,6 @@ Provide:
         response = await self.llm_generate(prompt, tier="reasoning")
         result = {"agent": self.role, "investigation": response.content}
         await self.log_activity(mission, "investigate", ActionStatus.succeeded)
-        self.status = "done"
         return result
 
 
@@ -169,14 +153,11 @@ Check all actions against regulatory frameworks (SOC2, ISO27001, NIS2).
 Ensure evidence is preserved and audit trail is complete."""
         super().__init__(config)
 
-    async def process(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
-        self.status = "executing"
-        self.turn_count += 1
+    async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
         prompt = f"Review compliance implications for incident {mission.alert_id}...\nFindings: {context}"
         response = await self.llm_generate(prompt, tier="cost_save")
         result = {"agent": self.role, "compliance": response.content}
         await self.log_activity(mission, "compliance", ActionStatus.succeeded)
-        self.status = "done"
         return result
 
 
@@ -191,12 +172,9 @@ Generate clear, concise incident summaries for different stakeholders:
 SOC analysts, management, business unit leads. Include KPIs."""
         super().__init__(config)
 
-    async def process(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
-        self.status = "executing"
-        self.turn_count += 1
+    async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
         prompt = f"Generate incident summary report for {mission.alert_id}...\nAll findings: {context}"
         response = await self.llm_generate(prompt, tier="cost_save")
         result = {"agent": self.role, "report": response.content}
         await self.log_activity(mission, "report", ActionStatus.succeeded)
-        self.status = "done"
         return result

@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettingsSource
-from pydantic import Field
+from pydantic import Field, model_validator
 from typing import Literal, Optional
 from pathlib import Path
 
@@ -115,6 +115,14 @@ class AuditSettings(BaseSettings):
     flush_interval_seconds: int = 5
 
 
+class TelemetrySettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="MAGENTA_TELEMETRY_")
+    connection_string: Optional[str] = None
+    otlp_endpoint: str = "http://tempo.magenta-observability:4317"
+    sampling_rate: float = Field(default=1.0, ge=0.0, le=1.0)
+    enabled: bool = True
+
+
 class GatewaySettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="MAGENTA_GATEWAY_")
     enabled: bool = True
@@ -141,6 +149,7 @@ class Settings(BaseSettings):
 
     data_dir: Path = Field(default=Path("data"))
     config_dir: Path = Field(default=Path("config"))
+    collectors_config_path: Path = Field(default=Path("soa/config/collectors.toml"))
 
     sql: SQLSettings = Field(default_factory=SQLSettings)
     elastic: ElasticSettings = Field(default_factory=ElasticSettings)
@@ -153,6 +162,16 @@ class Settings(BaseSettings):
     eventhub: EventHubSettings = Field(default_factory=EventHubSettings)
     models: ModelSettings = Field(default_factory=ModelSettings)
     gateway: GatewaySettings = Field(default_factory=GatewaySettings)
+    telemetry: TelemetrySettings = Field(default_factory=TelemetrySettings)
+
+    @model_validator(mode="after")
+    def validate_prod_db(self) -> "Settings":
+        if self.env == "prod" and "sqlite" in self.sql.url:
+            raise ValueError(
+                "SQLite is not permitted in production. "
+                "Set MAGENTA_SQL__URL to a PostgreSQL connection string."
+            )
+        return self
 
     @classmethod
     def settings_customise_sources(

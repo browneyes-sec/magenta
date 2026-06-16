@@ -23,10 +23,7 @@ Your job is to decompose security incidents into tasks, assign agents,
 monitor progress, handle failures, and ensure mission completion."""
         super().__init__(config)
 
-    async def process(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
-        self.status = "executing"
-        self.turn_count += 1
-
+    async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
         # Decompose mission into tasks
         tasks = await swarm_manager.decompose_mission(mission)
         mission.tasks = tasks
@@ -49,7 +46,6 @@ monitor progress, handle failures, and ensure mission completion."""
 
         mission_manager.update_status(mission.mission_id, MissionStatus.executing)
         await self.log_activity(mission, "orchestrate", ActionStatus.succeeded)
-        self.status = "done"
         return result
 
     async def run_mission(self, mission: Mission) -> dict[str, Any]:

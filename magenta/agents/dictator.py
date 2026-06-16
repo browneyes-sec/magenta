@@ -67,10 +67,8 @@ teaming structures, inject probes, halt missions, and escalate incidents.""",
 
     # ── Core Process ──────────────────────────────────────────────
 
-    async def process(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
+    async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
         """Process a mission: evaluate policies, deploy agents, issue directives."""
-        self.status = DictatorStatus.commanding
-        self.turn_count += 1
 
         # 1. Evaluate orchestration policies
         policy_config = policy_engine.evaluate(mission)
