@@ -1,7 +1,6 @@
-"""Orchestration engine — pipeline runner for mission execution."""
+"""Orchestration engine — DAG-based mission executor."""
 
 from typing import Any, Optional
-from datetime import datetime
 import asyncio
 
 from magenta.core.models import Mission, MissionStatus
@@ -9,42 +8,34 @@ from magenta.core.mission import mission_manager
 from magenta.core.swarm import swarm_manager
 from magenta.core.agent import agent_registry
 from magenta.agents.manager import SwarmManagerAgent
-from magenta.agents.base import LLMAgent
+from magenta.orchestration.dag_executor import dag_executor
 from magenta.exceptions import MissionError
 
 
 class OrchestrationEngine:
-    """Main orchestration engine that runs missions through the swarm."""
+    """Main orchestration engine that runs missions as DAGs."""
 
     def __init__(self):
         self._running: dict[str, asyncio.Task] = {}
 
     async def start_mission(self, mission_id: str) -> Mission:
-        """Start executing a mission through the swarm."""
+        """Start executing a mission through the DAG executor."""
         mission = mission_manager.get(mission_id)
-
-        # Get or create Swarm Manager
-        managers = agent_registry.get_by_role("swarm_manager")
-        if not managers:
-            raise MissionError("No Swarm Manager agent registered")
-
-        manager = managers[0]
         mission_manager.update_status(mission_id, MissionStatus.executing)
 
-        # Run mission in background task
-        task = asyncio.create_task(self._run_mission(manager, mission))
+        # Run mission in background task using DAG executor
+        task = asyncio.create_task(self._run_mission(mission_id))
         self._running[mission_id] = task
 
         return mission
 
-    async def _run_mission(self, manager: SwarmManagerAgent, mission: Mission) -> dict:
-        """Background task that runs the full mission."""
+    async def _run_mission(self, mission_id: str) -> dict:
+        """Background task that runs the mission via DAG executor."""
         try:
-            result = await manager.run_mission(mission)
-            mission_manager.update_status(mission.mission_id, MissionStatus.completed)
+            result = await dag_executor.execute_mission(mission_id)
             return result
         except Exception as e:
-            mission_manager.update_status(mission.mission_id, MissionStatus.failed)
+            mission_manager.update_status(mission_id, MissionStatus.failed)
             raise
 
     async def stop_mission(self, mission_id: str) -> None:
@@ -59,7 +50,7 @@ class OrchestrationEngine:
         await swarm_manager.cancel_mission(mission_id)
 
     async def get_mission_logs(self, mission_id: str, tail: int = 100) -> list[dict]:
-        """Get mission execution logs (stub — data layer integration)."""
+        """Get mission execution logs."""
         mission = mission_manager.get(mission_id)
         return [
             {"timestamp": mission.created_at.isoformat(), "level": "INFO", "message": "Mission created"},
