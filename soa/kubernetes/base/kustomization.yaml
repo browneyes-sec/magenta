@@ -14,6 +14,10 @@ resources:
   - ../mcp-services/mcp-web.yaml
   - ../agents/agent-ops.yaml
   - ../agents/agent-orchestrator.yaml
+  - ../soa/api.yaml
+  - ../soa/worker.yaml
+  - ../soa/scheduler.yaml
+  - ../soa/mcpo.yaml
 
 commonLabels:
   app.kubernetes.io/name: magenta
@@ -42,6 +46,9 @@ configMapGenerator:
       - ../../terraform/modules/gke/main.tf
       - ../../terraform/modules/vsphere/main.tf
       - ../../terraform/modules/network/main.tf
+  - name: mcpo-config
+    files:
+      - ../../docker/mcpo-config.json
 
 secretGenerator:
   - name: mcp-tls
@@ -64,4 +71,10 @@ images:
   - name: magenta/mcp-web
     newTag: 0.1.0
   - name: magenta/mcp-finops
+    newTag: 0.1.0
+  - name: magenta/api
+    newTag: 0.1.0
+  - name: magenta/worker
+    newTag: 0.1.0
+  - name: magenta/scheduler
     newTag: 0.1.0
