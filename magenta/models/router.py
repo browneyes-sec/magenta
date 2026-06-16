@@ -1,17 +1,17 @@
 """Tiered model router with fallback chains."""
 
 from __future__ import annotations
-from typing import Optional, Any
-from datetime import datetime
-import random
 
-from magenta.models.base import BaseModelClient, ModelRequest, ModelResponse, PolicyDecision
-from magenta.models.ollama import OllamaClient
-from magenta.models.openrouter import OpenRouterClient
-from magenta.models.gemini import GeminiClient
-from magenta.models.groq import GroqClient
+import random
+from datetime import datetime
+
 from magenta.config import settings
 from magenta.exceptions import ModelError, ModelTimeout
+from magenta.models.base import BaseModelClient, ModelRequest, ModelResponse, PolicyDecision
+from magenta.models.gemini import GeminiClient
+from magenta.models.groq import GroqClient
+from magenta.models.ollama import OllamaClient
+from magenta.models.openrouter import OpenRouterClient
 
 
 class ModelRouter:
@@ -67,7 +67,7 @@ class ModelRouter:
         },
     }
 
-    def get_client(self, name: str) -> Optional[BaseModelClient]:
+    def get_client(self, name: str) -> BaseModelClient | None:
         return self._clients.get(name)
 
     async def route(
@@ -76,9 +76,26 @@ class ModelRouter:
         tier: str = "speed",
         max_attempts: int = 3,
     ) -> ModelResponse:
-        """Route a request through the model tier with fallback."""
+        """Route a request through the model tier with fallback.
+
+        Respects sensitivity_level from request:
+          - HIGH  -> Ollama only (no external egress)
+          - MEDIUM -> Ollama preferred, fallback to gated providers
+          - LOW   -> any provider allowed
+        """
+        sensitivity = getattr(request, "sensitivity_level", "low")
         tier_config = self.TIERS.get(tier, self.TIERS["speed"])
-        client_names = tier_config["clients"]
+        client_names = list(tier_config["clients"])  # copy to avoid mutating tier config
+
+        if sensitivity == "high":
+            client_names = [n for n in client_names if "ollama" in n]
+            if not client_names:
+                raise ModelError("HIGH sensitivity but no Ollama clients configured")
+        elif sensitivity == "medium":
+            ollama_first = [n for n in client_names if "ollama" in n]
+            external = [n for n in client_names if "ollama" not in n]
+            client_names = ollama_first + external
+
         random.shuffle(client_names)  # load balance
 
         for attempt in range(max_attempts):
@@ -99,7 +116,7 @@ class ModelRouter:
 
                     return response
 
-                except (ModelError, ModelTimeout, Exception) as e:
+                except (ModelError, ModelTimeout, Exception):
                     continue
 
         # All attempts exhausted → fallback tier

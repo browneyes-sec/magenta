@@ -42,6 +42,26 @@ spec:
         component: vector-store
     spec:
       terminationGracePeriodSeconds: 30
+      initContainers:
+        - name: configure-collections
+          image: qdrant/qdrant:v1.12.0
+          command:
+            - sh
+            - -c
+            - |
+              # Wait for Qdrant to be ready
+              until curl -sf http://localhost:6333/healthz; do sleep 2; done
+              
+              # Create collections with HNSW config per data mesh spec
+              for collection in siem_alerts mem_episodic mem_semantic mem_procedural; do
+                echo "Creating collection: $collection"
+                curl -X PUT "http://localhost:6333/collections/$collection" \
+                  -H "Content-Type: application/json" \
+                  -d @/config/collections/${collection}.json || echo "Collection $collection may already exist"
+              done
+          volumeMounts:
+            - name: collection-configs
+              mountPath: /config/collections
       containers:
         - name: qdrant
           image: qdrant/qdrant:v1.12.0
@@ -83,6 +103,9 @@ spec:
         - name: qdrant-storage
           persistentVolumeClaim:
             claimName: qdrant-pvc
+        - name: collection-configs
+          configMap:
+            name: qdrant-collection-configs
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

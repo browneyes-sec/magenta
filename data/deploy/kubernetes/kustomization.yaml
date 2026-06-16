@@ -15,23 +15,14 @@ resources:
   - vector-store-statefulset.yaml
   - embedding-service.yaml
   - mesh-gateway.yaml
+  - qdrant-collection-configs.yaml
+  - mesh-config.yaml
 
 commonLabels:
   app.kubernetes.io/name: magenta
   app.kubernetes.io/component: data-mesh
   app.kubernetes.io/version: 0.1.0
   app.kubernetes.io/managed-by: kustomize
-
-configMapGenerator:
-  - name: mesh-config
-    files:
-      - config/default.yaml
-
-secretGenerator:
-  - name: mesh-secrets
-    envs:
-      - .mesh.env
-    type: Opaque
 
 images:
   - name: magenta/mesh-gateway

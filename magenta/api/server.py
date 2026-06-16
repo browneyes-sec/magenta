@@ -9,7 +9,7 @@ from datetime import datetime
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from magenta.api.routes import agents, missions, playbooks, health, search, dictator, approvals, monitoring, instrumentation, ingest
+from magenta.api.routes import agents, missions, playbooks, health, search, dictator, approvals, monitoring, instrumentation, ingest, mesh
 from magenta import __about__
 from magenta.config import settings
 from magenta.dictator.state import dictator_state
@@ -47,14 +47,6 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
-    if settings.entra_jwt.enabled:
-        from magenta.api.middleware.auth import EntraJWTAuthMiddleware
-        app.add_middleware(EntraJWTAuthMiddleware)
-
-    if settings.security_headers.enabled:
-        from magenta.api.middleware.security import SecurityHeadersMiddleware
-        app.add_middleware(SecurityHeadersMiddleware)
-
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors.origins,
@@ -62,6 +54,14 @@ def create_app() -> FastAPI:
         allow_methods=settings.cors.allow_methods,
         allow_headers=settings.cors.allow_headers,
     )
+
+    if settings.security_headers.enabled:
+        from magenta.api.middleware.security import SecurityHeadersMiddleware
+        app.add_middleware(SecurityHeadersMiddleware)
+
+    if settings.entra_jwt.enabled:
+        from magenta.api.middleware.auth import EntraJWTAuthMiddleware
+        app.add_middleware(EntraJWTAuthMiddleware)
 
     app.include_router(agents.router, prefix="/api/v1/agents", tags=["Agents"])
     app.include_router(missions.router, prefix="/api/v1/missions", tags=["Missions"])
@@ -73,6 +73,7 @@ def create_app() -> FastAPI:
     app.include_router(monitoring.router, prefix="/api/v1/monitoring", tags=["Monitoring"])
     app.include_router(instrumentation.router, prefix="/api/v1/instrumentation", tags=["Instrumentation"])
     app.include_router(ingest.router, prefix="/ingest", tags=["Ingest"])
+    app.include_router(mesh.router, prefix="/api/v1/mesh", tags=["Data Mesh"])
 
     @app.get("/")
     async def root():
