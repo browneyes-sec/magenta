@@ -10,6 +10,7 @@ from magenta.cli.health import health_app
 from magenta.cli.lab import lab_app
 from magenta.cli.dictator import dictator_app
 from magenta.cli.state import state_app
+from magenta.cli.chaos import chaos_app
 from magenta import __about__
 
 
@@ -62,6 +63,12 @@ def create_app() -> typer.Typer:
         state_app,
         name="state",
         help="Probe, attestation, and regression testing layer",
+        rich_help_panel="Commands",
+    )
+    app.add_typer(
+        chaos_app,
+        name="chaos",
+        help="Chaos engineering: fault injection, resilience validation, and certification",
         rich_help_panel="Commands",
     )
 
