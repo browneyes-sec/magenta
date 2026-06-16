@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettingsSource
-from pydantic import Field, model_validator
+from pydantic import Field, SecretStr, model_validator
 from typing import Literal, Optional
 from pathlib import Path
 
@@ -61,8 +61,8 @@ class CorsSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="MAGENTA_CORS_")
     origins: list[str] = ["http://localhost:3000"]
     allow_credentials: bool = True
-    allow_methods: list[str] = ["*"]
-    allow_headers: list[str] = ["*"]
+    allow_methods: list[str] = Field(default=["GET", "POST", "PUT", "DELETE", "PATCH"])
+    allow_headers: list[str] = Field(default=["Authorization", "Content-Type", "X-Request-ID"])
 
 
 class AzureAuthSettings(BaseSettings):
@@ -70,7 +70,7 @@ class AzureAuthSettings(BaseSettings):
     use_default_credential: bool = True
     tenant_id: str = ""
     client_id: str = ""
-    client_secret: str = ""
+    client_secret: SecretStr = Field(default=SecretStr(""))
 
 
 class EntraJWTSettings(BaseSettings):
@@ -121,6 +121,7 @@ class TelemetrySettings(BaseSettings):
     otlp_endpoint: str = "http://tempo.magenta-observability:4317"
     sampling_rate: float = Field(default=1.0, ge=0.0, le=1.0)
     enabled: bool = True
+    use_tls: bool = False
 
 
 class GatewaySettings(BaseSettings):

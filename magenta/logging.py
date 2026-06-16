@@ -54,18 +54,25 @@ class StructuredFormatter(logging.Formatter):
 
 
 def get_structured_logger(name: str) -> logging.Logger:
-    """Get a logger configured with StructuredFormatter."""
+    """Get a logger configured with StructuredFormatter.
+
+    Uses propagation to root handler — avoids duplicating handlers.
+    """
     logger = logging.getLogger(name)
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        handler.setFormatter(StructuredFormatter())
-        logger.addHandler(handler)
-        logger.setLevel(logging.INFO)
+    logger.setLevel(logging.INFO)
+    # Do NOT add handlers here — rely on root logger via propagation
+    logger.propagate = True
     return logger
 
 
 class StructuredLogger:
-    """Wrapper for structured logging with mission/agent context."""
+    """Wrapper for structured logging with mission/agent context.
+
+    Uses __slots__ for memory efficiency. bind() mutates in-place
+    instead of creating new instances.
+    """
+
+    __slots__ = ("_logger", "mission_id", "agent_id", "correlation_id")
 
     def __init__(
         self,
@@ -75,16 +82,19 @@ class StructuredLogger:
         correlation_id: Optional[str] = None,
     ):
         self._logger = logger
-        self._base_extra = {}
-        if mission_id:
-            self._base_extra["mission_id"] = mission_id
-        if agent_id:
-            self._base_extra["agent_id"] = agent_id
-        if correlation_id:
-            self._base_extra["correlation_id"] = correlation_id
+        self.mission_id = mission_id
+        self.agent_id = agent_id
+        self.correlation_id = correlation_id
 
     def _log(self, level: int, message: str, **extra) -> None:
-        merged = {**self._base_extra, **extra}
+        merged = {}
+        if self.mission_id:
+            merged["mission_id"] = self.mission_id
+        if self.agent_id:
+            merged["agent_id"] = self.agent_id
+        if self.correlation_id:
+            merged["correlation_id"] = self.correlation_id
+        merged.update(extra)
         self._logger.log(level, message, extra=merged)
 
     def info(self, message: str, **extra) -> None:
@@ -103,14 +113,11 @@ class StructuredLogger:
         self._log(logging.CRITICAL, message, **extra)
 
     def bind(self, **extra) -> "StructuredLogger":
-        """Create a new logger with additional context."""
-        new_extra = {**self._base_extra, **extra}
-        return StructuredLogger(
-            self._logger,
-            mission_id=new_extra.get("mission_id"),
-            agent_id=new_extra.get("agent_id"),
-            correlation_id=new_extra.get("correlation_id"),
-        )
+        """Bind additional context in-place (mutates self, returns self for chaining)."""
+        for key in ("mission_id", "agent_id", "correlation_id"):
+            if key in extra:
+                setattr(self, key, extra[key])
+        return self
 
 
 def setup_structured_logging(level: int = logging.INFO, json_format: bool = True) -> None:
