@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 from azure.identity.aio import DefaultAzureCredential
 
-from magenta.integration.collectors import BaseCollector, CollectorConfig
+from magenta.integration.collectors.base import BaseCollector, CollectorConfig
 from magenta.integration.log_normalizer import CloudMapper
 
 logger = logging.getLogger(__name__)

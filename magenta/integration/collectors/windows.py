@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from magenta.integration.collectors import BaseCollector, CollectorConfig
+from magenta.integration.collectors.base import BaseCollector, CollectorConfig
 
 logger = logging.getLogger(__name__)
 
