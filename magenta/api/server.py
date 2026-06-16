@@ -3,14 +3,24 @@
 import logging
 import os
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
-from datetime import datetime
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from magenta.api.routes import agents, missions, playbooks, health, search, dictator, approvals, monitoring, instrumentation, ingest, mesh
 from magenta import __about__
+from magenta.api.routes import (
+    agents,
+    approvals,
+    dictator,
+    health,
+    ingest,
+    instrumentation,
+    mesh,
+    missions,
+    monitoring,
+    playbooks,
+    search,
+)
 from magenta.config import settings
 from magenta.dictator.state import dictator_state
 
@@ -29,9 +39,38 @@ async def lifespan(app: FastAPI):
         await dictator_state.load_from_redis()
         logger.info("Connected to Redis at %s and loaded policy overrides", redis_url)
     except Exception as exc:
-        logger.warning("Redis unavailable at %s, continuing without persistence: %s", redis_url, exc)
+        logger.warning(
+            "Redis unavailable at %s, continuing without persistence: %s",
+            redis_url, exc,
+        )
+
+    # Start DLQ consumer for dead-letter topics
+    dlq_consumer = None
+    try:
+        from magenta.integration.dlq_consumer import DLQConsumer
+        from magenta.integration.eventhub import EventHubClient
+
+        eh_client = EventHubClient(
+            namespace=settings.eventhub.namespace,
+            connection_string=settings.eventhub.connection_string or "",
+        )
+        dlq_consumer = DLQConsumer(eh_client)
+        await dlq_consumer.start()
+        logger.info("DLQ consumer started for dead-letter topics")
+    except Exception as exc:
+        logger.warning("DLQ consumer not started: %s", exc)
+
     yield
-    # Shutdown
+
+    # Shutdown — stop DLQ consumer
+    if dlq_consumer:
+        try:
+            await dlq_consumer.stop()
+            logger.info("DLQ consumer stopped")
+        except Exception:
+            pass
+
+    # Shutdown Redis
     if dictator_state._redis_client is not None:
         await dictator_state._redis_client.close()
         logger.info("Redis connection closed")
@@ -71,7 +110,11 @@ def create_app() -> FastAPI:
     app.include_router(dictator.router, prefix="/api/v1/dictator", tags=["Dictator"])
     app.include_router(approvals.router, prefix="/api/v1/approvals", tags=["Approvals"])
     app.include_router(monitoring.router, prefix="/api/v1/monitoring", tags=["Monitoring"])
-    app.include_router(instrumentation.router, prefix="/api/v1/instrumentation", tags=["Instrumentation"])
+    app.include_router(
+        instrumentation.router,
+        prefix="/api/v1/instrumentation",
+        tags=["Instrumentation"],
+    )
     app.include_router(ingest.router, prefix="/ingest", tags=["Ingest"])
     app.include_router(mesh.router, prefix="/api/v1/mesh", tags=["Data Mesh"])
 

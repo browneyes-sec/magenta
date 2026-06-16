@@ -341,6 +341,12 @@ class LogNormalizer:
             "category": mapped.get("category", ""),
             "normalized_fields": merged,
             "tags": mapped.get("tags", []),
+            "provenance": {
+                "pipeline_step": "normalize",
+                "input_hash": hashlib.sha256(
+                    str(raw).encode()
+                ).hexdigest()[:16],
+            },
         }
 
 

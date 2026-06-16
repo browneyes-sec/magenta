@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from uuid import uuid4
 
@@ -55,6 +57,12 @@ class MemoryMCPServer:
                 "turn_number": turn_number,
                 "correlation_id": correlation_id,
                 "memory_type": "episodic",
+                "provenance": {
+                    "pipeline_step": "memory.write_episode",
+                    "input_hash": hashlib.sha256(
+                        f"{agent_role}:{mission_id}:{turn_number}:{text[:200]}".encode()
+                    ).hexdigest()[:16],
+                },
                 **(metadata or {}),
             }
 
@@ -155,6 +163,12 @@ class MemoryMCPServer:
                 "source": source,
                 "tags": tags or [],
                 "memory_type": "semantic",
+                "provenance": {
+                    "pipeline_step": "memory.write_semantic",
+                    "input_hash": hashlib.sha256(
+                        json.dumps({"text": text[:200], "source": source}, sort_keys=True).encode()
+                    ).hexdigest()[:16],
+                },
                 **(metadata or {}),
             }
 
@@ -258,6 +272,12 @@ class MemoryMCPServer:
                 "parameters_hash": params_hash,
                 "mission_id": mission_id,
                 "memory_type": "procedural",
+                "provenance": {
+                    "pipeline_step": "memory.write_procedure",
+                    "input_hash": hashlib.sha256(
+                        f"{tool_name}:{params_hash}:{text[:200]}".encode()
+                    ).hexdigest()[:16],
+                },
                 **(metadata or {}),
             }
 

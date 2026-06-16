@@ -6,6 +6,8 @@ and optionally archives to Elasticsearch for offline analysis.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
@@ -104,6 +106,12 @@ class DLQConsumer:
             "payload": message,
             "schema_version": "1.0",
             "event_type": "dlq.dead_letter",
+            "provenance": {
+                "pipeline_step": "dlq",
+                "input_hash": hashlib.sha256(
+                    json.dumps(message, sort_keys=True, default=str).encode()
+                ).hexdigest()[:16],
+            },
         }
 
     async def _archive_to_elasticsearch(self, record: dict) -> None:

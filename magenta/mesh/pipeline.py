@@ -14,6 +14,11 @@ from magenta.mesh.config import MeshConfig
 
 logger = logging.getLogger(__name__)
 
+try:
+    from magenta.mesh.lineage import lineage_tracker
+except Exception:
+    lineage_tracker = None
+
 
 # ── Chunker ──────────────────────────────────────────────────────────────
 
@@ -216,6 +221,13 @@ class VectorizationPipeline:
         documents: list[dict[str, Any]],
     ) -> dict[str, Any]:
         """Ingest documents: chunk, embed, index. Returns stats."""
+        run_id = None
+        if lineage_tracker:
+            run_id = lineage_tracker.start_run(
+                job_name=f"pipeline.ingest.{collection}",
+                inputs=[{"name": f"documents:{len(documents)}", "namespace": "magenta.ingest"}],
+            )
+
         ingested = 0
         failed = 0
         errors: list[str] = []
@@ -278,6 +290,13 @@ class VectorizationPipeline:
             except Exception as e:
                 failed += 1
                 errors.append(f"Document {doc_id}: {e}")
+
+        if lineage_tracker and run_id:
+            lineage_tracker.complete_run(
+                run_id,
+                outputs=[{"name": f"qdrant:{collection}", "namespace": "magenta.storage"}],
+                facets={"magenta": {"ingested": ingested, "failed": failed}},
+            )
 
         return {"ingested": ingested, "failed": failed, "errors": errors}
 

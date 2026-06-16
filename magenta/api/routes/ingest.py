@@ -5,15 +5,15 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from magenta.exceptions import IntegrationError
-from magenta.integration.eventhub import EventHubClient, HMACAuth, IdempotencyGuard
 from magenta.gateway.redact import RedactionLayer
+from magenta.integration.eventhub import EventHubClient, HMACAuth, IdempotencyGuard
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,10 @@ class LogEvent(BaseModel):
     )
     source_host: str = Field("", description="FQDN or hostname")
     event_id: str = Field("", description="Source-native event ID")
-    category: str = Field("", description="authentication | network | process | audit | application")
+    category: str = Field(
+        "",
+        description="authentication | network | process | audit | application",
+    )
     severity: str = Field("informational", pattern=r"^(informational|low|medium|high|critical)$")
     payload: dict[str, Any] = Field(default_factory=dict, description="Source-native payload")
     raw_bytes: str | None = Field(None, description="Raw log line (syslog/CEF passthrough)")
@@ -212,7 +215,13 @@ def _build_envelope(event: LogEvent, event_id: str, idempotency_key: str) -> dic
         "severity": event.severity,
         "category": event.category,
         "payload": event.payload,
-        "tags": event.tags + [f"ingested:{datetime.now(timezone.utc).isoformat()}"],
+        "tags": event.tags + [f"ingested:{datetime.now(UTC).isoformat()}"],
+        "provenance": {
+            "pipeline_step": "ingest",
+            "input_hash": hashlib.sha256(
+                json.dumps(event.payload, sort_keys=True, default=str).encode()
+            ).hexdigest()[:16],
+        },
     }
 
 
