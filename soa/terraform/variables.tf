@@ -370,6 +370,143 @@ variable "capture_consumer_groups" {
   default     = ["$Default", "normalizer", "log-normalizer", "vectorizer-logs", "orchestrator", "registry", "dlq-debug"]
 }
 
+# ── Collector Feature Flags ────────────────────────────────────────────────
+
+variable "enable_azure_dcr" {
+  description = "Enable Azure Data Collection Rule module"
+  type        = bool
+  default     = false
+}
+
+variable "enable_aws_cloudtrail" {
+  description = "Enable AWS CloudTrail → S3 + EventBridge module"
+  type        = bool
+  default     = false
+}
+
+variable "enable_aws_eventhub_partner" {
+  description = "Enable AWS EventBridge → partner Event Hub forwarding"
+  type        = bool
+  default     = false
+}
+
+variable "aws_kms_key_id" {
+  description = "KMS key ID for CloudTrail encryption"
+  type        = string
+  default     = ""
+}
+
+variable "aws_partner_eventhub_arn" {
+  description = "Partner Event Hub ARN (Azure Event Hubs partner integration)"
+  type        = string
+  default     = ""
+}
+
+variable "aws_collector_role_arn" {
+  description = "IAM role ARN for Magenta collector (cross-account S3 read)"
+  type        = string
+  default     = ""
+}
+
+variable "enable_gcp_logging" {
+  description = "Enable GCP Cloud Logging → Pub/Sub module"
+  type        = bool
+  default     = false
+}
+
+variable "enable_gcp_eventhub_forwarder" {
+  description = "Enable GCP Cloud Run forwarder to Event Hubs"
+  type        = bool
+  default     = false
+}
+
+variable "gcp_forwarder_image" {
+  description = "Container image for GCP Event Hubs forwarder"
+  type        = string
+  default     = "magenta/eventhub-forwarder:latest"
+}
+
+variable "gcp_forwarder_service_account" {
+  description = "GCP service account for forwarder job"
+  type        = string
+  default     = ""
+}
+
+variable "gcp_collector_service_account" {
+  description = "GCP service account for Magenta collector Pub/Sub subscriber"
+  type        = string
+  default     = ""
+}
+
+variable "azure_key_vault_ids" {
+  description = "Key Vault resource IDs for DCR diagnostic settings"
+  type        = list(string)
+  default     = []
+}
+
+variable "enable_ingest_gateway" {
+  description = "Enable Ingest Gateway (Application Gateway + WAF + mTLS)"
+  type        = bool
+  default     = false
+}
+
+variable "ingest_gateway_capacity" {
+  description = "WAF v2 capacity units"
+  type        = number
+  default     = 2
+}
+
+variable "gateway_subnet_id" {
+  description = "Subnet ID for Application Gateway (if not using network hub)"
+  type        = string
+  default     = ""
+}
+
+variable "ingest_api_fqdns" {
+  description = "FQDNs of ingest API backend instances"
+  type        = list(string)
+  default     = []
+}
+
+variable "dns_zone_name" {
+  description = "Public DNS zone name (e.g., magenta.example.com)"
+  type        = string
+  default     = ""
+}
+
+variable "dns_zone_resource_group" {
+  description = "Resource group containing DNS zone"
+  type        = string
+  default     = ""
+}
+
+variable "ingest_gateway_ssl_cert_data" {
+  description = "Base64-encoded PFX certificate for ingest gateway"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "ingest_gateway_ssl_cert_password" {
+  description = "PFX password"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "ingest_gateway_client_ca_data" {
+  description = "Base64-encoded CA certificate for mTLS client verification"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "ingest_gateway_client_ca_issuer_dn" {
+  description = "Expected issuer DN for client certificates"
+  type        = string
+  default     = ""
+}
+
 # ── Budget ────────────────────────────────────────────────────────────────
 
 variable "budget_monthly_total" {

@@ -272,3 +272,10 @@ module "budget" {
 
   tags = merge(var.common_tags, { service = "budget" })
 }
+
+# ── Collector Infrastructure ───────────────────────────────────────────────
+
+module "collectors" {
+  source = "./collectors.tf"
+  count  = 1
+}
