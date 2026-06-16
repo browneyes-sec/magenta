@@ -27,6 +27,11 @@ try:
 except Exception:
     _redact_layer = None
 
+try:
+    from magenta.core.conversation import conversation_manager
+except Exception:
+    conversation_manager = None
+
 
 class LLMAgent(BaseAgent, ABC):
     """Agent that uses an LLM for reasoning and tool use."""
@@ -36,6 +41,7 @@ class LLMAgent(BaseAgent, ABC):
         self.system_prompt = self._build_system_prompt()
         self.sensitivity_level: str = "low"
         self.task_type: str = "generic"
+        self._session_id: str | None = None
 
     def _build_system_prompt(self) -> str:
         role = self.config.role
@@ -63,9 +69,32 @@ class LLMAgent(BaseAgent, ABC):
         prompt: str,
         tier: str = "speed",
         temperature: float = 0.2,
+        session_id: str = "",
+        include_history: bool = True,
     ) -> ModelResponse:
+        """Generate a response from the LLM.
+
+        Args:
+            prompt: User prompt.
+            tier: Model tier (speed, reasoning, cost_save).
+            temperature: Sampling temperature.
+            session_id: Optional session ID for multi-turn conversations.
+            include_history: Include conversation history in context.
+        """
+        messages = [{"role": "user", "content": prompt}]
+
+        if include_history and session_id and conversation_manager:
+            session = conversation_manager.get_or_create(
+                session_id=session_id,
+                agent_role=self.config.role,
+            )
+            session.add_user_message(prompt)
+            history = session.get_context_messages()
+            if len(history) > 1:
+                messages = history
+
         request = ModelRequest(
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
             system=self.system_prompt,
             temperature=temperature,
             correlation_id="",
@@ -76,12 +105,18 @@ class LLMAgent(BaseAgent, ABC):
         )
 
         if USE_GATEWAY and _gateway:
-            return await _gateway.route(request)
+            response = await _gateway.route(request)
+        else:
+            if _redact_layer and _redact_layer.enabled:
+                request = await _redact_layer.apply(request)
+            response = await model_router.route(request, tier=tier)
 
-        if _redact_layer and _redact_layer.enabled:
-            request = await _redact_layer.apply(request)
+        if session_id and conversation_manager:
+            session = conversation_manager.get(session_id, self.config.role)
+            if session:
+                session.add_assistant_message(response.content or "")
 
-        return await model_router.route(request, tier=tier)
+        return response
 
     async def log_activity(self, mission: Mission, action: str, status: ActionStatus) -> None:
         """Log action to episodic memory and registry."""
