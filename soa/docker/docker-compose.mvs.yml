@@ -11,6 +11,7 @@
 #   11434 - OLLAMA (local LLM inference)
 #   9099 - Pipelines (LangChain)
 #   4317/4318 - OTel Collector (traces/metrics)
+#   8001 - MCPO (MCP Proxy, HTTP transport)
 #   6379 - Redis (internal only)
 #
 # Total memory: ~1 GB (limits) — fits in 7.75 GB usable RAM.
@@ -141,6 +142,33 @@ services:
     mem_limit: 64m
     healthcheck:
       disable: true
+    networks:
+      - magenta-mvs
+    restart: unless-stopped
+
+  # ── 6. MCP Orchestrator (MCPO) ─────────────────────────
+  # MCP Proxy for tool calling via HTTP transport.
+  # Uses mcpo-config.mvs.json (HTTP, not stdio) to avoid Python module deps.
+  magenta-mcpo:
+    image: ghcr.io/open-webui/mcpo:latest
+    container_name: magenta-mcpo
+    command: ["--config", "/app/mcpo-config.json", "--port", "8001"]
+    ports:
+      - "8001:8001"
+    environment:
+      MCPO_PORT: 8001
+      LOG_LEVEL: info
+    volumes:
+      - ./mcpo-config.mvs.json:/app/mcpo-config.json:ro
+    mem_limit: 64m
+    depends_on:
+      magenta-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/8001"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     networks:
       - magenta-mvs
     restart: unless-stopped

@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "registry": {
+      "name": "Registry",
+      "transport": "http",
+      "url": "http://magenta-api:8000/mcp/registry",
+      "description": "Mission, agent, directive search"
+    },
+    "artifacts": {
+      "name": "Artifact Generator",
+      "transport": "http",
+      "url": "http://magenta-api:8000/mcp/artifacts",
+      "description": "HTML dashboard artifact generation"
+    }
+  }
+}

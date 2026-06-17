@@ -16,9 +16,17 @@ Running the full stack on constrained hardware causes:
 
 ## Decision
 
-We define a **Minimum Viable Subset (MVS)** that runs on 8 GB RAM + 8 GB swap:
+We define a **Minimum Viable Subset (MVS)** with progressive enhancement tiers:
 
-### MVS Stack (5 services, ~1 GB memory)
+### Integration Tiers
+
+| Tier | Services | Memory | Use Case |
+|---|---|---|---|
+| **MVS** | Redis, OLLAMA, Open WebUI, Pipelines, OTel, MCPO | ~1 GB | UI + LLM + pipelines |
+| **Core** | + API, Worker, Scheduler, Agent-Ops | +576 MB | Full agent runtime |
+| **Full** | + Grafana, Prometheus, InfluxDB, Collector | +768 MB | Observability |
+
+### MVS Stack (6 services, ~1 GB memory)
 
 | Service | Port | Purpose | Memory Limit |
 |---|---|---|---|
@@ -27,30 +35,75 @@ We define a **Minimum Viable Subset (MVS)** that runs on 8 GB RAM + 8 GB swap:
 | `magenta-open-webui` | 3000 | Operator control plane | 256 MB |
 | `magenta-pipelines` | 9099 | LangChain pipelines | 128 MB |
 | `magenta-otel-collector` | 4317/4318 | Telemetry ingestion | 64 MB |
+| `magenta-mcpo` | 8001 | MCP Proxy (HTTP transport) | 64 MB |
 
-### Excluded from MVS
+### Core Stack (additional 4 services, +576 MB)
 
-| Service | Reason |
-|---|---|
-| `magenta-mcpo` | MCP Proxy — optional for dev |
-| `magenta-open-terminal` | Embedded terminal — not needed |
-| `magenta-grafana` | Dashboards — optional |
-| `magenta-influxdb` | Time-series DB — optional |
-| `magenta-prometheus` | Metrics — optional |
-| `magenta-collector-sidecar` | Log collectors — requires cloud credentials |
+| Service | Port | Purpose | Memory Limit |
+|---|---|---|---|
+| `magenta-api` | 8000 | FastAPI REST API | 256 MB |
+| `magenta-worker` | — | Mission execution (DAG executor) | 128 MB |
+| `magenta-scheduler` | — | Cron + approval polling | 64 MB |
+| `magenta-agent-ops` | 50060 | Agent orchestration MCP | 128 MB |
+
+### Full Stack (additional 3 services, +768 MB)
+
+| Service | Port | Purpose | Memory Limit |
+|---|---|---|---|
+| `magenta-grafana` | 3001 | Operational dashboards | 256 MB |
+| `magenta-prometheus` | 9090 | Metrics storage | 256 MB |
+| `magenta-influxdb` | 32768 | Time-series data | 256 MB |
+
+### Memory Budget (8 GB RAM)
+
+| Tier | Cumulative | Fits in 7.75 GB |
+|---|---|---|
+| MVS | 1 GB | Yes |
+| MVS + Core | 1.6 GB | Yes |
+| MVS + Core + Full | 2.4 GB | Yes |
+| Buffer (OS + Docker) | ~2 GB | — |
+| **Total** | **~4.4 GB** | **Yes** |
 
 ### Deployment
 
 ```bash
-# Start MVS
+# MVS only
 docker compose -f soa/docker/docker-compose.mvs.yml up -d
 
-# Pull model
-docker exec magenta-ollama ollama pull qwen2.5:0.5b
+# MVS + Core (full agent runtime)
+docker compose -f soa/docker/docker-compose.mvs.yml \
+  -f soa/docker/docker-compose.core.yml up -d
 
-# Access Open WebUI
-http://localhost:3000
+# MVS + Core + Full (observability)
+docker compose -f soa/docker/docker-compose.mvs.yml \
+  -f soa/docker/docker-compose.core.yml \
+  -f soa/docker/docker-compose.monitoring.yml up -d
+
+# Initialize state (after Core is up)
+docker exec magenta-api bash /init-state.sh
 ```
+
+### MCPO Transport
+
+MCPO uses HTTP transport (not stdio) to avoid Python module dependencies in the MCPO container. MCP servers are accessed via the Magenta API's HTTP endpoints.
+
+```json
+{
+  "mcpServers": {
+    "registry": {
+      "transport": "http",
+      "url": "http://magenta-api:8000/mcp/registry"
+    }
+  }
+}
+```
+
+### State Initialization
+
+The `init-state.sh` script runs on first startup to:
+1. Register 6 base agents (triage, enrichment, containment, investigation, compliance, reporting)
+2. Instantiate the Dictator agent
+3. Create a sample mission for pipeline testing
 
 ## Alternatives Considered
 
@@ -62,6 +115,7 @@ http://localhost:3000
 ## Consequences
 
 - Developers can run the MVS on any 8 GB machine
+- Progressive enhancement allows adding services as needed
 - Full stack testing happens in CI/CD or cloud environments
 - MVS documentation is in `docs/deployments/mvs-local-dev.md`
 - ADR-015 captures this decision for future reference
@@ -69,5 +123,8 @@ http://localhost:3000
 ## References
 
 - `soa/docker/docker-compose.mvs.yml` — MVS compose file
+- `soa/docker/docker-compose.core.yml` — Core services compose
+- `soa/docker/mcpo-config.mvs.json` — MCPO HTTP transport config
+- `soa/docker/init-state.sh` — State initialization script
 - `docs/deployments/mvs-local-dev.md` — MVS documentation
 - `architecture/ADR/` — Architecture Decision Records
