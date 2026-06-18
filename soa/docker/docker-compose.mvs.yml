@@ -83,7 +83,7 @@ services:
       OPENAI_API_KEY: "${OPENAI_API_KEY:-sk-magenta-pipeline}"
     volumes:
       - magenta-openwebui-data:/app/backend/data
-    mem_limit: 256m
+    mem_limit: 512m
     depends_on:
       magenta-ollama:
         condition: service_healthy
