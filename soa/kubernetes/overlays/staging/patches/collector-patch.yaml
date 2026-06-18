@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collector
+  namespace: magenta-staging
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: collector
+          env:
+            - name: MAGENTA_ENV
+              value: "staging"
+            - name: MAGENTA_LOG_LEVEL
+              value: "INFO"
+          resources:
+            requests:
+              cpu: "300m"
+              memory: "384Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

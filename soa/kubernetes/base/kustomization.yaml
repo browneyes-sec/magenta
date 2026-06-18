@@ -1,80 +1,67 @@
-# Magenta SOA — Base Kustomization
-# Shared foundation for all environments.
-# Overlays patch this base with environment-specific values.
+# Kustomize Base — All Services
+# Base configuration for all Magenta services.
+# Overlays in dev/staging/production override image tags and replicas.
+#
+# Usage:
+#   kubectl apply -k soa/kubernetes/base/
+#   kubectl apply -k soa/kubernetes/overlays/dev/
+#   kubectl apply -k soa/kubernetes/overlays/staging/
+#   kubectl apply -k soa/kubernetes/overlays/production/
 
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: magenta-soa
-
 resources:
-  - ../namespaces/magenta-soa.yaml
-  - ../mcp-services/mcp-bridge.yaml
-  - ../mcp-services/mcp-finops.yaml
-  - ../mcp-services/mcp-web.yaml
-  - ../agents/agent-ops.yaml
-  - ../agents/agent-orchestrator.yaml
-  - ../soa/api.yaml
-  - ../soa/worker.yaml
-  - ../soa/scheduler.yaml
-  - ../soa/mcpo.yaml
+  # Core services
+  - base/api-deployment.yaml
+  - base/worker-deployment.yaml
+  - base/scheduler-deployment.yaml
+
+  # Agent Ops
+  - base/agent-ops/core-deployment.yaml
+  - base/agent-ops/tf-sidecar-deployment.yaml
+
+  # Agent Orchestrator
+  - base/agent-orchestrator-deployment.yaml
+
+  # MCP Bridge
+  - base/mcp-bridge-deployment.yaml
+
+  # Web Gateway
+  - base/web-gateway-deployment.yaml
+
+  # Collector
+  - base/collector-deployment.yaml
+
+  # OLLAMA GPU
+  - base/ollama-gpu/deployment.yaml
+
+  # Network Policies
+  - base/network/default-deny.yaml
+  - base/network/mcp-bridge-allow.yaml
 
 commonLabels:
-  app.kubernetes.io/name: magenta
-  app.kubernetes.io/component: soa
-  app.kubernetes.io/part-of: magenta-asoar
+  app.kubernetes.io/part-of: magenta
   app.kubernetes.io/managed-by: kustomize
 
-configMapGenerator:
-  - name: soa-config
-    files:
-      - ../../config/system.toml
-      - ../../config/providers.toml
-      - ../../config/agents.toml
-      - ../../config/multicloud.toml
-      - ../../config/finops.toml
-  - name: terraform-modules
-    files:
-      - ../../terraform/main.tf
-      - ../../terraform/providers.tf
-      - ../../terraform/variables.tf
-      - ../../terraform/outputs.tf
-      - ../../terraform/modules/compute/main.tf
-      - ../../terraform/modules/kubernetes/main.tf
-      - ../../terraform/modules/aks/main.tf
-      - ../../terraform/modules/eks/main.tf
-      - ../../terraform/modules/gke/main.tf
-      - ../../terraform/modules/vsphere/main.tf
-      - ../../terraform/modules/network/main.tf
-  - name: mcpo-config
-    files:
-      - ../../docker/mcpo-config.json
-
-secretGenerator:
-  - name: mcp-tls
-    type: kubernetes.io/tls
-    files:
-      - tls.crt=../secrets/mcp-tls.crt
-      - tls.key=../secrets/mcp-tls.key
-  - name: cloud-credentials
-    envs:
-      - ../secrets/cloud-credentials.env
-    type: Opaque
-
 images:
-  - name: magenta/mcp-bridge
-    newTag: 0.1.0
-  - name: magenta/agent-ops
-    newTag: 0.1.0
-  - name: magenta/agent-orchestrator
-    newTag: 0.1.0
-  - name: magenta/mcp-web
-    newTag: 0.1.0
-  - name: magenta/mcp-finops
-    newTag: 0.1.0
-  - name: magenta/api
-    newTag: 0.1.0
-  - name: magenta/worker
-    newTag: 0.1.0
-  - name: magenta/scheduler
-    newTag: 0.1.0
+  - name: ghcr.io/browneyes-sec/magenta/api
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/worker
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/scheduler
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/agent-ops
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/agent-ops-tf-sidecar
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/agent-orchestrator
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/mcp-bridge
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/web-gateway
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/collector
+    newTag: sha-abc1234
+  - name: ollama/ollama
+    newTag: "0.5.7"

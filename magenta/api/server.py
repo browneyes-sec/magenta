@@ -15,6 +15,7 @@ from magenta.api.routes import (
     health,
     ingest,
     instrumentation,
+    mcp,
     mesh,
     missions,
     monitoring,
@@ -117,6 +118,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(ingest.router, prefix="/ingest", tags=["Ingest"])
     app.include_router(mesh.router, prefix="/api/v1/mesh", tags=["Data Mesh"])
+    app.include_router(mcp.router, prefix="/mcp", tags=["MCP"])
 
     @app.get("/")
     async def root():
@@ -128,3 +130,11 @@ def create_app() -> FastAPI:
         }
 
     return app
+
+
+app = create_app()
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("magenta.api.server:app", host="0.0.0.0", port=8000, log_level="info")

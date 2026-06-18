@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-ops-core
+  namespace: magenta-production
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: agent-ops
+              app.kubernetes.io/component: core
+      containers:
+        - name: agent-ops
+          env:
+            - name: MAGENTA_ENV
+              value: "production"
+            - name: MAGENTA_LOG_LEVEL
+              value: "WARN"
+          resources:
+            requests:
+              cpu: "1"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-ops-tf-sidecar
+  namespace: magenta-production
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: agent-ops
+              app.kubernetes.io/component: tf-sidecar
+      containers:
+        - name: tf-sidecar
+          env:
+            - name: MAGENTA_ENV
+              value: "production"
+            - name: MAGENTA_LOG_LEVEL
+              value: "WARN"
+          resources:
+            requests:
+              cpu: "2"
+              memory: "2Gi"
+            limits:
+              cpu: "4"
+              memory: "4Gi"

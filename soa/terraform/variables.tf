@@ -550,3 +550,29 @@ variable "budget_filter_tags" {
     environment = ["dev", "staging", "production"]
   }
 }
+
+# ── GPU Operator ─────────────────────────────────────────────────────────
+
+variable "enable_gpu_operator" {
+  description = "Enable NVIDIA GPU Operator for GPU-enabled K8s clusters"
+  type        = bool
+  default     = false
+}
+
+variable "gpu_driver_version" {
+  description = "NVIDIA driver version (or 'latest')"
+  type        = string
+  default     = "latest"
+}
+
+variable "gpu_operator_version" {
+  description = "Helm chart version for GPU Operator"
+  type        = string
+  default     = "24.6.0"
+}
+
+variable "enable_gpu_monitoring" {
+  description = "Enable GPU monitoring with DCGM Exporter"
+  type        = bool
+  default     = true
+}

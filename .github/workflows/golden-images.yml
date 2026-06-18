@@ -1,0 +1,275 @@
+# Magenta Golden Image Pipeline
+# Builds, scans, signs, and pushes all service images to GHCR.
+# Triggered on push to main or manual dispatch.
+#
+# Services: api, worker, scheduler, agent-ops, agent-orchestrator, mcp-bridge, web-gateway, collector
+# Base images: distroless (CPU), distroless (GPU), distroless (collector), tf-sidecar
+# Signing: cosign keyless (OIDC)
+# SBOM: syft SPDX JSON
+
+name: Golden Images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'soa/docker/**'
+      - 'magenta/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+  workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: 'Force rebuild all images'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/magenta
+
+jobs:
+  # ── Base Images ──────────────────────────────────────────────────────────
+  build-base:
+    name: Build Base Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write  # cosign keyless
+
+    strategy:
+      matrix:
+        include:
+          - name: distroless
+            file: soa/docker/base/Dockerfile.distroless
+            tag: base
+          - name: gpu
+            file: soa/docker/base/Dockerfile.gpu
+            tag: base-gpu
+          - name: collector
+            file: soa/docker/base/Dockerfile.collector
+            tag: base-collector
+          - name: tf-sidecar
+            file: soa/docker/base/Dockerfile.tf-sidecar
+            tag: base-tf-sidecar
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Install syft
+        uses: anchore/sbom-action/download-syft@v0
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}/${{ matrix.tag }}
+          tags: |
+            type=sha,prefix=
+            type=ref,event=branch
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Generate SBOM
+        run: |
+          syft packages dir:. -o spdx-json > sbom-${{ matrix.tag }}.spdx.json
+
+      - name: Sign image with cosign
+        run: |
+          cosign sign --yes ${{ env.IMAGE_PREFIX }}/${{ matrix.tag }}@${{ steps.meta.outputs.digest }}
+
+      - name: Upload SBOM as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ matrix.tag }}
+          path: sbom-${{ matrix.tag }}.spdx.json
+
+  # ── Service Images ──────────────────────────────────────────────────────
+  build-services:
+    name: Build Service Images
+    runs-on: ubuntu-latest
+    needs: build-base
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    strategy:
+      matrix:
+        include:
+          - name: api
+            file: soa/docker/Dockerfile.api
+            tag: api
+          - name: worker
+            file: soa/docker/Dockerfile.worker
+            tag: worker
+          - name: scheduler
+            file: soa/docker/Dockerfile.scheduler
+            tag: scheduler
+          - name: agent-ops-core
+            file: soa/docker/Dockerfile.agent-ops
+            tag: agent-ops
+          - name: agent-orchestrator
+            file: soa/docker/Dockerfile.agent-orchestrator
+            tag: agent-orchestrator
+          - name: mcp-bridge
+            file: soa/docker/Dockerfile.mcp-bridge
+            tag: mcp-bridge
+          - name: web-gateway
+            file: soa/docker/Dockerfile.web-gateway
+            tag: web-gateway
+          - name: collector
+            file: soa/docker/Dockerfile.collector
+            tag: collector
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Install syft
+        uses: anchore/sbom-action/download-syft@v0
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}/${{ matrix.tag }}
+          tags: |
+            type=sha,prefix=
+            type=ref,event=branch
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Generate SBOM
+        run: |
+          syft packages dir:. -o spdx-json > sbom-${{ matrix.tag }}.spdx.json
+
+      - name: Sign image with cosign
+        run: |
+          cosign sign --yes ${{ env.IMAGE_PREFIX }}/${{ matrix.tag }}@${{ steps.meta.outputs.digest }}
+
+      - name: Upload SBOM as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ matrix.tag }}
+          path: sbom-${{ matrix.tag }}.spdx.json
+
+  # ── Vulnerability Scan ──────────────────────────────────────────────────
+  scan-images:
+    name: Scan Images
+    runs-on: ubuntu-latest
+    needs: build-services
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_PREFIX }}/${{ matrix.tag }}@${{ steps.meta.outputs.digest }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ── Promotion to Per-Cloud Registries ──────────────────────────────────
+  promote-to-cloud:
+    name: Promote to Cloud Registries
+    runs-on: ubuntu-latest
+    needs: [build-base, build-services, scan-images]
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      id-token: write
+
+    strategy:
+      matrix:
+        registry:
+          - name: ACR
+            url: ${{ secrets.ACR_URL }}
+            auth: az acr login --name ${{ secrets.ACR_NAME }} --expose-token
+          - name: ECR
+            url: ${{ secrets.ECR_URL }}
+            auth: aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_URL }}
+          - name: Artifact Registry
+            url: ${{ secrets.GAR_URL }}
+            auth: gcloud auth configure-docker ${{ secrets.GAR_REGION }}-docker.pkg.dev
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to ${{ matrix.registry.name }}
+        run: ${{ matrix.registry.auth }}
+
+      - name: Copy images from GHCR to ${{ matrix.registry.name }}
+        run: |
+          TAGS=$(docker manifest inspect ${{ env.IMAGE_PREFIX }}:sha-$(echo ${{ github.sha }} | head -c 7) | jq -r '.digest')
+          for TAG in $TAGS; do
+            skopeo copy \
+              docker://${{ env.IMAGE_PREFIX }}:${TAG} \
+              docker://${{ matrix.registry.url }}/magenta:${TAG}
+          done
+
+      - name: Sign images in ${{ matrix.registry.name }}
+        run: |
+          cosign sign --yes ${{ matrix.registry.url }}/magenta@${{ steps.meta.outputs.digest }}

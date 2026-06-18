@@ -1,4 +1,8 @@
-# Staging Overlay — 2 replicas, staging tags, moderate resources
+# Kustomize Overlay — Staging
+# Staging environment overrides.
+# Uses pinned images (SHA), 2 replicas, INFO logging.
+#
+# Usage: kubectl apply -k soa/kubernetes/overlays/staging/
 
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -6,65 +10,39 @@ kind: Kustomization
 resources:
   - ../../base
 
+namespace: magenta-staging
+
+commonLabels:
+  environment: staging
+
 patches:
-  - target:
-      kind: Deployment
-      name: mcp-bridge
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 2
-  - target:
-      kind: Deployment
-      name: agent-ops
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 2
-  - target:
-      kind: Deployment
-      name: agent-orchestrator
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 2
-  - target:
-      kind: Deployment
-      name: mcp-web
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 2
-  - target:
-      kind: Deployment
-      name: mcp-finops
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 2
-  - target:
-      kind: PersistentVolumeClaim
-      name: terraform-state-pvc
-    patch: |-
-      - op: replace
-        path: /spec/resources/requests/storage
-        value: "10Gi"
-  - target:
-      kind: PersistentVolumeClaim
-      name: orchestrator-state-pvc
-    patch: |-
-      - op: replace
-        path: /spec/resources/requests/storage
-        value: "10Gi"
+  - path: patches/api-patch.yaml
+  - path: patches/worker-patch.yaml
+  - path: patches/scheduler-patch.yaml
+  - path: patches/agent-ops-patch.yaml
+  - path: patches/agent-orchestrator-patch.yaml
+  - path: patches/mcp-bridge-patch.yaml
+  - path: patches/web-gateway-patch.yaml
+  - path: patches/collector-patch.yaml
 
 images:
-  - name: magenta/mcp-bridge
-    newTag: staging
-  - name: magenta/agent-ops
-    newTag: staging
-  - name: magenta/agent-orchestrator
-    newTag: staging
-  - name: magenta/mcp-web
-    newTag: staging
-  - name: magenta/mcp-finops
-    newTag: staging
+  - name: ghcr.io/browneyes-sec/magenta/api
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/worker
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/scheduler
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/agent-ops
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/agent-ops-tf-sidecar
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/agent-orchestrator
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/mcp-bridge
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/web-gateway
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/collector
+    newTag: sha-abc1234
+  - name: ollama/ollama
+    newTag: "0.5.7"

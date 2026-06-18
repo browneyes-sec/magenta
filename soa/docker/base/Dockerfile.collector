@@ -1,0 +1,65 @@
+# Magenta Collector — Distroless with Build Tools
+# Runs SFTP, Cloud API, and Customer SFTP collectors.
+# Includes build deps for paramiko (cryptography), pywinrm (kerberos), cloud SDKs.
+#
+# Build: docker build -t magenta/collector:distroless -f soa/docker/base/Dockerfile.collector .
+# Size: ~400MB (vs ~600MB with python:3.12-slim)
+
+FROM chainguard/python:3.12 AS builder
+
+WORKDIR /app
+
+# Install uv for dependency management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Copy dependency manifest
+COPY pyproject.toml uv.lock README.md /app/
+
+# Install dependencies (collectors extras, frozen lockfile)
+RUN uv sync --frozen --extra collectors --extra aws --extra gcp
+
+# ── Runtime ───────────────────────────────────────────────────────────────
+
+FROM chainguard/python:3.12
+
+WORKDIR /app
+
+# Runtime deps for paramiko (cryptography), pywinrm (kerberos), cloud SDKs
+# These are minimal runtime libs, not full build tools
+RUN apk add --no-cache \
+    libffi \
+    libssl3 \
+    krb5-libs \
+    curl \
+    ca-certificates
+
+# Non-root user (uid 10001)
+RUN addgroup -g 10001 magenta && \
+    adduser -u 10001 -G magenta -s /bin/sh -D magenta
+
+# Writable directories
+RUN mkdir -p /app/data /app/config/keys && \
+    chown -R magenta:magenta /app
+
+# Copy venv from builder
+COPY --from=builder /app/.venv /app/.venv
+
+# Copy source
+COPY magenta/ /app/magenta/
+COPY soa/config/collectors.toml /app/soa/config/collectors.toml
+
+# Copy entrypoint
+COPY soa/docker/collector-entrypoint.sh /collector-entrypoint.sh
+RUN chmod +x /collector-entrypoint.sh && \
+    chown magenta:magenta /collector-entrypoint.sh
+
+# Environment
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONFAULTHANDLER=1
+
+USER magenta
+
+ENTRYPOINT ["/collector-entrypoint.sh"]
+CMD ["python", "-m", "magenta.integration.collectors.runner"]

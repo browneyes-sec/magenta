@@ -156,6 +156,18 @@ variable "user_node_pools" {
   default = {}
 }
 
+variable "enable_gpu_operator" {
+  description = "Enable NVIDIA GPU Operator for GPU node pools"
+  type        = bool
+  default     = false
+}
+
+variable "gpu_driver_version" {
+  description = "NVIDIA driver version for GPU nodes"
+  type        = string
+  default     = "latest"
+}
+
 variable "tags" {
   description = "Labels to apply to resources"
   type        = map(string)

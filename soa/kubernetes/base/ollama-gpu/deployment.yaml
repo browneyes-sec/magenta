@@ -1,0 +1,202 @@
+# OLLAMA GPU Inference Deployment
+# Deploys OLLAMA with GPU support for LLM inference.
+# Uses RuntimeClass nvidia for GPU scheduling.
+#
+# Prerequisites:
+#   - NVIDIA GPU Operator deployed (see terraform/modules/gpu-operator)
+#   - GPU nodes with nvidia.com/gpu resource available
+#   - Models pre-pulled or downloaded on first start
+#
+# Usage:
+#   kubectl apply -f soa/kubernetes/base/ollama-gpu/deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama-gpu
+  namespace: magenta-mesh
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/component: gpu-inference
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ollama
+      app.kubernetes.io/component: gpu-inference
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ollama
+        app.kubernetes.io/component: gpu-inference
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "11434"
+        prometheus.io/path: "/metrics"
+    spec:
+      runtimeClassName: nvidia
+      serviceAccountName: ollama-gpu
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: ollama
+          image: ollama/ollama:0.5.7
+          ports:
+            - containerPort: 11434
+              name: http
+              protocol: TCP
+          env:
+            - name: OLLAMA_HOST
+              value: "0.0.0.0"
+            - name: OLLAMA_ORIGINS
+              value: "*"
+            - name: OLLAMA_NUM_PARALLEL
+              value: "2"
+            - name: OLLAMA_MAX_LOADED_MODELS
+              value: "3"
+            - name: OLLAMA_KEEP_ALIVE
+              value: "5m"
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: "all"
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: "compute,utility"
+          resources:
+            requests:
+              cpu: "2"
+              memory: "8Gi"
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "4"
+              memory: "16Gi"
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: ollama-data
+              mountPath: /root/.ollama
+            - name: ollama-models
+              mountPath: /models
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 11434
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 11434
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: ollama-data
+          persistentVolumeClaim:
+            claimName: ollama-gpu-data
+        - name: ollama-models
+          persistentVolumeClaim:
+            claimName: ollama-models
+      nodeSelector:
+        nvidia.com/gpu.present: "true"
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama-gpu
+  namespace: magenta-mesh
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/component: gpu-inference
+spec:
+  type: ClusterIP
+  ports:
+    - port: 11434
+      targetPort: 11434
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/component: gpu-inference
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ollama-gpu
+  namespace: magenta-mesh
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/component: gpu-inference
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-gpu-data
+  namespace: magenta-mesh
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/component: gpu-inference
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: managed-csi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-models
+  namespace: magenta-mesh
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/component: gpu-inference
+spec:
+  accessModes:
+    - ReadOnlyMany
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: managed-csi-premium
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ollama-gpu
+  namespace: magenta-mesh
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/component: gpu-inference
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ollama
+      app.kubernetes.io/component: gpu-inference
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ollama-gpu
+  namespace: magenta-mesh
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/component: gpu-inference
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ollama
+      app.kubernetes.io/component: gpu-inference
+  endpoints:
+    - port: http
+      interval: 30s
+      path: /metrics

@@ -209,6 +209,50 @@ module "gke" {
   tags = merge(var.common_tags, { provider = "gcp", service = "gke" })
 }
 
+# ── GPU Operator (per-provider) ────────────────────────────────────────────
+
+module "gpu_operator_azure" {
+  source = "./modules/gpu-operator"
+  count  = var.enable_azure && var.enable_kubernetes && var.enable_gpu_operator && var.use_new_k8s_modules ? 1 : 0
+
+  cluster_name         = "${var.resource_prefix}-aks"
+  provider             = "azure"
+  environment          = var.environment
+  gpu_driver_version   = var.gpu_driver_version
+  gpu_operator_version = var.gpu_operator_version
+  enable_monitoring    = var.enable_gpu_monitoring
+
+  tags = merge(var.common_tags, { provider = "azure", service = "gpu-operator" })
+}
+
+module "gpu_operator_aws" {
+  source = "./modules/gpu-operator"
+  count  = var.enable_aws && var.enable_kubernetes && var.enable_gpu_operator && var.use_new_k8s_modules ? 1 : 0
+
+  cluster_name         = "${var.resource_prefix}-eks"
+  provider             = "aws"
+  environment          = var.environment
+  gpu_driver_version   = var.gpu_driver_version
+  gpu_operator_version = var.gpu_operator_version
+  enable_monitoring    = var.enable_gpu_monitoring
+
+  tags = merge(var.common_tags, { provider = "aws", service = "gpu-operator" })
+}
+
+module "gpu_operator_gcp" {
+  source = "./modules/gpu-operator"
+  count  = var.enable_gcp && var.enable_kubernetes && var.enable_gpu_operator && var.use_new_k8s_modules ? 1 : 0
+
+  cluster_name         = "${var.resource_prefix}-gke"
+  provider             = "gcp"
+  environment          = var.environment
+  gpu_driver_version   = var.gpu_driver_version
+  gpu_operator_version = var.gpu_operator_version
+  enable_monitoring    = var.enable_gpu_monitoring
+
+  tags = merge(var.common_tags, { provider = "gcp", service = "gpu-operator" })
+}
+
 # ── vSphere Private Cloud ─────────────────────────────────────────────────
 
 module "vsphere_cluster" {

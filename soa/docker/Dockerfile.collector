@@ -1,37 +1,32 @@
 # Magenta Collector Sidecar
-# Runs Linux SFTP, Cloud API, and Customer SFTP collectors as a background service.
+# Distroless base image (~400MB vs ~600MB with python:3.12-slim)
+#
+# Build: docker build -t magenta/collector:latest -f soa/docker/Dockerfile.collector .
+# Size: ~400MB (distroless base + build deps + app)
 
-FROM python:3.12-slim
-
-# System deps for paramiko (cryptography), pywinrm (kerberos), and cloud SDKs
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    libffi-dev \
-    libssl-dev \
-    libkrb5-dev \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+FROM magenta/base:collector AS builder
 
 WORKDIR /app
 
 # Install Python deps (core + collectors extras)
 COPY pyproject.toml uv.lock ./
-RUN pip install --no-cache-dir uv && \
-    uv pip install --system --no-cache -e ".[collectors,aws,gcp]"
+RUN uv sync --frozen --extra collectors --extra aws --extra gcp
+
+# ── Runtime ───────────────────────────────────────────────────────────────
+
+FROM magenta/base:collector
+
+WORKDIR /app
+
+# Copy venv from builder
+COPY --from=builder /app/.venv /app/.venv
 
 # Copy source
-COPY magenta/ ./magenta/
-COPY soa/config/collectors.toml ./soa/config/collectors.toml
+COPY magenta/ /app/magenta/
+COPY soa/config/collectors.toml /app/soa/config/collectors.toml
 
-# Collector entrypoint
-COPY soa/docker/collector-entrypoint.sh /collector-entrypoint.sh
-RUN chmod +x /collector-entrypoint.sh
-
-# Non-root user
-RUN useradd -m -u 1000 magenta && \
-    mkdir -p /config/keys && \
-    chown -R magenta:magenta /app /config
-USER magenta
+# Non-root user (inherited from base)
+USER 10001:10001
 
 ENTRYPOINT ["/collector-entrypoint.sh"]
 CMD ["python", "-m", "magenta.integration.collectors.runner"]

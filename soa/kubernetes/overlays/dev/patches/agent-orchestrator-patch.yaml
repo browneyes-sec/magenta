@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-orchestrator
+  namespace: magenta-dev
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: agent-orchestrator
+          env:
+            - name: MAGENTA_ENV
+              value: "dev"
+            - name: MAGENTA_LOG_LEVEL
+              value: "DEBUG"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
