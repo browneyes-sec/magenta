@@ -118,7 +118,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(ingest.router, prefix="/ingest", tags=["Ingest"])
     app.include_router(mesh.router, prefix="/api/v1/mesh", tags=["Data Mesh"])
-    app.include_router(mcp.router, prefix="/mcp", tags=["MCP"])
+    app.include_router(mcp.router, tags=["MCP"])
 
     @app.get("/")
     async def root():
