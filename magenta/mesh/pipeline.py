@@ -62,22 +62,52 @@ class SemanticChunker:
 # ── Embedder ──────────────────────────────────────────────────────────────
 
 class OllamaEmbedder:
-    """Embed text via OLLAMA API using bge-m3 model."""
+    """Embed text via OLLAMA API using nomic-embed-text model.
+
+    Includes a 24h TTL cache to avoid redundant embedding calls.
+    """
 
     def __init__(self, config: MeshConfig):
         self.host = config.ollama.host.rstrip("/")
         self.model = config.ollama.model
         self.dimension = config.ollama.dimension
         self.batch_size = config.ollama.batch_size
+        self._cache: dict[str, tuple[list[float], float]] = {}
+        self._cache_ttl = 86400  # 24 hours
+
+    def _cache_key(self, text: str) -> str:
+        import hashlib
+        return hashlib.sha256(f"{self.model}:{text}".encode()).hexdigest()[:16]
+
+    def _is_cache_fresh(self, ts: float) -> bool:
+        import time
+        return (time.monotonic() - ts) < self._cache_ttl
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         """Embed a batch of texts. Returns list of embedding vectors."""
         import httpx
+        import time
 
         embeddings: list[list[float]] = []
+        uncached_texts: list[str] = []
+        uncached_indices: list[int] = []
 
-        for i in range(0, len(texts), self.batch_size):
-            batch = texts[i : i + self.batch_size]
+        # Check cache first
+        for i, text in enumerate(texts):
+            key = self._cache_key(text)
+            if key in self._cache:
+                vec, ts = self._cache[key]
+                if self._is_cache_fresh(ts):
+                    embeddings.append(vec)
+                    continue
+            embeddings.append([])  # placeholder
+            uncached_texts.append(text)
+            uncached_indices.append(i)
+
+        # Embed uncached texts in batches
+        for i in range(0, len(uncached_texts), self.batch_size):
+            batch = uncached_texts[i : i + self.batch_size]
+            batch_indices = uncached_indices[i : i + self.batch_size]
             try:
                 async with httpx.AsyncClient(timeout=60.0) as client:
                     response = await client.post(
@@ -86,10 +116,12 @@ class OllamaEmbedder:
                     )
                     response.raise_for_status()
                     data = response.json()
-                    embeddings.extend(data.get("embeddings", []))
+                    batch_embeddings = data.get("embeddings", [])
+                    for j, (idx, emb) in enumerate(zip(batch_indices, batch_embeddings)):
+                        embeddings[idx] = emb
+                        self._cache[self._cache_key(batch[j])] = (emb, time.monotonic())
             except Exception as e:
                 logger.error("OLLAMA embed failed for batch %d: %s", i // self.batch_size, e)
-                embeddings.extend([[] for _ in batch])
 
         return embeddings
 

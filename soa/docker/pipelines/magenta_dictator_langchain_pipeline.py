@@ -10,6 +10,7 @@ Installation: place in Open WebUI pipelines directory, enable in Valves.
 
 import json
 import logging
+import os
 from typing import Any, Optional
 
 import httpx
@@ -18,6 +19,7 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 API_BASE = "http://magenta-api:8000"
+API_KEY = os.environ.get("OPENAI_API_KEY", "sk-magenta-pipeline")
 TIMEOUT = 30.0
 
 
@@ -110,19 +112,19 @@ class Pipeline:
 
     async def _get(self, path: str) -> Any:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            r = await client.get(f"{API_BASE}{path}")
+            r = await client.get(f"{API_BASE}{path}", headers={"X-API-Key": API_KEY})
             r.raise_for_status()
             return r.json()
 
     async def _post(self, path: str, json_data: dict = None, params: dict = None) -> Any:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            r = await client.post(f"{API_BASE}{path}", json=json_data, params=params)
+            r = await client.post(f"{API_BASE}{path}", json=json_data, params=params, headers={"X-API-Key": API_KEY})
             r.raise_for_status()
             return r.json()
 
     async def _delete(self, path: str) -> Any:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            r = await client.delete(f"{API_BASE}{path}")
+            r = await client.delete(f"{API_BASE}{path}", headers={"X-API-Key": API_KEY})
             r.raise_for_status()
             return r.json()
 

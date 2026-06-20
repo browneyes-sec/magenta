@@ -2,14 +2,27 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from magenta.api.middleware import get_tenant_id
 
 router = APIRouter(prefix="/api/v1/mesh", tags=["mesh"])
+
+# API key for pipeline-to-API auth (set via MAGENTA_API_KEY env var)
+_API_KEY = os.environ.get("MAGENTA_API_KEY", "magenta-dev-key")
+
+
+async def validate_api_key(x_api_key: str = Header(default="")) -> str:
+    """Validate API key from header. Used for pipeline-to-API auth."""
+    if not x_api_key:
+        raise HTTPException(status_code=401, detail="Missing X-API-Key header")
+    if x_api_key != _API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid API key")
+    return x_api_key
 
 
 class MeshQueryRequest(BaseModel):
@@ -117,7 +130,11 @@ class WriteProceduralRequest(BaseModel):
 
 
 @router.post("/memory/write-episode")
-async def write_episode(request: WriteEpisodeRequest, tenant_id: str = Depends(get_tenant_id)):
+async def write_episode(
+    request: WriteEpisodeRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    _api_key: str = Depends(validate_api_key),
+):
     """Write episodic memory (mission transcript, agent decision)."""
     from magenta.mesh.memory import memory_mcp
 
@@ -150,7 +167,11 @@ async def search_episodes(request: SearchMemoryRequest, tenant_id: str = Depends
 
 
 @router.post("/memory/write-semantic")
-async def write_semantic(request: WriteSemanticRequest, tenant_id: str = Depends(get_tenant_id)):
+async def write_semantic(
+    request: WriteSemanticRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    _api_key: str = Depends(validate_api_key),
+):
     """Write semantic memory (playbook, runbook, policy, knowledge)."""
     from magenta.mesh.memory import memory_mcp
 
@@ -181,7 +202,11 @@ async def search_semantic(request: SearchMemoryRequest, tenant_id: str = Depends
 
 
 @router.post("/memory/write-procedure")
-async def write_procedure(request: WriteProceduralRequest, tenant_id: str = Depends(get_tenant_id)):
+async def write_procedure(
+    request: WriteProceduralRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    _api_key: str = Depends(validate_api_key),
+):
     """Write procedural memory (tool invocation pattern)."""
     from magenta.mesh.memory import memory_mcp
 
