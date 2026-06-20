@@ -1,20 +1,90 @@
 """Workflow Engine - Executes compiled workflows with agentic nodes, approvals, and publishing."""
 
 from __future__ import annotations
-from typing import Any, Optional
+
+import ast
 import asyncio
 import logging
-from datetime import datetime
+import time
 from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
-from magenta.core.models import Mission, MissionStatus, AgentConfig
-from magenta.core.mission import mission_manager
 from magenta.core.agent import agent_registry
-from magenta.orchestration.dag_executor import dag_executor, DAGNode
+from magenta.core.mission import mission_manager
+from magenta.core.models import Mission, MissionStatus
+from magenta.orchestration.dag_executor import DAGNode, dag_executor
 from magenta.workflows.compiler import workflow_compiler
-from magenta.exceptions import MissionError, PlaybookError
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_eval(expression: str, context: dict[str, Any]) -> bool:
+    """Safely evaluate a boolean expression without arbitrary code execution.
+
+    Supports: comparisons (==, !=, <, >, <=, >=), boolean operators (and, or, not),
+    attribute access, subscript access, string/number/boolean literals.
+
+    Raises ValueError for unsupported AST node types.
+    """
+    tree = ast.parse(expression, mode="eval")
+
+    def _eval_node(node: ast.AST) -> Any:
+        if isinstance(node, ast.Expression):
+            return _eval_node(node.body)
+        if isinstance(node, ast.Constant):
+            return node.value
+        if isinstance(node, ast.Name):
+            if node.id not in context:
+                raise ValueError(f"Unknown variable: {node.id}")
+            return context[node.id]
+        if isinstance(node, ast.Attribute):
+            obj = _eval_node(node.value)
+            return getattr(obj, node.attr)
+        if isinstance(node, ast.Subscript):
+            obj = _eval_node(node.value)
+            key = _eval_node(node.slice)
+            return obj[key]
+        if isinstance(node, ast.Compare):
+            left = _eval_node(node.left)
+            for op, comparator in zip(node.ops, node.comparators):
+                right = _eval_node(comparator)
+                if not _eval_cmp(op, left, right):
+                    return False
+                left = right
+            return True
+        if isinstance(node, ast.BoolOp):
+            if isinstance(node.op, ast.And):
+                return all(_eval_node(v) for v in node.values)
+            if isinstance(node.op, ast.Or):
+                return any(_eval_node(v) for v in node.values)
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+            return not _eval_node(node.operand)
+        if isinstance(node, ast.Call):
+            raise ValueError("Function calls not allowed in conditions")
+        raise ValueError(f"Unsupported expression: {ast.dump(node)}")
+
+    def _eval_cmp(op: ast.cmpop, left: Any, right: Any) -> bool:
+        if isinstance(op, ast.Eq):
+            return left == right
+        if isinstance(op, ast.NotEq):
+            return left != right
+        if isinstance(op, ast.Lt):
+            return left < right
+        if isinstance(op, ast.LtE):
+            return left <= right
+        if isinstance(op, ast.Gt):
+            return left > right
+        if isinstance(op, ast.GtE):
+            return left >= right
+        if isinstance(op, ast.In):
+            return left in right
+        if isinstance(op, ast.NotIn):
+            return left not in right
+        raise ValueError(f"Unsupported operator: {type(op).__name__}")
+
+    return bool(_eval_node(tree))
 
 
 @dataclass
@@ -22,80 +92,108 @@ class WorkflowExecution:
     mission_id: str
     playbook_name: str
     started_at: datetime = field(default_factory=datetime.utcnow)
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
     status: str = "running"
     node_results: dict = field(default_factory=dict)
     node_errors: dict = field(default_factory=dict)
     approvals_pending: dict = field(default_factory=dict)
-    current_node: Optional[str] = None
+    current_node: str | None = None
 
 
 class WorkflowEngine:
     """High-level workflow engine that orchestrates playbook execution."""
-    
+
+    _MAX_COMPLETED_EXECUTIONS = 500
+
     def __init__(self):
         self._executions: dict[str, WorkflowExecution] = {}
         self._approval_callbacks: dict[str, asyncio.Future] = {}
-    
+        self._approval_lock = asyncio.Lock()
+        self._running_missions: set[str] = set()
+        self._running_lock = asyncio.Lock()
+
     async def execute_playbook(
         self,
         playbook: str | Path,
         alert_id: str,
         source_system: str,
         description: str = "",
-        parameters: Optional[dict] = None,
+        parameters: dict | None = None,
     ) -> str:
         """Execute a playbook from file, returning mission_id."""
         pb = workflow_compiler.load_playbook(playbook)
-        
+
         legacy_pb = pb.to_legacy() if isinstance(pb, type(pb)) and hasattr(pb, 'to_legacy') else pb
-        
+
         mission = mission_manager.create(
             alert_id=alert_id,
             source_system=source_system,
             playbook=legacy_pb,
             description=description,
         )
-        
+
         if parameters:
             mission.artifact_bundle.update({"workflow_parameters": parameters})
-        
+
         execution = WorkflowExecution(
             mission_id=mission.mission_id,
             playbook_name=legacy_pb.name,
         )
         self._executions[mission.mission_id] = execution
-        
+        self._evict_old_executions()
+
         asyncio.create_task(self._run_workflow(mission.mission_id, pb))
-        
+
         return mission.mission_id
-    
+
+    def _evict_old_executions(self) -> None:
+        """Evict oldest completed executions when over capacity."""
+        if len(self._executions) <= self._MAX_COMPLETED_EXECUTIONS:
+            return
+        completed = [
+            mid for mid, ex in self._executions.items()
+            if ex.status in ("completed", "failed")
+        ]
+        completed.sort(key=lambda mid: self._executions[mid].completed_at or datetime.min)
+        to_remove = completed[: len(completed) - self._MAX_COMPLETED_EXECUTIONS + 50]
+        for mid in to_remove:
+            self._executions.pop(mid, None)
+
     async def _run_workflow(self, mission_id: str, playbook: Any) -> None:
+        async with self._running_lock:
+            if mission_id in self._running_missions:
+                logger.warning("Mission %s already running, skipping duplicate", mission_id)
+                return
+            self._running_missions.add(mission_id)
+
         execution = self._executions[mission_id]
-        mission = mission_manager.get(mission_id)
-        
+
         try:
             mission_manager.update_status(mission_id, MissionStatus.executing)
-            
+
             nodes = workflow_compiler.compile(playbook)
-            
+
             result = await self._execute_dag_with_approvals(mission_id, nodes)
-            
+
             execution.completed_at = datetime.utcnow()
             execution.status = "completed" if not result.get("errors") else "failed"
             execution.node_results = result.get("results", {})
             execution.node_errors = result.get("errors", {})
-            
-            final_status = MissionStatus.completed if not result.get("errors") else MissionStatus.failed
+
+            has_errors = bool(result.get("errors"))
+            final_status = MissionStatus.completed if not has_errors else MissionStatus.failed
             mission_manager.update_status(mission_id, final_status)
-            
+
         except Exception as e:
             logger.exception(f"Workflow execution failed for mission {mission_id}")
             execution.status = "failed"
             execution.completed_at = datetime.utcnow()
             execution.node_errors["workflow"] = str(e)
             mission_manager.update_status(mission_id, MissionStatus.failed)
-    
+        finally:
+            async with self._running_lock:
+                self._running_missions.discard(mission_id)
+
     async def _execute_dag_with_approvals(
         self,
         mission_id: str,
@@ -104,22 +202,22 @@ class WorkflowEngine:
         """Execute DAG with support for approval gates."""
         execution = self._executions[mission_id]
         mission = mission_manager.get(mission_id)
-        
+
         completed = set()
         results = {}
         errors = {}
         skipped = set()
-        
+
         semaphore = asyncio.Semaphore(dag_executor._max_concurrency)
-        
+
         while len(completed) + len(skipped) < len(nodes):
             ready = self._get_ready_tasks(nodes, completed, skipped)
-            
+
             if not ready:
                 pending = [n for n in nodes.values() if n.status == "pending"]
                 if not pending:
                     break
-                
+
                 failed_nodes = [n for n in nodes.values() if n.status == "failed"]
                 if failed_nodes:
                     for node in pending:
@@ -128,23 +226,25 @@ class WorkflowEngine:
                             node.error = "Dependency failed"
                             skipped.add(node.task_id)
                     continue
-                
+
                 approval_nodes = [n for n in nodes.values() if n.status == "waiting_approval"]
                 if approval_nodes:
                     await asyncio.sleep(1)
                     continue
-                
+
                 await asyncio.sleep(0.1)
                 continue
-            
+
             launch_tasks = []
             for task_id in ready[:dag_executor._max_concurrency]:
                 node = nodes[task_id]
                 node.status = "running"
                 execution.current_node = task_id
-                task = asyncio.create_task(self._execute_node_with_approval(node, mission, results, semaphore))
+                task = asyncio.create_task(
+                    self._execute_node_with_approval(node, mission, results, semaphore)
+                )
                 launch_tasks.append(task)
-            
+
             if launch_tasks:
                 done, _ = await asyncio.wait(launch_tasks, return_when=asyncio.FIRST_COMPLETED)
                 for done_task in done:
@@ -152,7 +252,7 @@ class WorkflowEngine:
                         await done_task
                     except Exception:
                         pass
-        
+
         for task_id, node in nodes.items():
             if node.status == "completed":
                 results[task_id] = node.result
@@ -161,7 +261,7 @@ class WorkflowEngine:
                 errors[task_id] = node.error
             elif node.status == "skipped":
                 skipped.add(task_id)
-        
+
         return {
             "tasks_completed": len(completed),
             "tasks_failed": len(errors),
@@ -169,7 +269,7 @@ class WorkflowEngine:
             "results": results,
             "errors": errors,
         }
-    
+
     def _get_ready_tasks(
         self,
         nodes: dict[str, DAGNode],
@@ -184,7 +284,7 @@ class WorkflowEngine:
             if deps_met:
                 ready.append(task_id)
         return ready
-    
+
     async def _execute_node_with_approval(
         self,
         node: DAGNode,
@@ -194,7 +294,7 @@ class WorkflowEngine:
     ) -> None:
         async with semaphore:
             node_type = node.params.get("node_type", "agentic")
-            
+
             if node_type == "approval":
                 await self._handle_approval_node(node, mission, shared_results)
             elif node_type == "decision":
@@ -205,7 +305,7 @@ class WorkflowEngine:
                 await self._handle_subgraph_node(node, mission, shared_results)
             else:
                 await self._execute_standard_node(node, mission, shared_results)
-    
+
     async def _handle_approval_node(
         self,
         node: DAGNode,
@@ -214,10 +314,10 @@ class WorkflowEngine:
     ) -> None:
         """Handle human approval gate."""
         from magenta.api.routes.approvals import create_approval_request
-        
+
         approval_config = node.params
         risk_score = approval_config.get("risk_score", 50)
-        
+
         approval_id = await create_approval_request(
             mission_id=mission.mission_id,
             action=approval_config.get("action", "unknown"),
@@ -226,31 +326,32 @@ class WorkflowEngine:
             reasoning=approval_config.get("reasoning", "Workflow approval required"),
             expires_minutes=approval_config.get("timeout_minutes", 30),
         )
-        
+
         node.status = "waiting_approval"
         node.result = {"approval_id": approval_id, "status": "pending"}
-        
+
         execution = self._executions[mission.mission_id]
         execution.approvals_pending[approval_id] = node.task_id
-        
-        future = asyncio.get_event_loop().create_future()
+
+        future = asyncio.get_running_loop().create_future()
         self._approval_callbacks[approval_id] = future
-        
+
         try:
-            decision = await asyncio.wait_for(future, timeout=approval_config.get("timeout_minutes", 30) * 60)
+            timeout = approval_config.get("timeout_minutes", 30) * 60
+            decision = await asyncio.wait_for(future, timeout=timeout)
             node.result = {"approval_id": approval_id, "status": decision}
             if decision == "approved":
                 node.status = "completed"
             else:
                 node.status = "failed"
                 node.error = f"Approval {decision}"
-        except asyncio.TimeoutError:
+        except TimeoutError:
             node.status = "failed"
             node.error = "Approval timeout"
         finally:
             execution.approvals_pending.pop(approval_id, None)
             self._approval_callbacks.pop(approval_id, None)
-    
+
     async def _handle_decision_node(
         self,
         node: DAGNode,
@@ -259,28 +360,28 @@ class WorkflowEngine:
     ) -> None:
         """Evaluate decision condition and route accordingly."""
         condition = node.params.get("condition", "")
-        
+
         if not condition:
             node.status = "failed"
             node.error = "No condition specified for decision node"
             return
-        
+
         try:
             context = {
                 "mission": mission,
                 "upstream_results": {dep: shared_results.get(dep) for dep in node.depends_on},
                 "params": mission.artifact_bundle.get("workflow_parameters", {}),
             }
-            
-            result = eval(condition, {"__builtins__": {}}, context)
-            
+
+            result = _safe_eval(condition, context)
+
             node.result = {"condition": condition, "result": bool(result)}
             node.status = "completed"
-            
+
         except Exception as e:
             node.status = "failed"
             node.error = f"Decision evaluation failed: {e}"
-    
+
     async def _handle_parallel_node(
         self,
         node: DAGNode,
@@ -289,12 +390,12 @@ class WorkflowEngine:
     ) -> None:
         """Execute parallel branches (fan-out/fan-in)."""
         branches = node.params.get("branches", [])
-        
+
         if not branches:
             node.status = "completed"
             node.result = {"branches": []}
             return
-        
+
         branch_results = []
         for branch in branches:
             branch_node = DAGNode(
@@ -309,10 +410,11 @@ class WorkflowEngine:
                 "result": branch_node.result,
                 "status": branch_node.status,
             })
-        
+
         node.result = {"branches": branch_results}
-        node.status = "completed" if all(b["status"] == "completed" for b in branch_results) else "failed"
-    
+        all_ok = all(b["status"] == "completed" for b in branch_results)
+        node.status = "completed" if all_ok else "failed"
+
     async def _handle_subgraph_node(
         self,
         node: DAGNode,
@@ -321,21 +423,21 @@ class WorkflowEngine:
     ) -> None:
         """Execute a LangGraph subgraph."""
         subgraph_name = node.params.get("subgraph_name")
-        
+
         if not subgraph_name:
             node.status = "failed"
             node.error = "No subgraph specified"
             return
-        
+
         from magenta.workflows.langgraph.engine import get_subgraph
-        
+
         try:
             subgraph = get_subgraph(subgraph_name)
             if not subgraph:
                 node.status = "failed"
                 node.error = f"Subgraph not found: {subgraph_name}"
                 return
-            
+
             state = {
                 "mission_id": mission.mission_id,
                 "alert": {
@@ -352,19 +454,19 @@ class WorkflowEngine:
                 "approvals": {},
                 "artifacts": {},
             }
-            
+
             config = {"configurable": {"thread_id": f"{mission.mission_id}_{node.task_id}"}}
             result = await subgraph.ainvoke(state, config=config)
-            
+
             node.result = result
             node.status = "completed"
             shared_results[node.task_id] = result
-            
+
         except Exception as e:
             logger.exception(f"Subgraph {subgraph_name} execution failed")
             node.status = "failed"
             node.error = str(e)
-    
+
     async def _execute_standard_node(
         self,
         node: DAGNode,
@@ -373,23 +475,23 @@ class WorkflowEngine:
     ) -> None:
         """Execute a standard agent node via DAG executor."""
         agent = agent_registry.get_by_id(node.agent_id) if node.agent_id else None
-        
+
         if not agent:
-            agents = agent_registry.get_by_role(node.role)
-            if agents:
-                agent = agents[0]
-        
+            available = agent_registry.get_available_for_role(node.role)
+            if available:
+                agent = available[0]
+
         if not agent:
             node.status = "failed"
             node.error = f"No agent available for role: {node.role}"
             return
-        
+
         context = {
             "mission": mission,
             "upstream_results": {dep: shared_results.get(dep) for dep in node.depends_on},
             "params": node.params,
         }
-        
+
         for attempt in range(node.max_retries + 1):
             node.attempts = attempt + 1
             try:
@@ -402,19 +504,41 @@ class WorkflowEngine:
                 node.error = str(e)
                 if attempt < node.max_retries:
                     await asyncio.sleep(2 ** attempt)
-        
+
         node.status = "failed"
-    
-    def respond_to_approval(self, approval_id: str, decision: str) -> bool:
+
+    async def respond_to_approval(self, approval_id: str, decision: str) -> bool:
         """Callback for approval response."""
-        future = self._approval_callbacks.get(approval_id)
-        if future and not future.done():
-            future.set_result(decision)
-            return True
-        return False
-    
-    def get_execution_status(self, mission_id: str) -> Optional[WorkflowExecution]:
+        async with self._approval_lock:
+            future = self._approval_callbacks.get(approval_id)
+            if future and not future.done():
+                future.set_result(decision)
+                return True
+            return False
+
+    def get_execution_status(self, mission_id: str) -> WorkflowExecution | None:
         return self._executions.get(mission_id)
+
+    async def shutdown(self, timeout_seconds: float = 30.0) -> None:
+        """Gracefully drain running workflows before shutdown."""
+        if not self._running_missions:
+            return
+        logger.info(
+            "Draining %d running workflow(s) with timeout %.1fs",
+            len(self._running_missions),
+            timeout_seconds,
+        )
+        deadline = time.monotonic() + timeout_seconds
+        while self._running_missions and time.monotonic() < deadline:
+            await asyncio.sleep(0.5)
+        if self._running_missions:
+            logger.warning(
+                "Timed out waiting for %d workflow(s): %s",
+                len(self._running_missions),
+                list(self._running_missions),
+            )
+        else:
+            logger.info("All running workflows drained successfully")
 
 
 workflow_engine = WorkflowEngine()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+import time
 from datetime import datetime
 
 from magenta.config import settings
@@ -12,6 +13,34 @@ from magenta.models.gemini import GeminiClient
 from magenta.models.groq import GroqClient
 from magenta.models.ollama import OllamaClient
 from magenta.models.openrouter import OpenRouterClient
+
+
+class CircuitBreaker:
+    """Simple circuit breaker per model client."""
+
+    def __init__(self, failure_threshold: int = 5, cooldown_seconds: float = 60.0):
+        self._failure_threshold = failure_threshold
+        self._cooldown_seconds = cooldown_seconds
+        self._failures: dict[str, int] = {}
+        self._open_until: dict[str, float] = {}
+
+    def record_success(self, client_name: str) -> None:
+        self._failures.pop(client_name, None)
+        self._open_until.pop(client_name, None)
+
+    def record_failure(self, client_name: str) -> None:
+        self._failures[client_name] = self._failures.get(client_name, 0) + 1
+        if self._failures[client_name] >= self._failure_threshold:
+            self._open_until[client_name] = time.monotonic() + self._cooldown_seconds
+
+    def is_open(self, client_name: str) -> bool:
+        open_until = self._open_until.get(client_name)
+        if open_until is None:
+            return False
+        if time.monotonic() >= open_until:
+            self._open_until.pop(client_name, None)
+            return False
+        return True
 
 
 class ModelRouter:
@@ -26,6 +55,7 @@ class ModelRouter:
 
     def __init__(self):
         self._clients: dict[str, BaseModelClient] = {}
+        self._circuit_breaker = CircuitBreaker(failure_threshold=5, cooldown_seconds=60.0)
         self._init_clients()
 
     def _init_clients(self) -> None:
@@ -100,6 +130,9 @@ class ModelRouter:
 
         for attempt in range(max_attempts):
             for name in client_names:
+                if self._circuit_breaker.is_open(name):
+                    continue
+
                 client = self._clients.get(name)
                 if not client:
                     continue
@@ -114,9 +147,11 @@ class ModelRouter:
                     if elapsed > tier_max.get(tier, 10000):
                         continue
 
+                    self._circuit_breaker.record_success(name)
                     return response
 
                 except (ModelError, ModelTimeout, Exception):
+                    self._circuit_breaker.record_failure(name)
                     continue
 
         # All attempts exhausted → fallback tier

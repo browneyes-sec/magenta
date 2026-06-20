@@ -16,7 +16,6 @@ Each tool maps to an existing MCP server function in:
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -323,7 +322,7 @@ SUBGRAPH_TOOL_MAP: dict[str, list[str]] = {
 }
 
 
-def get_tools_for_subgraph(subgraph_name: str) -> list["StructuredTool"]:
+def get_tools_for_subgraph(subgraph_name: str) -> list[StructuredTool]:
     """Get LangChain StructuredTool instances for a subgraph.
 
     Returns empty list if langchain unavailable or no tools mapped.

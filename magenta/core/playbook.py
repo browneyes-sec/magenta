@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 import yaml
 import json
 
@@ -71,13 +71,22 @@ class PlaybookManager:
         return playbook
 
     def get(self, name: str, version: Optional[str] = None) -> Optional[Playbook]:
-        """Get a playbook by name and optional version."""
+        """Get a playbook by name and optional version.
+
+        When version is None, returns the latest registered version.
+        """
         if version:
             return self._playbooks.get(f"{name}:{version}")
-        for key, pb in self._playbooks.items():
-            if key.startswith(f"{name}:"):
-                return pb
-        return None
+        matching = [
+            (v, pb)
+            for k, pb in self._playbooks.items()
+            if k.startswith(f"{name}:")
+            for v in [k.split(":", 1)[1]]
+        ]
+        if not matching:
+            return None
+        matching.sort(key=lambda t: t[0], reverse=True)
+        return matching[0][1]
 
     def list(self, tag: Optional[str] = None) -> list[Playbook]:
         """List all registered playbooks."""

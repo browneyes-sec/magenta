@@ -80,6 +80,13 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    # Shutdown — drain running workflows
+    try:
+        from magenta.workflows.engine import workflow_engine
+        await workflow_engine.shutdown(timeout_seconds=30.0)
+    except Exception as exc:
+        logger.warning("Workflow drain failed: %s", exc)
+
     # Shutdown — stop DLQ consumer
     if dlq_consumer:
         try:

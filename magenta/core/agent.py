@@ -61,11 +61,17 @@ class BaseAgent(ABC):
         self.turn_count = 0
         self.started_at: Optional[datetime] = None
         self._heartbeat_count = 0
+        self._active_tasks = 0
         self._pre_turn_rag: bool = True  # Enable pre-turn RAG by default (ADR-018)
         self._logger = StructuredLogger(
             get_structured_logger(f"magenta.agent.{config.role}"),
             agent_id=config.agent_id,
         )
+
+    @property
+    def can_accept_task(self) -> bool:
+        """Check if agent can accept another concurrent task."""
+        return self._active_tasks < self.config.max_concurrent_tasks
 
     @property
     def agent_id(self) -> str:
@@ -106,6 +112,7 @@ class BaseAgent(ABC):
             },
         ) as span:
             try:
+                self._active_tasks += 1
                 self.status = AgentStatus.executing
                 self.current_mission = mission
                 self.turn_count += 1
@@ -150,7 +157,10 @@ class BaseAgent(ABC):
             finally:
                 elapsed = time.monotonic() - start
                 self._mission_duration.record(elapsed, {"role": self.role})
-                self.status = AgentStatus.idle
+                self._active_tasks = max(0, self._active_tasks - 1)
+                if self._active_tasks == 0:
+                    self.status = AgentStatus.idle
+                    self.current_mission = None
 
     async def execute_tool(self, tool_name: str, params: dict[str, Any]) -> Any:
         """Execute a tool by name with latency metrics. Override in subclasses."""
@@ -225,6 +235,13 @@ class AgentRegistry:
         return [
             a for a in self._agents.get(role, [])
             if a.status == AgentStatus.idle
+        ]
+
+    def get_available_for_role(self, role: str) -> list[BaseAgent]:
+        """Return agents for role that can accept more concurrent tasks."""
+        return [
+            a for a in self._agents.get(role, [])
+            if a.can_accept_task
         ]
 
     def all_agents(self) -> list[BaseAgent]:

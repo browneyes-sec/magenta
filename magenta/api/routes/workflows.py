@@ -5,16 +5,36 @@ from __future__ import annotations
 from typing import Optional
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query, Body
+from fastapi import APIRouter, HTTPException, Query, Body, Depends, Header
 
 from magenta.core.models import Playbook, PlaybookV2
 from magenta.core.playbook import playbook_manager
 from magenta.core.mission import mission_manager
 from magenta.workflows.compiler import workflow_compiler
 from magenta.workflows.engine import workflow_engine
-from magenta.exceptions import PlaybookError, MissionError
+from magenta.exceptions import PlaybookError
 
 router = APIRouter()
+
+# Workflow execution roles — extend as needed
+_ALLOWED_EXECUTION_ROLES = {"admin", "operator"}
+
+
+async def require_execution_role(
+    x_magenta_role: str = Header(default=""),
+) -> str:
+    """Dependency: require operator/admin role for workflow execution."""
+    if not x_magenta_role:
+        raise HTTPException(
+            status_code=403,
+            detail="X-Magenta-Role header required for workflow execution",
+        )
+    if x_magenta_role.lower() not in _ALLOWED_EXECUTION_ROLES:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Role '{x_magenta_role}' not authorized for workflow execution",
+        )
+    return x_magenta_role.lower()
 
 
 # ── Playbook management ───────────────────────────────────────────────
@@ -77,7 +97,10 @@ async def register_playbook(data: dict):
 # ── Workflow execution ────────────────────────────────────────────────
 
 @router.post("/execute")
-async def execute_workflow(request: dict = Body(...)):
+async def execute_workflow(
+    request: dict = Body(...),
+    role: str = Depends(require_execution_role),
+):
     """Execute a playbook as a workflow.
 
     Request body:
@@ -125,12 +148,11 @@ async def execute_workflow(request: dict = Body(...)):
             if parameters:
                 mission.artifact_bundle.update({"workflow_parameters": parameters})
 
-            nodes = workflow_compiler.compile(pb)
             from magenta.workflows.engine import WorkflowExecution
-            from datetime import datetime
+            name = pb.metadata.get("name", "") if isinstance(pb, PlaybookV2) else pb.name
             execution = WorkflowExecution(
                 mission_id=mission.mission_id,
-                playbook_name=pb.metadata.get("name", "") if isinstance(pb, PlaybookV2) else pb.name,
+                playbook_name=name,
             )
             workflow_engine._executions[mission.mission_id] = execution
 
@@ -160,8 +182,6 @@ async def get_workflow_status(mission_id: str):
     execution = workflow_engine.get_execution_status(mission_id)
     if not execution:
         raise HTTPException(status_code=404, detail="Workflow execution not found")
-
-    mission = mission_manager.get(mission_id)
 
     return {
         "mission_id": mission_id,
@@ -201,14 +221,18 @@ async def respond_to_approval(
     reason: str = Query(""),
 ):
     """Respond to a workflow approval gate."""
+    from datetime import datetime
+
     if decision not in ("approved", "denied"):
         raise HTTPException(status_code=400, detail="Decision must be 'approved' or 'denied'")
 
-    success = workflow_engine.respond_to_approval(approval_id, decision)
+    success = await workflow_engine.respond_to_approval(approval_id, decision)
     if not success:
-        raise HTTPException(status_code=404, detail="Approval request not found or already resolved")
+        raise HTTPException(
+            status_code=404,
+            detail="Approval request not found or already resolved",
+        )
 
-    # Also update via the existing approval gate (Redis persistence)
     try:
         from magenta.response.executor import approval_gate
         if decision == "approved":
@@ -216,13 +240,13 @@ async def respond_to_approval(
         else:
             await approval_gate.reject(approval_id, reason)
     except Exception:
-        pass  # Best-effort — the workflow engine already processed it
+        pass
 
     return {
         "status": decision,
         "approval_id": approval_id,
         "approver": approver_id,
-        "timestamp": __import__("datetime").datetime.utcnow().isoformat(),
+        "timestamp": datetime.utcnow().isoformat(),
     }
 
 

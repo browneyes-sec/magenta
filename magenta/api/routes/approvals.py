@@ -1,12 +1,59 @@
 """API routes — approval gate management."""
 
-from typing import Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, Query
+from uuid import uuid4
 
-from magenta.response.executor import approval_gate
+from magenta.core.models import (
+    ActionType, ApprovalRequest, Target, TargetType,
+)
+from magenta.response.executor import approval_gate, DurableApprovalStore
 
 router = APIRouter()
+
+_approval_store = DurableApprovalStore()
+
+
+async def create_approval_request(
+    mission_id: str,
+    action: str,
+    target: dict,
+    risk_score: int = 50,
+    reasoning: str = "Workflow approval required",
+    expires_minutes: int = 30,
+) -> str:
+    """Create an approval request for a workflow approval gate.
+
+    Returns the approval_id (correlation_id).
+    """
+    approval_id = f"approval-{uuid4().hex[:8]}"
+
+    if target.get("type"):
+        target_type = TargetType(target["type"])
+    else:
+        target_type = TargetType.host
+    target_obj = Target(type=target_type, id=target.get("id", "unknown"))
+
+    try:
+        action_type = ActionType(action)
+    except ValueError:
+        action_type = ActionType.custom
+
+    request = ApprovalRequest(
+        correlation_id=approval_id,
+        agent_id=f"workflow-{mission_id}",
+        action=action_type,
+        target=target_obj,
+        risk_score=risk_score,
+        reasoning=reasoning,
+        expires_at=datetime.utcnow() + timedelta(minutes=expires_minutes),
+        model="workflow-engine",
+    )
+
+    await _approval_store.save(request)
+    approval_gate._approvals[approval_id] = request
+
+    return approval_id
 
 
 @router.get("/pending")

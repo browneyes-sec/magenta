@@ -10,18 +10,17 @@ No new pip dependencies required.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional, TypedDict, Annotated
 from datetime import datetime
-from uuid import uuid4
+from typing import Annotated, Any, TypedDict
 
 logger = logging.getLogger(__name__)
 
 # ── Lazy imports — degrade gracefully if langgraph unavailable ──────────
 
 try:
-    from langgraph.graph import StateGraph, START, END
-    from langgraph.graph.message import add_messages
     from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+    from langgraph.graph import END, START, StateGraph
+    from langgraph.graph.message import add_messages
     HAS_LANGGRAPH = True
 except ImportError:
     HAS_LANGGRAPH = False
@@ -43,13 +42,13 @@ class WorkflowState(TypedDict, total=False):
     agent_outputs: Annotated[list[dict], add_messages] if HAS_LANGGRAPH else list
     approvals: dict
     artifacts: dict
-    error: Optional[str]
+    error: str | None
 
 
 # ── Subgraph registry ─────────────────────────────────────────────────
 
 _subgraph_registry: dict[str, Any] = {}
-_checkpointer: Optional[Any] = None
+_checkpointer: Any | None = None
 
 
 async def get_checkpointer():
@@ -67,7 +66,7 @@ def register_subgraph(name: str, graph: Any) -> None:
     logger.info("Registered subgraph: %s", name)
 
 
-def get_subgraph(name: str) -> Optional[Any]:
+def get_subgraph(name: str) -> Any | None:
     """Lookup a compiled subgraph by name."""
     return _subgraph_registry.get(name)
 
@@ -223,7 +222,8 @@ Return JSON: {{"severity": <int>, "reasoning": "<str>", "mitre_tactics": [<str>]
     result = await _llm_call(prompt, tier="speed")
     outputs = list(state.get("agent_outputs", []))
     outputs.append({"node": "assess_severity", "result": result})
-    return {"agent_outputs": outputs, "context": {**state.get("context", {}), "severity_assessment": result}}
+    ctx = {**state.get("context", {}), "severity_assessment": result}
+    return {"agent_outputs": outputs, "context": ctx}
 
 
 async def _triage_extract_iocs(state: WorkflowState) -> dict:
@@ -422,16 +422,23 @@ def _make_tool_node(tools: list):
         return None
 
 
+_shared_checkpointer = None
+
+
 def _get_checkpointer_sync():
     """Synchronous checkpointer getter for subgraph compilation.
 
-    Uses in-memory checkpointer if async setup hasn't completed.
+    Returns a shared in-memory checkpointer. For production persistence,
+    use get_checkpointer() (async) which returns an AsyncSqliteSaver.
     """
+    global _shared_checkpointer
     if not HAS_LANGGRAPH:
         return None
     try:
-        from langgraph.checkpoint.memory import MemorySaver
-        return MemorySaver()
+        if _shared_checkpointer is None:
+            from langgraph.checkpoint.memory import MemorySaver
+            _shared_checkpointer = MemorySaver()
+        return _shared_checkpointer
     except ImportError:
         return None
 
