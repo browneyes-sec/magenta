@@ -36,6 +36,7 @@ jobs:
           curl -sL https://aka.ms/InstallAzureCLIDeb | bash
 
       - name: Azure Login
+        if: ${{ secrets.AZURE_CLIENT_ID != '' }}
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -43,6 +44,7 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Check Azure Tag Compliance
+        if: ${{ secrets.AZURE_CLIENT_ID != '' }}
         id: azure_tags
         run: |
           az graph query \
@@ -52,7 +54,7 @@ jobs:
           echo "non_compliant=$(cat /tmp/azure-noncompliant.txt)" >> $GITHUB_OUTPUT
 
       - name: Check AWS Tag Compliance
-        if: always()
+        if: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
         id: aws_tags
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -67,8 +69,8 @@ jobs:
       - name: Enforce Gate
         if: github.event_name == 'pull_request'
         run: |
-          AZURE_NC=${{ steps.azure_tags.outputs.non_compliant }}
-          AWS_NC=${{ steps.aws_tags.outputs.non_compliant }}
+          AZURE_NC=${{ steps.azure_tags.outputs.non_compliant || '0' }}
+          AWS_NC=${{ steps.aws_tags.outputs.non_compliant || '0' }}
           TOTAL=$(( AZURE_NC + AWS_NC ))
           if [ "$TOTAL" -gt 5 ]; then
             echo "FAIL: $TOTAL non-compliant resources found (max 5 allowed)"
