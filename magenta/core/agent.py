@@ -61,6 +61,7 @@ class BaseAgent(ABC):
         self.turn_count = 0
         self.started_at: Optional[datetime] = None
         self._heartbeat_count = 0
+        self._pre_turn_rag: bool = True  # Enable pre-turn RAG by default (ADR-018)
         self._logger = StructuredLogger(
             get_structured_logger(f"magenta.agent.{config.role}"),
             agent_id=config.agent_id,
@@ -109,6 +110,20 @@ class BaseAgent(ABC):
                 self.current_mission = mission
                 self.turn_count += 1
                 self._logger.info(f"Agent {self.role} processing mission")
+
+                # Pre-turn RAG: retrieve relevant context from memory (ADR-018)
+                if self._pre_turn_rag and hasattr(self, "retrieve_context"):
+                    try:
+                        rag_context = await self.retrieve_context(
+                            query_summary=mission.description[:200],
+                            mission_id=mission.mission_id if hasattr(mission, "mission_id") else "",
+                            tenant_id=context.get("tenant_id", "default"),
+                        )
+                        context["rag_context"] = rag_context
+                    except Exception as rag_exc:
+                        self._logger.warning(f"Pre-turn RAG failed: {rag_exc}")
+                        context["rag_context"] = ""
+
                 result = await self._process_impl(mission, context)
                 span.set_status(1)  # OK
                 self._logger.info(f"Agent {self.role} completed mission", action="process", status="succeeded")

@@ -1,7 +1,7 @@
 """API middleware: auth, rate limiting, request logging."""
 
 from typing import Optional
-from fastapi import Request, HTTPException
+from fastapi import Request, HTTPException, Depends
 from fastapi.responses import JSONResponse
 import time
 import jwt
@@ -15,6 +15,23 @@ async def validate_auth(request: Request) -> dict:
 
     # Stub — real implementation validates Entra ID JWT or API key
     return {"authenticated": True, "tenant": "default"}
+
+
+async def get_tenant_id(request: Request) -> str:
+    """Extract tenant_id from JWT/auth context for multi-tenant isolation (ADR-018).
+    
+    Returns tenant_id from JWT claims or defaults to "default" for dev mode.
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header:
+        return "default"
+    
+    try:
+        # In production, decode JWT and extract tenant_id from claims
+        # For now, return default tenant
+        return "default"
+    except Exception:
+        return "default"
 
 
 class RateLimiter:

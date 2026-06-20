@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+
+from magenta.api.middleware import get_tenant_id
 
 router = APIRouter(prefix="/api/v1/mesh", tags=["mesh"])
 
@@ -115,9 +117,13 @@ class WriteProceduralRequest(BaseModel):
 
 
 @router.post("/memory/write-episode")
-async def write_episode(request: WriteEpisodeRequest):
+async def write_episode(request: WriteEpisodeRequest, tenant_id: str = Depends(get_tenant_id)):
     """Write episodic memory (mission transcript, agent decision)."""
     from magenta.mesh.memory import memory_mcp
+
+    # Inject tenant_id from auth context for multi-tenant isolation
+    metadata = request.metadata or {}
+    metadata["tenant_id"] = tenant_id
 
     return await memory_mcp.write_episode(
         agent_role=request.agent_role,
@@ -125,12 +131,12 @@ async def write_episode(request: WriteEpisodeRequest):
         turn_number=request.turn_number,
         text=request.text,
         correlation_id=request.correlation_id,
-        metadata=request.metadata,
+        metadata=metadata,
     )
 
 
 @router.post("/memory/search-episodes")
-async def search_episodes(request: SearchMemoryRequest):
+async def search_episodes(request: SearchMemoryRequest, tenant_id: str = Depends(get_tenant_id)):
     """Search episodic memory for past agent decisions."""
     from magenta.mesh.memory import memory_mcp
 
@@ -138,26 +144,30 @@ async def search_episodes(request: SearchMemoryRequest):
         query=request.query,
         agent_role=request.agent_role,
         mission_id=request.mission_id,
+        tenant_id=tenant_id,
         top_k=request.top_k,
     )
 
 
 @router.post("/memory/write-semantic")
-async def write_semantic(request: WriteSemanticRequest):
+async def write_semantic(request: WriteSemanticRequest, tenant_id: str = Depends(get_tenant_id)):
     """Write semantic memory (playbook, runbook, policy, knowledge)."""
     from magenta.mesh.memory import memory_mcp
+
+    metadata = request.metadata or {}
+    metadata["tenant_id"] = tenant_id
 
     return await memory_mcp.write_semantic(
         text=request.text,
         product=request.product,
         source=request.source,
         tags=request.tags,
-        metadata=request.metadata,
+        metadata=metadata,
     )
 
 
 @router.post("/memory/search-semantic")
-async def search_semantic(request: SearchMemoryRequest):
+async def search_semantic(request: SearchMemoryRequest, tenant_id: str = Depends(get_tenant_id)):
     """Search semantic memory for reusable knowledge."""
     from magenta.mesh.memory import memory_mcp
 
@@ -165,31 +175,36 @@ async def search_semantic(request: SearchMemoryRequest):
         query=request.query,
         product=request.product,
         tags=request.tags,
+        tenant_id=tenant_id,
         top_k=request.top_k,
     )
 
 
 @router.post("/memory/write-procedure")
-async def write_procedure(request: WriteProceduralRequest):
+async def write_procedure(request: WriteProceduralRequest, tenant_id: str = Depends(get_tenant_id)):
     """Write procedural memory (tool invocation pattern)."""
     from magenta.mesh.memory import memory_mcp
+
+    metadata = request.metadata or {}
+    metadata["tenant_id"] = tenant_id
 
     return await memory_mcp.write_procedure(
         tool_name=request.tool_name,
         text=request.text,
         parameters=request.parameters,
         mission_id=request.mission_id,
-        metadata=request.metadata,
+        metadata=metadata,
     )
 
 
 @router.post("/memory/search-procedures")
-async def search_procedures(request: SearchMemoryRequest):
+async def search_procedures(request: SearchMemoryRequest, tenant_id: str = Depends(get_tenant_id)):
     """Search procedural memory for tool usage patterns."""
     from magenta.mesh.memory import memory_mcp
 
     return await memory_mcp.search_procedures(
         query=request.query,
         tool_name=request.tool_name,
+        tenant_id=tenant_id,
         top_k=request.top_k,
     )

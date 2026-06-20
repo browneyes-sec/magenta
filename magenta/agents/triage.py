@@ -23,12 +23,8 @@ Route based on severity and alert type."""
     async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
         alert_desc = context.get("description", mission.description)
 
-        # Pre-turn RAG: retrieve relevant past decisions (ADR-018)
-        rag_context = await self.retrieve_context(
-            query_summary=alert_desc,
-            mission_id=mission.mission_id,
-            tenant_id=context.get("tenant_id", "default"),
-        )
+        # RAG context injected by BaseAgent.process() (ADR-018)
+        rag_context = context.get("rag_context", "")
 
         prompt = f"""Assess this security alert:
 Alert ID: {mission.alert_id}
@@ -71,12 +67,8 @@ Correlate IoCs, check asset criticality, and expand the picture."""
         super().__init__(config)
 
     async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
-        # Pre-turn RAG: retrieve relevant past decisions (ADR-018)
-        rag_context = await self.retrieve_context(
-            query_summary=mission.description,
-            mission_id=mission.mission_id,
-            tenant_id=context.get("tenant_id", "default"),
-        )
+        # RAG context injected by BaseAgent.process() (ADR-018)
+        rag_context = context.get("rag_context", "")
 
         prompt = f"""Enrich this security incident with context:
 Alert ID: {mission.alert_id}
@@ -119,12 +111,8 @@ Require approval for actions with risk score > 60."""
         super().__init__(config)
 
     async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
-        # Pre-turn RAG: retrieve relevant past decisions (ADR-018)
-        rag_context = await self.retrieve_context(
-            query_summary=mission.description,
-            mission_id=mission.mission_id,
-            tenant_id=context.get("tenant_id", "default"),
-        )
+        # RAG context injected by BaseAgent.process() (ADR-018)
+        rag_context = context.get("rag_context", "")
 
         prompt = f"""Determine containment actions for this incident:
 Alert ID: {mission.alert_id}
@@ -162,12 +150,8 @@ Use deep reasoning to identify root cause and scope."""
         super().__init__(config)
 
     async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
-        # Pre-turn RAG: retrieve relevant past decisions (ADR-018)
-        rag_context = await self.retrieve_context(
-            query_summary=mission.description,
-            mission_id=mission.mission_id,
-            tenant_id=context.get("tenant_id", "default"),
-        )
+        # RAG context injected by BaseAgent.process() (ADR-018)
+        rag_context = context.get("rag_context", "")
 
         prompt = f"""Investigate this security incident in depth:
 Alert ID: {mission.alert_id}
@@ -202,12 +186,8 @@ Ensure evidence is preserved and audit trail is complete."""
         super().__init__(config)
 
     async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
-        # Pre-turn RAG: retrieve relevant past decisions (ADR-018)
-        rag_context = await self.retrieve_context(
-            query_summary=mission.description,
-            mission_id=mission.mission_id,
-            tenant_id=context.get("tenant_id", "default"),
-        )
+        # RAG context injected by BaseAgent.process() (ADR-018)
+        rag_context = context.get("rag_context", "")
 
         prompt = f"Review compliance implications for incident {mission.alert_id}...\nFindings: {context}\n\n{rag_context}"
         response = await self.llm_generate(prompt, tier="cost_save")
@@ -231,12 +211,8 @@ SOC analysts, management, business unit leads. Include KPIs."""
         super().__init__(config)
 
     async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
-        # Pre-turn RAG: retrieve relevant past decisions (ADR-018)
-        rag_context = await self.retrieve_context(
-            query_summary=mission.description,
-            mission_id=mission.mission_id,
-            tenant_id=context.get("tenant_id", "default"),
-        )
+        # RAG context injected by BaseAgent.process() (ADR-018)
+        rag_context = context.get("rag_context", "")
 
         prompt = f"Generate incident summary report for {mission.alert_id}...\nAll findings: {context}\n\n{rag_context}"
         response = await self.llm_generate(prompt, tier="cost_save")

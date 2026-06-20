@@ -128,10 +128,11 @@ class Pipeline:
 
     async def _check_pending_approvals(self, _args: str) -> str:
         try:
-            pending = await self._get("/api/v1/approvals/pending")
+            data = await self._get("/api/v1/approvals/pending")
+            pending = data.get("approvals", []) if isinstance(data, dict) else data
             if not pending:
                 return "No pending approvals."
-            lines = [f"- **{a['id']}**: {a['action']} on {a['target']} (risk: {a['risk_score']})" for a in pending]
+            lines = [f"- **{a.get('id', 'N/A')}**: {a.get('action', 'N/A')} on {a.get('target', 'N/A')} (risk: {a.get('risk_score', 'N/A')})" for a in pending]
             return f"### Pending Approvals ({len(pending)})\n" + "\n".join(lines)
         except Exception as exc:
             return f"Error: {exc}"

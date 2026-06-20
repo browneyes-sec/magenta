@@ -46,6 +46,14 @@ async def lifespan(app: FastAPI):
             redis_url, exc,
         )
 
+    # Auto-provision Qdrant collections on startup (ADR-018)
+    try:
+        from magenta.mesh.gateway import mesh_gateway
+        await mesh_gateway.start()
+        logger.info("Mesh gateway started with auto-provisioned collections")
+    except Exception as exc:
+        logger.warning("Mesh gateway startup failed: %s", exc)
+
     # Initialize LangGraph subgraphs for workflow engine
     try:
         from magenta.workflows.langgraph.engine import initialize_subgraphs
