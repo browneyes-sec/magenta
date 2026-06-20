@@ -10,7 +10,7 @@ class SemanticCache:
         self.enabled = enabled
         self.ttl_seconds = ttl_seconds
         self.min_similarity = min_similarity
-        self._store: dict[str, tuple[ModelResponse, float]] = {}
+        self._store: dict[str, tuple[ModelResponse, float, dict]] = {}
 
     async def get(self, request: ModelRequest) -> Optional[ModelResponse]:
         if not self.enabled:
@@ -19,18 +19,20 @@ class SemanticCache:
         key = self._make_key(request)
         exact = self._store.get(key)
         if exact:
-            entry, ts = exact
+            entry, ts, _ = exact
             if self._is_fresh(ts):
                 return entry
             del self._store[key]
 
         best_sim = 0.0
         best_entry = None
-        for stored_key, (entry, ts) in list(self._store.items()):
+        request_data = self._extract_text(request)
+
+        for stored_key, (entry, ts, stored_data) in list(self._store.items()):
             if not self._is_fresh(ts):
                 del self._store[stored_key]
                 continue
-            sim = self._similarity(request, stored_key)
+            sim = self._similarity(request_data, stored_data)
             if sim > best_sim:
                 best_sim = sim
                 best_entry = entry
@@ -43,7 +45,8 @@ class SemanticCache:
         if not self.enabled:
             return
         key = self._make_key(request)
-        self._store[key] = (response, self._now())
+        data = self._extract_text(request)
+        self._store[key] = (response, self._now(), data)
 
     def _make_key(self, request: ModelRequest) -> str:
         content = json.dumps({
@@ -54,11 +57,32 @@ class SemanticCache:
         }, sort_keys=True)
         return hashlib.sha256(content.encode()).hexdigest()
 
-    def _similarity(self, request: ModelRequest, stored_key: str) -> float:
-        key = self._make_key(request)
-        if key == stored_key:
-            return 1.0
-        return 0.0
+    def _extract_text(self, request: ModelRequest) -> dict:
+        """Extract text content for similarity comparison."""
+        texts = []
+        for msg in request.messages:
+            if isinstance(msg.get("content"), str):
+                texts.append(msg["content"][:200])
+        return {
+            "system": (request.system or "")[:100],
+            "texts": texts,
+        }
+
+    def _similarity(self, data_a: dict, data_b: dict) -> float:
+        """Compute similarity between two request data dicts.
+
+        Uses difflib.SequenceMatcher for fuzzy string matching on
+        concatenated message content. Returns 0.0-1.0.
+        """
+        from difflib import SequenceMatcher
+
+        str_a = data_a.get("system", "") + " ".join(data_a.get("texts", []))
+        str_b = data_b.get("system", "") + " ".join(data_b.get("texts", []))
+
+        if not str_a or not str_b:
+            return 0.0
+
+        return SequenceMatcher(None, str_a, str_b).ratio()
 
     def _is_fresh(self, ts: float) -> bool:
         return (self._now() - ts) < self.ttl_seconds

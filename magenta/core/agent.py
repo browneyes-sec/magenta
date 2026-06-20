@@ -127,6 +127,20 @@ class BaseAgent(ABC):
                 result = await self._process_impl(mission, context)
                 span.set_status(1)  # OK
                 self._logger.info(f"Agent {self.role} completed mission", action="process", status="succeeded")
+
+                # Post-turn: auto-log activity to episodic memory (ADR-018)
+                if hasattr(self, "log_activity"):
+                    try:
+                        from magenta.core.models import ActionStatus
+                        await self.log_activity(
+                            mission=mission,
+                            action=f"{self.role}_completed",
+                            status=ActionStatus.succeeded,
+                            tenant_id=context.get("tenant_id", "default"),
+                        )
+                    except Exception as log_exc:
+                        self._logger.warning(f"Post-turn log_activity failed: {log_exc}")
+
                 return result
             except Exception as exc:
                 span.set_status(2, str(exc))  # ERROR
