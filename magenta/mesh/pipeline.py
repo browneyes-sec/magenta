@@ -241,6 +241,19 @@ class VectorizationPipeline:
         self.embedder = OllamaEmbedder(self.config)
         self.indexer = QdrantIndexer(self.config)
         self._bm25_sidecars: dict[str, TantivyBM25Sidecar] = {}
+        self._bm25_rebuilt: set[str] = set()
+
+    async def initialize(self) -> None:
+        """Rebuild BM25 indexes from Qdrant for all known collections.
+
+        Called on startup to restore sparse search after restart.
+        """
+        for collection in ("mem_episodic", "mem_semantic", "mem_procedural"):
+            if collection not in self._bm25_rebuilt:
+                bm25 = self._get_bm25(collection)
+                await bm25.rebuild_from_qdrant(self.config)
+                self._bm25_rebuilt.add(collection)
+        logger.info("VectorizationPipeline initialized with BM25 rebuilt for %d collections", len(self._bm25_rebuilt))
 
     def _get_bm25(self, collection: str) -> TantivyBM25Sidecar:
         if collection not in self._bm25_sidecars:

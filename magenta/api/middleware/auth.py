@@ -81,6 +81,7 @@ class EntraJWTAuthMiddleware(BaseHTTPMiddleware):
             )
             request.state.user = payload.get("preferred_username", payload.get("sub", "unknown"))
             request.state.token_roles = payload.get("roles", [])
+            request.state.token_payload = payload  # Store full payload for tenant extraction
 
         except jwt.ExpiredSignatureError:
             return JSONResponse(

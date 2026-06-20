@@ -55,6 +55,9 @@ class MeshGateway:
                 existing,
             )
 
+        # Rebuild BM25 indexes from Qdrant
+        await self.pipeline.initialize()
+
         self._started = True
         self._start_time = time.time()
         logger.info(

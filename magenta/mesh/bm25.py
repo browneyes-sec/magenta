@@ -181,3 +181,75 @@ class TantivyBM25Sidecar:
         if self._use_tantivy and HAS_TANTIVY:
             return self._doc_count
         return self._fallback.count()
+
+    async def rebuild_from_qdrant(self, config, batch_size: int = 1000) -> int:
+        """Rebuild BM25 index from Qdrant collection payloads.
+
+        Fetches all documents from Qdrant and re-indexes them.
+        Used on startup to restore BM25 after restart.
+
+        Args:
+            config: MeshConfig with Qdrant connection details.
+            batch_size: Number of documents to fetch per scroll.
+
+        Returns:
+            Number of documents re-indexed.
+        """
+        from qdrant_client import QdrantClient
+
+        if not self.collection:
+            logger.warning("Cannot rebuild: no collection name set")
+            return 0
+
+        client = QdrantClient(
+            host=config.qdrant.host,
+            port=config.qdrant.port,
+            prefer_grpc=config.qdrant.use_grpc,
+        )
+
+        try:
+            # Scroll through all points in the collection
+            total_reindexed = 0
+            offset = None
+
+            while True:
+                result = client.scroll(
+                    collection_name=self.collection,
+                    limit=batch_size,
+                    offset=offset,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+
+                points, next_offset = result
+                if not points:
+                    break
+
+                for point in points:
+                    payload = point.payload or {}
+                    text = payload.get("text", "")
+                    if text:
+                        doc_id = str(point.id)
+                        if self._use_tantivy and HAS_TANTIVY:
+                            doc = tantivy.Document()
+                            doc.add_text("text", text)
+                            self._writer.add_document(doc)
+                        else:
+                            self._fallback.add_document(doc_id, text, payload)
+                        total_reindexed += 1
+
+                if next_offset is None:
+                    break
+                offset = next_offset
+
+            if self._use_tantivy and HAS_TANTIVY:
+                self._writer.commit()
+                self._searcher = self._index.searcher()
+            self._doc_count = total_reindexed
+
+            logger.info("BM25 rebuilt from Qdrant: collection=%s, docs=%d", self.collection, total_reindexed)
+            return total_reindexed
+
+        except Exception as e:
+            logger.error("Failed to rebuild BM25 from Qdrant: %s", e)
+            return 0
