@@ -23,10 +23,19 @@ Route based on severity and alert type."""
     async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
         alert_desc = context.get("description", mission.description)
 
+        # Pre-turn RAG: retrieve relevant past decisions (ADR-018)
+        rag_context = await self.retrieve_context(
+            query_summary=alert_desc,
+            mission_id=mission.mission_id,
+            tenant_id=context.get("tenant_id", "default"),
+        )
+
         prompt = f"""Assess this security alert:
 Alert ID: {mission.alert_id}
 Description: {alert_desc}
 Source: {mission.source_system.value}
+
+{rag_context}
 
 Provide:
 1. Severity level (1-5)
@@ -43,7 +52,10 @@ Provide:
             "latency_ms": response.latency_ms,
         }
 
-        await self.log_activity(mission, "triage", ActionStatus.succeeded)
+        await self.log_activity(
+            mission, "triage", ActionStatus.succeeded,
+            tenant_id=context.get("tenant_id", "default"),
+        )
         return result
 
 
@@ -59,10 +71,19 @@ Correlate IoCs, check asset criticality, and expand the picture."""
         super().__init__(config)
 
     async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
+        # Pre-turn RAG: retrieve relevant past decisions (ADR-018)
+        rag_context = await self.retrieve_context(
+            query_summary=mission.description,
+            mission_id=mission.mission_id,
+            tenant_id=context.get("tenant_id", "default"),
+        )
+
         prompt = f"""Enrich this security incident with context:
 Alert ID: {mission.alert_id}
 Description: {mission.description}
 Severity: {mission.severity.value}
+
+{rag_context}
 
 Provide:
 1. Asset criticality assessment
@@ -78,7 +99,10 @@ Provide:
             "model": response.model,
         }
 
-        await self.log_activity(mission, "enrich", ActionStatus.succeeded)
+        await self.log_activity(
+            mission, "enrich", ActionStatus.succeeded,
+            tenant_id=context.get("tenant_id", "default"),
+        )
         return result
 
 
@@ -95,10 +119,19 @@ Require approval for actions with risk score > 60."""
         super().__init__(config)
 
     async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
+        # Pre-turn RAG: retrieve relevant past decisions (ADR-018)
+        rag_context = await self.retrieve_context(
+            query_summary=mission.description,
+            mission_id=mission.mission_id,
+            tenant_id=context.get("tenant_id", "default"),
+        )
+
         prompt = f"""Determine containment actions for this incident:
 Alert ID: {mission.alert_id}
 Description: {mission.description}
 Risk Score: {mission.risk_score}
+
+{rag_context}
 
 List actions with risk scores and whether each needs approval."""
 
@@ -110,7 +143,10 @@ List actions with risk scores and whether each needs approval."""
             "requires_approval": mission.risk_score > 60,
         }
 
-        await self.log_activity(mission, "contain", ActionStatus.succeeded)
+        await self.log_activity(
+            mission, "contain", ActionStatus.succeeded,
+            tenant_id=context.get("tenant_id", "default"),
+        )
         return result
 
 
@@ -126,10 +162,19 @@ Use deep reasoning to identify root cause and scope."""
         super().__init__(config)
 
     async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
+        # Pre-turn RAG: retrieve relevant past decisions (ADR-018)
+        rag_context = await self.retrieve_context(
+            query_summary=mission.description,
+            mission_id=mission.mission_id,
+            tenant_id=context.get("tenant_id", "default"),
+        )
+
         prompt = f"""Investigate this security incident in depth:
 Alert ID: {mission.alert_id}
 Description: {mission.description}
 Previous findings: {context}
+
+{rag_context}
 
 Provide:
 1. Attack timeline
@@ -138,7 +183,10 @@ Provide:
 4. Scope assessment"""
         response = await self.llm_generate(prompt, tier="reasoning")
         result = {"agent": self.role, "investigation": response.content}
-        await self.log_activity(mission, "investigate", ActionStatus.succeeded)
+        await self.log_activity(
+            mission, "investigate", ActionStatus.succeeded,
+            tenant_id=context.get("tenant_id", "default"),
+        )
         return result
 
 
@@ -154,10 +202,20 @@ Ensure evidence is preserved and audit trail is complete."""
         super().__init__(config)
 
     async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
-        prompt = f"Review compliance implications for incident {mission.alert_id}...\nFindings: {context}"
+        # Pre-turn RAG: retrieve relevant past decisions (ADR-018)
+        rag_context = await self.retrieve_context(
+            query_summary=mission.description,
+            mission_id=mission.mission_id,
+            tenant_id=context.get("tenant_id", "default"),
+        )
+
+        prompt = f"Review compliance implications for incident {mission.alert_id}...\nFindings: {context}\n\n{rag_context}"
         response = await self.llm_generate(prompt, tier="cost_save")
         result = {"agent": self.role, "compliance": response.content}
-        await self.log_activity(mission, "compliance", ActionStatus.succeeded)
+        await self.log_activity(
+            mission, "compliance", ActionStatus.succeeded,
+            tenant_id=context.get("tenant_id", "default"),
+        )
         return result
 
 
@@ -173,8 +231,18 @@ SOC analysts, management, business unit leads. Include KPIs."""
         super().__init__(config)
 
     async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
-        prompt = f"Generate incident summary report for {mission.alert_id}...\nAll findings: {context}"
+        # Pre-turn RAG: retrieve relevant past decisions (ADR-018)
+        rag_context = await self.retrieve_context(
+            query_summary=mission.description,
+            mission_id=mission.mission_id,
+            tenant_id=context.get("tenant_id", "default"),
+        )
+
+        prompt = f"Generate incident summary report for {mission.alert_id}...\nAll findings: {context}\n\n{rag_context}"
         response = await self.llm_generate(prompt, tier="cost_save")
         result = {"agent": self.role, "report": response.content}
-        await self.log_activity(mission, "report", ActionStatus.succeeded)
+        await self.log_activity(
+            mission, "report", ActionStatus.succeeded,
+            tenant_id=context.get("tenant_id", "default"),
+        )
         return result

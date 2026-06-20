@@ -60,6 +60,19 @@ This assessment evaluates the current implementation state against the DTP requi
 | Agent `log_activity()` persistence | ✅ Implemented | `magenta/agents/base.py` — wired to `memory_mcp.write_episode()` |
 | Multi-turn conversation state | ❌ Not implemented | Deferred to Phase 3 (E1) — requires Redis-backed `ConversationBuffer` |
 
+#### ADR-018 Additions (LLM-RAG Hybrid Memory Architecture)
+
+| Requirement | Status | Evidence |
+|---|---|---|
+| Dual-path memory (LLM + RAG) | ✅ Accepted | ADR-018 — agent uses LLM for reasoning, RAG for grounding |
+| Pre-turn RAG injection (episodic auto) | ⚠️ Partial | `magenta/agents/base.py` — `log_activity()` writes, `retrieve_context()` pending |
+| On-demand semantic/procedural retrieval | ⚠️ Partial | MCP tools exist; agent tool-call integration pending |
+| Tier-based token budget (speed=1000, reasoning=3000, cost=500) | ❌ Not implemented | Config schema defined in ADR-018; enforcement logic pending |
+| Explicit `tenant_id` in all payloads | ⚠️ Partial | `tenant_id` field in ADR-018 schema; not yet added to memory writes |
+| Embedding cache (Redis, 24h TTL) | ❌ Not implemented | ADR-018 §5; requires Redis key format and TTL config |
+| Provenance fields (`input_hash`, `pipeline_step`) | ✅ Implemented | `magenta/mesh/memory.py` — `write_episode()` includes provenance |
+| Golden eval set (NDCG@5 ≥ 0.75) | ❌ Not implemented | Pending Sprint 2 — requires 50 query/expected-result pairs |
+
 ### DTP §5 — Data Integration Design
 
 | Requirement | Status | Evidence |

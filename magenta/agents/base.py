@@ -8,6 +8,13 @@ from magenta.core.models import ActionStatus, AgentConfig, AutomationActivity, M
 from magenta.models.base import ModelRequest, ModelResponse
 from magenta.models.router import model_router
 
+# Token budgets per tier (ADR-018 §3.2)
+TIER_TOKEN_BUDGETS = {
+    "speed": 1000,
+    "reasoning": 3000,
+    "cost_save": 500,
+}
+
 USE_GATEWAY = True
 
 try:
@@ -118,7 +125,74 @@ class LLMAgent(BaseAgent, ABC):
 
         return response
 
-    async def log_activity(self, mission: Mission, action: str, status: ActionStatus) -> None:
+    async def retrieve_context(
+        self,
+        query_summary: str,
+        mission_id: str,
+        tenant_id: str = "default",
+    ) -> str:
+        """Retrieve relevant past decisions via pre-turn RAG (ADR-018 §3.2).
+
+        Skips RAG on turn 1 (no history to retrieve). Truncates results
+        to the tier token budget.
+
+        Args:
+            query_summary: Brief description of the current alert/task.
+            mission_id: Current mission ID.
+            tenant_id: Tenant identifier for isolation.
+
+        Returns:
+            Context string with relevant past decisions, or empty string.
+        """
+        # Skip RAG on first turn (no relevant history yet)
+        if self.turn_count <= 1:
+            return ""
+
+        try:
+            from magenta.mesh.memory import memory_mcp
+
+            result = await memory_mcp.search_episodes(
+                query=query_summary,
+                agent_role=self.config.role,
+                mission_id=mission_id,
+                tenant_id=tenant_id,
+                top_k=5,
+            )
+
+            if result.get("status") != "success":
+                return ""
+
+            episodes = result.get("results", [])
+            if not episodes:
+                return ""
+
+            # Build context from retrieved episodes
+            context_parts = ["Relevant Past Decisions:"]
+            for ep in episodes:
+                text = ep.get("text", "")
+                score = ep.get("score", 0)
+                context_parts.append(f"- [{score:.2f}] {text}")
+
+            context = "\n".join(context_parts)
+
+            # Truncate to tier token budget
+            budget = TIER_TOKEN_BUDGETS.get(self.task_type, 1000)
+            estimated_tokens = len(context) // 4
+            if estimated_tokens > budget:
+                max_chars = budget * 4
+                context = context[:max_chars] + "\n[truncated to budget]"
+
+            return context
+
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("Failed to retrieve memory context")
+            return ""
+
+    async def log_activity(
+        self, mission: Mission, action: str, status: ActionStatus,
+        tenant_id: str = "default",
+    ) -> None:
         """Log action to episodic memory and registry."""
         activity = AutomationActivity(
             source_system=mission.source_system,
@@ -143,6 +217,7 @@ class LLMAgent(BaseAgent, ABC):
                     "activity_id": activity.event_id,
                     "playbook_id": mission.playbook_id,
                     "source_system": mission.source_system.value,
+                    "tenant_id": tenant_id,
                     "action_type": (
                         activity.action.value
                         if hasattr(activity.action, "value")

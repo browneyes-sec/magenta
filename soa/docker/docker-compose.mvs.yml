@@ -9,12 +9,13 @@
 # Exposed ports:
 #   3000 - Open WebUI (operator control plane)
 #   11434 - OLLAMA (local LLM inference)
+#   6333 - Qdrant (vector database)
 #   9099 - Pipelines (LangChain)
 #   4317/4318 - OTel Collector (traces/metrics)
 #   8001 - MCPO (MCP Proxy, HTTP transport)
 #   6379 - Redis (internal only)
 #
-# Total memory: ~1 GB (limits) — fits in 7.75 GB usable RAM.
+# Total memory: ~1.5 GB (limits) — fits in 7.75 GB usable RAM.
 
 name: magenta-mvs
 
@@ -55,13 +56,37 @@ services:
       OLLAMA_NUM_PARALLEL: 1
     volumes:
       - magenta-ollama-data:/root/.ollama
-    mem_limit: 512m
+    mem_limit: 768m
     healthcheck:
       test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/11434"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 30s
+    networks:
+      - magenta-mvs
+    restart: unless-stopped
+
+  # ── 2b. Qdrant ──────────────────────────────────────────
+  # Vector database for agent memory (episodic, semantic, procedural).
+  # ADR-018: 1024-dim bge-m3 embeddings, cosine similarity.
+  magenta-qdrant:
+    image: qdrant/qdrant:latest
+    container_name: magenta-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334
+    volumes:
+      - magenta-qdrant-data:/qdrant/storage
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:6333/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
     networks:
       - magenta-mvs
     restart: unless-stopped
@@ -81,9 +106,14 @@ services:
       DEFAULT_MODELS: qwen2.5:0.5b
       OPENAI_API_BASE_URL: http://magenta-pipelines:9099
       OPENAI_API_KEY: "${OPENAI_API_KEY:-sk-magenta-pipeline}"
+      RAG_EMBEDDING_ENGINE: ollama
+      RAG_EMBEDDING_MODEL: nomic-embed-text
+      ENABLE_EMBEDDINGS: "true"
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
     volumes:
       - magenta-openwebui-data:/app/backend/data
-    mem_limit: 512m
+    mem_limit: 1024m
     depends_on:
       magenta-ollama:
         condition: service_healthy
@@ -111,6 +141,7 @@ services:
       PIPELINES_API_KEY: "${OPENAI_API_KEY:-sk-magenta-pipeline}"
       RUNTIME: "openai"
     volumes:
+      - ./pipelines:/app/pipelines
       - magenta-pipelines-data:/app/data
     mem_limit: 128m
     depends_on:
@@ -173,11 +204,44 @@ services:
       - magenta-mvs
     restart: unless-stopped
 
+  # ── 7. Magenta API (Core) ──────────────────────────────────
+  # FastAPI REST API for missions, agents, approvals, MCP bridge.
+  # Required for pipeline HTTP calls to magenta-api:8000
+  magenta-api:
+    image: magenta/api:latest
+    container_name: magenta-api
+    ports:
+      - "8000:8000"
+    environment:
+      MAGENTA_ENV: "dev"
+      MAGENTA_SQL__URL: "sqlite+aiosqlite:///data/magenta.db"
+      MAGENTA_REDIS_URL: "redis://magenta-redis:6379/0"
+      MAGENTA_LOG_LEVEL: "INFO"
+      MAGENTA_CORS__ORIGINS: '["http://localhost:3000","http://localhost:8000"]'
+      MAGENTA_ENTRA_JWT__ENABLED: "false"
+    volumes:
+      - magenta-sqlite-data:/app/data
+    mem_limit: 256m
+    depends_on:
+      magenta-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - magenta-mvs
+    restart: unless-stopped
+
 volumes:
   magenta-redis-data:
   magenta-ollama-data:
+  magenta-qdrant-data:
   magenta-openwebui-data:
   magenta-pipelines-data:
+  magenta-sqlite-data:
 
 networks:
   magenta-mvs:

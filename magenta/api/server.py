@@ -21,6 +21,7 @@ from magenta.api.routes import (
     monitoring,
     playbooks,
     search,
+    workflows,
 )
 from magenta.config import settings
 from magenta.dictator.state import dictator_state
@@ -44,6 +45,14 @@ async def lifespan(app: FastAPI):
             "Redis unavailable at %s, continuing without persistence: %s",
             redis_url, exc,
         )
+
+    # Initialize LangGraph subgraphs for workflow engine
+    try:
+        from magenta.workflows.langgraph.engine import initialize_subgraphs
+        initialize_subgraphs()
+        logger.info("LangGraph subgraphs initialized")
+    except Exception as exc:
+        logger.warning("LangGraph subgraph initialization failed: %s", exc)
 
     # Start DLQ consumer for dead-letter topics
     dlq_consumer = None
@@ -118,6 +127,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(ingest.router, prefix="/ingest", tags=["Ingest"])
     app.include_router(mesh.router, prefix="/api/v1/mesh", tags=["Data Mesh"])
+    app.include_router(workflows.router, prefix="/api/v1/workflows", tags=["Workflows"])
     app.include_router(mcp.router, tags=["MCP"])
 
     @app.get("/")

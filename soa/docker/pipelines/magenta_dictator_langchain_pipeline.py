@@ -1,27 +1,42 @@
 """
-Magenta Dictator Pipeline — Open WebUI / LangChain pipe.
+Magenta Dictator Pipeline — Open WebUI / LangChain pipe (HTTP client).
 
-Provides 15+ tools for issuing Dictator directives, checking approval
-queue, managing policies, generating artifacts, and querying framework
-state.
+Provides 19 tools for issuing Dictator directives, checking approval
+queue, managing policies, generating artifacts, querying framework
+state, and operating agent memory via HTTP calls to magenta-api:8000.
 
 Installation: place in Open WebUI pipelines directory, enable in Valves.
 """
 
 import json
 import logging
-from typing import Optional
+from typing import Any, Optional
+
+import httpx
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+API_BASE = "http://magenta-api:8000"
+TIMEOUT = 30.0
+
+
+class Valves(BaseModel):
+    enabled: bool = True
+    priority: int = 10
+    name: str = "Magenta Dictator Pipeline"
+    description: str = "Issue Dictator directives, query status, manage agents, generate artifacts"
+    pipelines: list = []
 
 
 class Pipeline:
     """Open WebUI Pipeline for Magenta Dictator operations."""
 
     def __init__(self):
-        self.type = "pipe"
+        self.id = "magenta_dictator_langchain_pipeline"
         self.name = "Magenta Dictator Pipeline"
         self.pipeline = "magenta_dictator_pipe"
+        self.valves = Valves()
 
     async def on_startup(self) -> None:
         logger.info("Magenta Dictator Pipeline started")
@@ -29,7 +44,7 @@ class Pipeline:
     async def on_shutdown(self) -> None:
         logger.info("Magenta Dictator Pipeline stopped")
 
-    async def pipe(self, body: dict) -> str:
+    def pipe(self, body: dict, **kwargs) -> str:
         """Route incoming request to the appropriate tool."""
         messages = body.get("messages", [])
         if not messages:
@@ -38,7 +53,8 @@ class Pipeline:
         last = messages[-1]
         content = last.get("content", "") if isinstance(last, dict) else str(last)
 
-        return await self._route_tool(content)
+        import asyncio
+        return asyncio.run(self._route_tool(content))
 
     async def _route_tool(self, content: str) -> str:
         """Parse and route tool calls from the user message."""
@@ -56,6 +72,12 @@ class Pipeline:
             "registry_search": self._registry_search,
             "save_artifact": self._save_artifact,
             "generate_artifact": self._generate_artifact,
+            "memory_write_episode": self._memory_write_episode,
+            "memory_search_episodes": self._memory_search_episodes,
+            "memory_write_semantic": self._memory_write_semantic,
+            "memory_search_semantic": self._memory_search_semantic,
+            "memory_write_procedure": self._memory_write_procedure,
+            "memory_search_procedures": self._memory_search_procedures,
         }
 
         for prefix, handler in tools.items():
@@ -76,14 +98,37 @@ class Pipeline:
             "- dictator_override_teaming <mission_id> <structure>\n"
             "- connector_health\n"
             "- registry_search [query]\n"
-            "- save_artifact <path> <content>\n"
+            "- save_artifact {'path': '...', 'content': '...'}\n"
             "- generate_artifact <type>\n"
+            "- memory_write_episode <agent_role> <mission_id> <turn> <text>\n"
+            "- memory_search_episodes <query> [--role X] [--mission Y]\n"
+            "- memory_write_semantic <text> [--product X] [--tags X,Y]\n"
+            "- memory_search_semantic <query> [--product X] [--tags X,Y]\n"
+            "- memory_write_procedure <tool_name> <text>\n"
+            "- memory_search_procedures <query> [--tool X]"
         )
+
+    async def _get(self, path: str) -> Any:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            r = await client.get(f"{API_BASE}{path}")
+            r.raise_for_status()
+            return r.json()
+
+    async def _post(self, path: str, json_data: dict = None, params: dict = None) -> Any:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            r = await client.post(f"{API_BASE}{path}", json=json_data, params=params)
+            r.raise_for_status()
+            return r.json()
+
+    async def _delete(self, path: str) -> Any:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            r = await client.delete(f"{API_BASE}{path}")
+            r.raise_for_status()
+            return r.json()
 
     async def _check_pending_approvals(self, _args: str) -> str:
         try:
-            from magenta.response.executor import approval_gate
-            pending = await approval_gate.list_pending()
+            pending = await self._get("/api/v1/approvals/pending")
             if not pending:
                 return "No pending approvals."
             lines = [f"- **{a['id']}**: {a['action']} on {a['target']} (risk: {a['risk_score']})" for a in pending]
@@ -93,9 +138,9 @@ class Pipeline:
 
     async def _policy_list(self, _args: str) -> str:
         try:
-            from magenta.dictator.policies import policy_engine
-            policies = [p.model_dump() for p in policy_engine._policies]
-            overrides = {n: p.model_dump() for n, p in policy_engine._overrides.items()}
+            data = await self._get("/api/v1/dictator/policies")
+            policies = data.get("policies", [])
+            overrides = data.get("overrides", {})
             lines = [f"- **{p.get('name')}** ({p.get('teaming_structure')}) - {'enabled' if p.get('enabled') else 'disabled'}" for p in policies]
             result = "### Policies\n" + "\n".join(lines)
             if overrides:
@@ -110,26 +155,22 @@ class Pipeline:
             return "Usage: policy_set <name> <teaming> <priority>"
         name, teaming, priority = parts[0], parts[1], parts[2]
         try:
-            from magenta.dictator.policies import OrchestrationPolicy
-            policy = OrchestrationPolicy(name=name, teaming_structure=teaming, priority=priority)
-            from magenta.agents.dictator import dictator
-            await dictator.apply_policy_override(policy)
+            policy = {"name": name, "teaming_structure": teaming, "priority": priority, "enabled": True}
+            result = await self._post("/api/v1/dictator/policies/override", json_data=policy)
             return f"Policy override set: {name} ({teaming}, {priority})"
         except Exception as exc:
             return f"Error: {exc}"
 
     async def _policy_clear(self, _args: str) -> str:
         try:
-            from magenta.agents.dictator import dictator
-            await dictator.clear_policy_overrides()
+            await self._delete("/api/v1/dictator/policies/overrides")
             return "All policy overrides cleared."
         except Exception as exc:
             return f"Error: {exc}"
 
     async def _dictator_status(self, _args: str) -> str:
         try:
-            from magenta.agents.dictator import dictator
-            status = await dictator.get_framework_status()
+            status = await self._get("/api/v1/dictator/status")
             return json.dumps(status, indent=2, default=str)
         except Exception as exc:
             return f"Error: {exc}"
@@ -141,8 +182,7 @@ class Pipeline:
         mission_id = parts[0]
         reason = parts[1] if len(parts) > 1 else "Operator request via pipeline"
         try:
-            from magenta.agents.dictator import dictator
-            result = await dictator.halt_mission(mission_id, reason)
+            result = await self._post(f"/api/v1/dictator/halt/{mission_id}", params={"reason": reason})
             return json.dumps(result, indent=2, default=str)
         except Exception as exc:
             return f"Error: {exc}"
@@ -154,12 +194,11 @@ class Pipeline:
         role = parts[0]
         model = parts[1] if len(parts) > 1 else None
         try:
-            from magenta.agents.dictator import dictator
-            kwargs = {}
+            data = {}
             if model:
-                kwargs["model_name"] = model
-            agent = await dictator.deploy_agent(role, **kwargs)
-            return f"Agent deployed: {agent.agent_id} ({agent.role}) on {agent.config.model_provider}/{agent.config.model_name}"
+                data["model"] = model
+            result = await self._post(f"/api/v1/dictator/deploy/{role}", json_data=data)
+            return f"Agent deployed: {result.get('agent_id')} ({result.get('role')}) on {result.get('model')}"
         except Exception as exc:
             return f"Error: {exc}"
 
@@ -170,8 +209,7 @@ class Pipeline:
         mission_id = parts[0]
         reason = parts[1] if len(parts) > 1 else ""
         try:
-            from magenta.agents.dictator import dictator
-            result = await dictator.escalate_mission(mission_id, reason)
+            result = await self._post(f"/api/v1/dictator/escalate/{mission_id}", params={"reason": reason})
             return json.dumps(result, indent=2, default=str)
         except Exception as exc:
             return f"Error: {exc}"
@@ -185,33 +223,27 @@ class Pipeline:
         if structure not in valid:
             return f"Invalid structure. Must be one of: {', '.join(valid)}"
         try:
-            from magenta.agents.dictator import dictator
-            result = await dictator.override_teaming(mission_id, structure)
+            result = await self._post(f"/api/v1/dictator/teaming/{mission_id}", json_data={"structure": structure})
             return json.dumps(result, indent=2, default=str)
         except Exception as exc:
             return f"Error: {exc}"
 
     async def _connector_health(self, _args: str) -> str:
         try:
-            from magenta.integration.sentinel import sentinel_connector
-            from magenta.integration.entra import entra_connector
-            from magenta.integration.defender import defender_connector
-            # These will return degraded status since connectors are not configured
-            sentinel = await sentinel_connector.health_check() if hasattr(sentinel_connector, 'health_check') else {"sentinel": "not_configured"}
-            entra = await entra_connector.health_check() if hasattr(entra_connector, 'health_check') else {"entra": "not_configured"}
-            defender = await defender_connector.health_check() if hasattr(defender_connector, 'health_check') else {"defender": "not_configured"}
-            return json.dumps({"sentinel": sentinel, "entra": entra, "defender": defender}, indent=2)
+            status = await self._get("/api/v1/dictator/status")
+            connectors = status.get("connectors", {})
+            return json.dumps(connectors, indent=2)
         except Exception as exc:
             return f"Error: {exc}"
 
     async def _registry_search(self, args: str) -> str:
         query = args.strip() or ""
         try:
-            from magenta.data.sql.mission_repo import mission_repository
-            missions = await mission_repository.search(query=query)
+            data = await self._get(f"/mcp/registry")
+            missions = data.get("missions", [])
             if not missions:
                 return "No missions found."
-            lines = [f"- **{m.mission_id}**: {m.status} ({m.severity})" for m in missions[:10]]
+            lines = [f"- **{m.get('mission_id', '?')}**: {m.get('status', '?')} ({m.get('severity', '?')})" for m in missions[:10]]
             return "### Missions\n" + "\n".join(lines)
         except Exception as exc:
             return f"Error: {exc}"
@@ -224,8 +256,7 @@ class Pipeline:
             content = parsed.get("content", "")
             if not path or not content:
                 return "Usage: save_artifact {'path': '<path>', 'content': '<content>'}"
-            from magenta.mcp.datalake_mcp_server import datalake_mcp
-            result = await datalake_mcp.save_artifact(path, content)
+            result = await self._post("/mcp/artifacts/save", json_data={"path": path, "content": content})
             return json.dumps(result, indent=2)
         except Exception as exc:
             return f"Error: {exc}"
@@ -233,19 +264,149 @@ class Pipeline:
     async def _generate_artifact(self, args: str) -> str:
         atype = args.strip()
         try:
-            from magenta.mcp.artifacts_mcp_server import artifacts_mcp
+            data = await self._get(f"/mcp/artifacts")
             generators = {
-                "trend": artifacts_mcp.generate_mission_throughput,
-                "directive_timeline": artifacts_mcp.generate_directive_timeline,
-                "policy_status": artifacts_mcp.generate_policy_status,
-                "dead_letter": artifacts_mcp.generate_dead_letter,
+                "trend": "mission_throughput",
+                "directive_timeline": "directive_timeline",
+                "policy_status": "policy_status",
+                "dead_letter": "dead_letter",
             }
             if atype == "list":
                 return f"Available artifact types: {', '.join(generators.keys())}"
             handler = generators.get(atype)
             if not handler:
                 return f"Unknown artifact type: {atype}. Available: {', '.join(generators.keys())}"
-            result = await handler()
+            result = await self._post(f"/mcp/artifacts/generate", json_data={"type": handler})
             return result.get("html", json.dumps(result))
+        except Exception as exc:
+            return f"Error: {exc}"
+
+    # ── Memory Tools (ADR-018) ──────────────────────────────────────
+
+    def _parse_flags(self, args: str) -> tuple[str, dict[str, str]]:
+        """Parse --key value flags from args string."""
+        parts = args.split()
+        positional = []
+        flags = {}
+        i = 0
+        while i < len(parts):
+            if parts[i].startswith("--") and i + 1 < len(parts):
+                flags[parts[i][2:]] = parts[i + 1]
+                i += 2
+            else:
+                positional.append(parts[i])
+                i += 1
+        return " ".join(positional), flags
+
+    async def _memory_write_episode(self, args: str) -> str:
+        """Write episodic memory: memory_write_episode <agent_role> <mission_id> <turn> <text>"""
+        parts = args.split(maxsplit=3)
+        if len(parts) < 4:
+            return "Usage: memory_write_episode <agent_role> <mission_id> <turn> <text>"
+        agent_role, mission_id, turn_str, text = parts
+        try:
+            turn_number = int(turn_str)
+            result = await self._post("/api/v1/mesh/memory/write-episode", json_data={
+                "agent_role": agent_role,
+                "mission_id": mission_id,
+                "turn_number": turn_number,
+                "text": text,
+                "correlation_id": "",
+                "metadata": {"source": "pipeline"},
+            })
+            return f"Episode written: {result.get('chunks_ingested', 0)} chunks ingested"
+        except Exception as exc:
+            return f"Error: {exc}"
+
+    async def _memory_search_episodes(self, args: str) -> str:
+        """Search episodic memory: memory_search_episodes <query> [--role X] [--mission Y]"""
+        query, flags = self._parse_flags(args)
+        if not query:
+            return "Usage: memory_search_episodes <query> [--role X] [--mission Y]"
+        try:
+            payload = {"query": query, "top_k": 5}
+            if "role" in flags:
+                payload["agent_role"] = flags["role"]
+            if "mission" in flags:
+                payload["mission_id"] = flags["mission"]
+            results = await self._post("/api/v1/mesh/memory/search-episodic", json_data=payload)
+            episodes = results.get("results", [])
+            if not episodes:
+                return "No matching episodes found."
+            lines = [f"- [{e.get('score', 0):.2f}] {e.get('text', '')[:100]}" for e in episodes[:5]]
+            return f"### Episodic Memory ({len(episodes)} results)\n" + "\n".join(lines)
+        except Exception as exc:
+            return f"Error: {exc}"
+
+    async def _memory_write_semantic(self, args: str) -> str:
+        """Write semantic memory: memory_write_semantic <text> [--product X] [--tags X,Y]"""
+        text, flags = self._parse_flags(args)
+        if not text:
+            return "Usage: memory_write_semantic <text> [--product X] [--tags X,Y]"
+        try:
+            payload = {
+                "text": text,
+                "product": flags.get("product", ""),
+                "tags": flags.get("tags", "").split(",") if flags.get("tags") else [],
+                "metadata": {"source": "pipeline"},
+            }
+            result = await self._post("/api/v1/mesh/memory/write-semantic", json_data=payload)
+            return f"Semantic memory written: {result.get('chunks_ingested', 0)} chunks"
+        except Exception as exc:
+            return f"Error: {exc}"
+
+    async def _memory_search_semantic(self, args: str) -> str:
+        """Search semantic memory: memory_search_semantic <query> [--product X] [--tags X,Y]"""
+        query, flags = self._parse_flags(args)
+        if not query:
+            return "Usage: memory_search_semantic <query> [--product X] [--tags X,Y]"
+        try:
+            payload = {"query": query, "top_k": 5}
+            if "product" in flags:
+                payload["product"] = flags["product"]
+            if "tags" in flags:
+                payload["tags"] = flags["tags"].split(",")
+            results = await self._post("/api/v1/mesh/memory/search-semantic", json_data=payload)
+            items = results.get("results", [])
+            if not items:
+                return "No matching semantic memories found."
+            lines = [f"- [{i.get('score', 0):.2f}] {i.get('text', '')[:100]}" for i in items[:5]]
+            return f"### Semantic Memory ({len(items)} results)\n" + "\n".join(lines)
+        except Exception as exc:
+            return f"Error: {exc}"
+
+    async def _memory_write_procedure(self, args: str) -> str:
+        """Write procedural memory: memory_write_procedure <tool_name> <text>"""
+        parts = args.split(maxsplit=1)
+        if len(parts) < 2:
+            return "Usage: memory_write_procedure <tool_name> <text>"
+        tool_name, text = parts
+        try:
+            result = await self._post("/api/v1/mesh/memory/write-procedure", json_data={
+                "tool_name": tool_name,
+                "text": text,
+                "parameters": {},
+                "mission_id": "",
+                "metadata": {"source": "pipeline"},
+            })
+            return f"Procedure written: {result.get('chunks_ingested', 0)} chunks"
+        except Exception as exc:
+            return f"Error: {exc}"
+
+    async def _memory_search_procedures(self, args: str) -> str:
+        """Search procedural memory: memory_search_procedures <query> [--tool X]"""
+        query, flags = self._parse_flags(args)
+        if not query:
+            return "Usage: memory_search_procedures <query> [--tool X]"
+        try:
+            payload = {"query": query, "top_k": 5}
+            if "tool" in flags:
+                payload["tool_name"] = flags["tool"]
+            results = await self._post("/api/v1/mesh/memory/search-procedures", json_data=payload)
+            items = results.get("results", [])
+            if not items:
+                return "No matching procedures found."
+            lines = [f"- [{i.get('score', 0):.2f}] {i.get('text', '')[:100]}" for i in items[:5]]
+            return f"### Procedural Memory ({len(items)} results)\n" + "\n".join(lines)
         except Exception as exc:
             return f"Error: {exc}"

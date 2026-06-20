@@ -8,7 +8,7 @@ schema defined in the DTP (§2.3).
 from __future__ import annotations
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Optional, Any, Literal
 from uuid import uuid4
 import hashlib
 import json
@@ -227,6 +227,99 @@ class Playbook(BaseModel):
     tags: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class WorkflowNodeType(str, Enum):
+    ingest = "ingest"
+    agentic = "agentic"
+    decision = "decision"
+    approval = "approval"
+    action = "action"
+    publisher = "publisher"
+    parallel = "parallel"
+    subgraph = "subgraph"
+
+
+class WorkflowNode(BaseModel):
+    id: str
+    type: WorkflowNodeType
+    label: str = ""
+    agent: Optional[str] = None
+    subgraph: Optional[str] = None
+    depends_on: list[str] = Field(default_factory=list)
+    config: dict = Field(default_factory=dict)
+    condition: Optional[str] = None
+    position: dict = Field(default_factory=dict)
+
+
+class WorkflowEdge(BaseModel):
+    source: str
+    target: str
+    condition: Optional[str] = None
+    label: str = ""
+
+
+class WorkflowSpec(BaseModel):
+    nodes: list[WorkflowNode] = Field(default_factory=list)
+    edges: list[WorkflowEdge] = Field(default_factory=list)
+    parameters: dict = Field(default_factory=dict)
+
+
+class SubgraphSpec(BaseModel):
+    name: str
+    description: str = ""
+    entry_node: str
+    nodes: list[dict] = Field(default_factory=list)
+    edges: list[WorkflowEdge] = Field(default_factory=list)
+    state_schema: dict = Field(default_factory=dict)
+
+
+class GovernanceSpec(BaseModel):
+    approval_required: list[dict] = Field(default_factory=list)
+    audit: dict = Field(default_factory=dict)
+    compliance_frameworks: list[str] = Field(default_factory=list)
+    cost_limits: dict = Field(default_factory=dict)
+    sla: dict = Field(default_factory=dict)
+
+
+class PlaybookV2(BaseModel):
+    apiVersion: str = "magenta.soar/v1"
+    kind: str = "Playbook"
+    metadata: dict = Field(default_factory=dict)
+    spec: dict = Field(default_factory=dict)
+    
+    @classmethod
+    def from_legacy(cls, legacy: Playbook) -> "PlaybookV2":
+        return cls(
+            apiVersion="magenta.soar/v1",
+            kind="Playbook",
+            metadata={
+                "name": legacy.name,
+                "version": legacy.version,
+                "description": legacy.description,
+                "tags": legacy.tags,
+                "created": legacy.created_at.isoformat(),
+                "updated": legacy.updated_at.isoformat(),
+            },
+            spec={
+                "trigger": legacy.trigger,
+                "orchestration": legacy.orchestration,
+                "stages": legacy.stages,
+                "governance": legacy.governance,
+            }
+        )
+    
+    def to_legacy(self) -> Playbook:
+        return Playbook(
+            name=self.metadata.get("name", ""),
+            version=self.metadata.get("version", "1.0.0"),
+            description=self.metadata.get("description", ""),
+            trigger=self.spec.get("trigger", {}),
+            orchestration=self.spec.get("orchestration", {}),
+            stages=self.spec.get("stages", []),
+            governance=self.spec.get("governance", {}),
+            tags=self.metadata.get("tags", []),
+        )
 
 
 class HealthStatus(BaseModel):

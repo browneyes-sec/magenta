@@ -24,6 +24,13 @@ monitor progress, handle failures, and ensure mission completion."""
         super().__init__(config)
 
     async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
+        # Pre-turn RAG: retrieve relevant past orchestration patterns (ADR-018)
+        rag_context = await self.retrieve_context(
+            query_summary=mission.description,
+            mission_id=mission.mission_id,
+            tenant_id=context.get("tenant_id", "default"),
+        )
+
         # Decompose mission into tasks
         tasks = await swarm_manager.decompose_mission(mission)
         mission.tasks = tasks
@@ -42,10 +49,14 @@ monitor progress, handle failures, and ensure mission completion."""
             "teaming_structure": structure,
             "severity": mission.severity.value,
             "risk_score": mission.risk_score,
+            "rag_context": rag_context,
         }
 
         mission_manager.update_status(mission.mission_id, MissionStatus.executing)
-        await self.log_activity(mission, "orchestrate", ActionStatus.succeeded)
+        await self.log_activity(
+            mission, "orchestrate", ActionStatus.succeeded,
+            tenant_id=context.get("tenant_id", "default"),
+        )
         return result
 
     async def run_mission(self, mission: Mission) -> dict[str, Any]:

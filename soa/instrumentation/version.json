@@ -40,6 +40,26 @@
     "connector_health",
     "registry_search",
     "save_artifact",
-    "generate_artifact"
-  ]
+    "generate_artifact",
+    "dictator_langchain_pipeline",
+    "approval_card",
+    "artifact_generator"
+  ],
+  "pipelines": {
+    "magenta_dictator_langchain_pipeline": {
+      "type": "pipe",
+      "valves": true,
+      "tools": 13
+    },
+    "magenta_approval_card": {
+      "type": "pipe",
+      "valves": true,
+      "tools": 1
+    },
+    "magenta_artifact_generator": {
+      "type": "pipe",
+      "valves": true,
+      "tools": 6
+    }
+  }
 }

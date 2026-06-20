@@ -20,6 +20,9 @@
 ```
 magenta/
 ├── magenta/agent_ops/       # Python MCP tool handlers (config, iac, cloud, finops)
+├── magenta/mesh/            # Vectorized data mesh (memory, pipeline, BM25, lineage)
+├── magenta/agents/          # Agent base classes (LLMAgent with retrieve_context)
+├── magenta/core/            # Core models (AgentConfig, Mission, enums)
 ├── soa/                     # Service-Oriented Architecture layer
 │   ├── config/              # TOML configs + JSON Schema validation
 │   ├── terraform/           # Multi-cloud IaC (AKS, EKS, GKE, vSphere, network, budget)
@@ -28,7 +31,12 @@ magenta/
 │   ├── services/            # MCP service TOML definitions + catalog
 │   ├── proto/               # gRPC protobuf definitions
 │   └── monitoring/          # Grafana dashboards
-├── architecture/            # System architecture docs + ADRs (10 records)
+├── scripts/mesh/            # Operational validation tools
+│   ├── validate_memory.py   # Memory health checks
+│   ├── rag_accuracy.py      # RAG accuracy measurement (NDCG@5)
+│   └── seed_eval_data.py    # Seed eval data for accuracy testing
+├── tests/eval/              # Golden dataset for RAG evaluation
+├── architecture/            # System architecture docs + ADRs (18 records)
 ├── data/                    # Data mesh: Qdrant + OLLAMA + Redis + MinIO + mesh gateway
 ├── docs/                    # User guides, deployment docs, usage guides
 ├── context/                 # Per-domain CLAUDE.md files for agent personas
@@ -131,6 +139,16 @@ make test          # run Python tests with pytest
 make lint          # terraform fmt + markdownlint + ruff + yamllint
 ```
 
+### Memory operations (ADR-018)
+```bash
+python scripts/mesh/validate_memory.py --env dev --verbose    # health check
+python scripts/mesh/validate_memory.py --env dev --write-test # round-trip test
+python scripts/mesh/seed_eval_data.py --env dev --clear-first # seed eval data
+python scripts/mesh/rag_accuracy.py --env dev --verbose       # NDCG@5 measurement
+python scripts/mesh/setup_collections.py --env dev --indexes  # create Qdrant collections
+python scripts/mesh/pull_models.py --env dev --verify         # pull OLLAMA models
+```
+
 ### Terraform
 ```bash
 make tf-init       # terraform init -backend=false
@@ -184,3 +202,11 @@ infra(ci): add drift detection schedule to terraform-ci.yml
 | 008 | CI/FinOps Gates as SDLC Enforcers | Accepted |
 | 009 | Hub-and-Spoke Multi-Cloud Networking | Accepted |
 | 010 | Vectorized Data Mesh Architecture | Accepted |
+| 011 | Telemetry Collection Plane | Accepted |
+| 012 | Parallel DAG Execution | Accepted |
+| 013 | Sync Fallback Path | Accepted |
+| 014 | Mesh Memory Integration | Accepted |
+| 015 | Minimum Viable Subset | Accepted |
+| 016 | Golden Image Strategy | Accepted |
+| 017 | Open WebUI Operator Control Plane | Accepted |
+| 018 | LLM-RAG Hybrid Memory Architecture | Accepted |

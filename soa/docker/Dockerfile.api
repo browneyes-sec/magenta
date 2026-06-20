@@ -1,10 +1,5 @@
 # Magenta API — FastAPI REST API
-# Distroless base image (~80MB vs ~300MB with python:3.12-slim)
-#
-# Build: docker build -t magenta/api:latest -f soa/docker/Dockerfile.api .
-# Size: ~120MB (distroless base + app)
-
-FROM magenta/base:distroless AS builder
+FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
@@ -12,18 +7,20 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 COPY pyproject.toml uv.lock README.md /app/
 RUN uv sync --frozen --no-dev
 
-FROM magenta/base:distroless
+FROM python:3.12-slim
 
 WORKDIR /app
 
-# Copy venv from builder
-COPY --from=builder /app/.venv /app/.venv
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy application code
+COPY --from=builder /app/.venv /app/.venv
 COPY magenta/ /app/magenta/
 
-# Non-root user (inherited from base)
-USER 10001:10001
+ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000 9090
 

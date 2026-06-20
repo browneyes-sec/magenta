@@ -1,5 +1,5 @@
 """
-Magenta Approval Card — Interactive HTML approval gate for Open WebUI.
+Magenta Approval Card — Interactive HTML approval gate for Open WebUI (HTTP client).
 
 Generates an HTML artifact with Approve/Deny/Approve Alternative buttons
 that POST to the Magenta API approvals endpoint.
@@ -7,20 +7,35 @@ that POST to the Magenta API approvals endpoint.
 Installation: place in Open WebUI pipelines directory, enable in Valves.
 """
 
-import json
 import logging
 from datetime import datetime
+from typing import Optional
+
+import httpx
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+API_BASE = "http://magenta-api:8000"
+TIMEOUT = 30.0
+
+
+class Valves(BaseModel):
+    enabled: bool = True
+    priority: int = 5
+    name: str = "Magenta Approval Card"
+    description: str = "Interactive approval card for high-risk actions"
+    pipelines: list = []
 
 
 class Pipeline:
     """Approval Card pipeline — renders interactive approval HTML."""
 
     def __init__(self):
-        self.type = "pipe"
+        self.id = "magenta_approval_card"
         self.name = "Magenta Approval Card"
         self.pipeline = "magenta_approval_card"
+        self.valves = Valves()
 
     async def on_startup(self) -> None:
         logger.info("Magenta Approval Card pipeline started")
@@ -28,7 +43,7 @@ class Pipeline:
     async def on_shutdown(self) -> None:
         logger.info("Magenta Approval Card pipeline stopped")
 
-    async def pipe(self, body: dict) -> str:
+    def pipe(self, body: dict, **kwargs) -> str:
         messages = body.get("messages", [])
         last_content = ""
         if messages:
@@ -36,7 +51,8 @@ class Pipeline:
             last_content = last.get("content", "") if isinstance(last, dict) else str(last)
 
         if "approval_card" in last_content.lower() or "approval" in last_content.lower():
-            return await self._generate_approval_card()
+            import asyncio
+            return asyncio.run(self._generate_approval_card())
 
         return """Use `approval_card` to generate an interactive approval card.
 
@@ -45,11 +61,23 @@ Example:
 approval_card
 ```"""
 
+    async def _get(self, path: str):
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            r = await client.get(f"{API_BASE}{path}")
+            r.raise_for_status()
+            return r.json()
+
+    async def _post(self, path: str, params: dict = None):
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            r = await client.post(f"{API_BASE}{path}", params=params)
+            r.raise_for_status()
+            return r.json()
+
     async def _generate_approval_card(self) -> str:
         """Generate an interactive HTML approval card."""
         try:
-            from magenta.response.executor import approval_gate
-            pending = await approval_gate.list_pending()
+            response = await self._get("/api/v1/approvals/pending")
+            pending = response.get("approvals", []) if isinstance(response, dict) else []
         except Exception as exc:
             pending = []
             logger.warning("Could not load pending approvals: %s", exc)
