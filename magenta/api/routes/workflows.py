@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Optional
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query, Body, Depends, Header
+from fastapi import APIRouter, HTTPException, Query, Body, Depends, Request, Header
 
 from magenta.core.models import Playbook, PlaybookV2
 from magenta.core.playbook import playbook_manager
@@ -18,29 +18,63 @@ router = APIRouter()
 
 # Workflow execution roles — extend as needed
 _ALLOWED_EXECUTION_ROLES = {"admin", "operator"}
+_ALLOWED_APPROVAL_ROLES = {"admin", "operator", "approver"}
+_ALLOWED_READ_ROLES = {"admin", "operator", "viewer"}
 
 
-async def require_execution_role(
-    x_magenta_role: str = Header(default=""),
-) -> str:
+async def require_roles(request: Request, required_roles: set[str]) -> str:
+    """Dependency: check if user has any of the required roles from JWT token."""
+    # First check X-Magenta-Role header (for backward compatibility / mock auth)
+    x_magenta_role = request.headers.get("X-Magenta-Role", "")
+    if x_magenta_role:
+        role = x_magenta_role.lower()
+        if role not in required_roles:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Role '{x_magenta_role}' not authorized",
+            )
+        return role
+    
+    # Then check JWT token roles from auth middleware
+    token_roles = getattr(request.state, "token_roles", [])
+    if token_roles:
+        for role in token_roles:
+            if role in required_roles:
+                return role
+        raise HTTPException(
+            status_code=403,
+            detail=f"Required roles: {required_roles}, found: {token_roles}",
+        )
+    
+    # No roles found
+    raise HTTPException(
+        status_code=403,
+        detail="Authentication required: missing roles",
+    )
+
+
+async def require_execution_role(request: Request) -> str:
     """Dependency: require operator/admin role for workflow execution."""
-    if not x_magenta_role:
-        raise HTTPException(
-            status_code=403,
-            detail="X-Magenta-Role header required for workflow execution",
-        )
-    if x_magenta_role.lower() not in _ALLOWED_EXECUTION_ROLES:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Role '{x_magenta_role}' not authorized for workflow execution",
-        )
-    return x_magenta_role.lower()
+    return await require_roles(request, _ALLOWED_EXECUTION_ROLES)
+
+
+async def require_approval_role(request: Request) -> str:
+    """Dependency: require approver/operator/admin role for approval actions."""
+    return await require_roles(request, _ALLOWED_APPROVAL_ROLES)
+
+
+async def require_read_role(request: Request) -> str:
+    """Dependency: require viewer/operator/admin role for read access."""
+    return await require_roles(request, _ALLOWED_READ_ROLES)
 
 
 # ── Playbook management ───────────────────────────────────────────────
 
 @router.get("/playbooks")
-async def list_playbooks(tag: Optional[str] = Query(None)):
+async def list_playbooks(
+    tag: Optional[str] = Query(None),
+    role: str = Depends(require_read_role),
+):
     """List registered playbooks."""
     playbooks = playbook_manager.list(tag=tag)
     return [
@@ -56,7 +90,10 @@ async def list_playbooks(tag: Optional[str] = Query(None)):
 
 
 @router.post("/playbooks/validate")
-async def validate_playbook(data: dict):
+async def validate_playbook(
+    data: dict,
+    role: str = Depends(require_read_role),
+):
     """Validate a playbook YAML/JSON structure.
 
     Accepts either v1 (legacy) or v2 (magenta.soar/v1) format.
@@ -84,7 +121,10 @@ async def validate_playbook(data: dict):
 
 
 @router.post("/playbooks/register")
-async def register_playbook(data: dict):
+async def register_playbook(
+    data: dict,
+    role: str = Depends(require_execution_role),
+):
     """Register a playbook in the in-memory registry."""
     try:
         pb = Playbook(**data)
@@ -177,7 +217,10 @@ async def execute_workflow(
 # ── Execution status ──────────────────────────────────────────────────
 
 @router.get("/{mission_id}/status")
-async def get_workflow_status(mission_id: str):
+async def get_workflow_status(
+    mission_id: str,
+    role: str = Depends(require_read_role),
+):
     """Get workflow execution status."""
     execution = workflow_engine.get_execution_status(mission_id)
     if not execution:
@@ -195,7 +238,10 @@ async def get_workflow_status(mission_id: str):
 
 
 @router.get("/{mission_id}/nodes")
-async def get_workflow_nodes(mission_id: str):
+async def get_workflow_nodes(
+    mission_id: str,
+    role: str = Depends(require_read_role),
+):
     """Get per-node execution results for a workflow."""
     execution = workflow_engine.get_execution_status(mission_id)
     if not execution:
@@ -219,6 +265,7 @@ async def respond_to_approval(
     decision: str = Query(..., description="approved or denied"),
     approver_id: str = Query("operator"),
     reason: str = Query(""),
+    role: str = Depends(require_approval_role),
 ):
     """Respond to a workflow approval gate."""
     from datetime import datetime
@@ -253,7 +300,7 @@ async def respond_to_approval(
 # ── Subgraph info ─────────────────────────────────────────────────────
 
 @router.get("/subgraphs/list")
-async def list_subgraphs():
+async def list_subgraphs(role: str = Depends(require_read_role)):
     """List available LangGraph subgraphs."""
     from magenta.workflows.langgraph.engine import list_subgraphs, HAS_LANGGRAPH
     if not HAS_LANGGRAPH:
@@ -264,7 +311,7 @@ async def list_subgraphs():
 # ── MCP tools info ────────────────────────────────────────────────────
 
 @router.get("/tools/list")
-async def list_workflow_tools():
+async def list_workflow_tools(role: str = Depends(require_read_role)):
     """List MCP tools available to workflow subgraphs."""
     from magenta.workflows.mcp.tool_registry import list_tools, HAS_LANGCHAIN
     if not HAS_LANGCHAIN:

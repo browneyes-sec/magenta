@@ -1,8 +1,9 @@
-"""Entra ID JWT authentication middleware."""
+"""Entra ID JWT authentication middleware with mock mode for development."""
 
 from typing import Optional
 import json
 import logging
+import os
 
 import jwt
 import httpx
@@ -19,6 +20,30 @@ JWKS_URL = (
     f"https://login.microsoftonline.com/"
     f"{settings.entra_jwt.tenant_id}/discovery/v2.0/keys"
 )
+
+# Mock mode - enabled via env var for development
+MOCK_AUTH = os.environ.get("MAGENTA_MOCK_AUTH", "false").lower() == "true"
+
+MOCK_TOKENS = {
+    "dev-admin-token": {
+        "preferred_username": "admin@magenta.local",
+        "sub": "admin-user-id",
+        "roles": ["workflow:execute", "workflow:approve", "workflow:read", "admin"],
+        "tenant_id": "dev-tenant",
+    },
+    "dev-operator-token": {
+        "preferred_username": "operator@magenta.local",
+        "sub": "operator-user-id",
+        "roles": ["workflow:execute", "workflow:read"],
+        "tenant_id": "dev-tenant",
+    },
+    "dev-viewer-token": {
+        "preferred_username": "viewer@magenta.local",
+        "sub": "viewer-user-id",
+        "roles": ["workflow:read"],
+        "tenant_id": "dev-tenant",
+    },
+}
 
 
 async def _fetch_jwks() -> list[dict]:
@@ -41,9 +66,27 @@ def _get_public_key(kid: str, keys: list[dict]) -> Optional[str]:
     return None
 
 
+def _validate_mock_token(token: str) -> Optional[dict]:
+    """Validate mock token for development."""
+    if token in MOCK_TOKENS:
+        return MOCK_TOKENS[token]
+    # Also accept any token starting with "mock-" for flexibility
+    if token.startswith("mock-"):
+        role_part = token.replace("mock-", "")
+        roles = role_part.split("-") if role_part else ["workflow:read"]
+        return {
+            "preferred_username": f"{role_part}@magenta.local",
+            "sub": f"mock-user-{role_part}",
+            "roles": roles,
+            "tenant_id": "dev-tenant",
+        }
+    return None
+
+
 class EntraJWTAuthMiddleware(BaseHTTPMiddleware):
     """Validates Bearer tokens against Entra ID JWKS endpoint.
-
+    
+    Supports mock mode via MAGENTA_MOCK_AUTH=true for development.
     Skips validation for docs, health, and root endpoints.
     """
 
@@ -60,6 +103,23 @@ class EntraJWTAuthMiddleware(BaseHTTPMiddleware):
             )
 
         token = auth_header.removeprefix("Bearer ").strip()
+        
+        # Mock mode for development
+        if MOCK_AUTH:
+            mock_payload = _validate_mock_token(token)
+            if mock_payload:
+                request.state.user = mock_payload["preferred_username"]
+                request.state.token_roles = mock_payload["roles"]
+                request.state.token_payload = mock_payload
+                request.state.tenant_id = mock_payload["tenant_id"]
+                return await call_next(request)
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Invalid mock token"},
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # Real Entra ID validation
         try:
             unverified_header = jwt.get_unverified_header(token)
             keys = await _fetch_jwks()
@@ -81,7 +141,8 @@ class EntraJWTAuthMiddleware(BaseHTTPMiddleware):
             )
             request.state.user = payload.get("preferred_username", payload.get("sub", "unknown"))
             request.state.token_roles = payload.get("roles", [])
-            request.state.token_payload = payload  # Store full payload for tenant extraction
+            request.state.token_payload = payload
+            request.state.tenant_id = payload.get("tid", "")
 
         except jwt.ExpiredSignatureError:
             return JSONResponse(

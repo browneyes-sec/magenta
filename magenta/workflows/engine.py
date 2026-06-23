@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import json
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -99,6 +101,43 @@ class WorkflowExecution:
     approvals_pending: dict = field(default_factory=dict)
     current_node: str | None = None
 
+    def to_dict(self) -> dict:
+        return {
+            "mission_id": self.mission_id,
+            "playbook_name": self.playbook_name,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "status": self.status,
+            "node_results": self.node_results,
+            "node_errors": self.node_errors,
+            "approvals_pending": self.approvals_pending,
+            "current_node": self.current_node,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> WorkflowExecution:
+        started_at = (
+            datetime.fromisoformat(data["started_at"])
+            if data.get("started_at")
+            else None
+        )
+        completed_at = (
+            datetime.fromisoformat(data["completed_at"])
+            if data.get("completed_at")
+            else None
+        )
+        return cls(
+            mission_id=data["mission_id"],
+            playbook_name=data["playbook_name"],
+            started_at=started_at or datetime.utcnow(),
+            completed_at=completed_at,
+            status=data.get("status", "running"),
+            node_results=data.get("node_results", {}),
+            node_errors=data.get("node_errors", {}),
+            approvals_pending=data.get("approvals_pending", {}),
+            current_node=data.get("current_node"),
+        )
+
 
 class WorkflowEngine:
     """High-level workflow engine that orchestrates playbook execution."""
@@ -111,6 +150,67 @@ class WorkflowEngine:
         self._approval_lock = asyncio.Lock()
         self._running_missions: set[str] = set()
         self._running_lock = asyncio.Lock()
+        self._redis_url = os.getenv(
+            "MAGENTA_REDIS_URL", "redis://localhost:6379/0"
+        )
+        self._redis = None
+        self._persistence_enabled = os.getenv(
+            "MAGENTA_REDIS_PERSISTENCE", "false"
+        ).lower() == "true"
+
+    async def _ensure_redis(self):
+        if self._redis is not None:
+            return self._redis
+        if not self._persistence_enabled:
+            return False
+        try:
+            import redis.asyncio as aioredis
+            client = aioredis.from_url(self._redis_url, decode_responses=True)
+            await client.ping()
+            self._redis = client
+            await self._load_executions_from_redis()
+        except Exception as exc:
+            logger.debug("Redis unavailable for WorkflowEngine, using in-memory: %s", exc)
+            self._redis = False
+        return self._redis
+
+    async def _load_executions_from_redis(self):
+        if not self._redis:
+            return
+        try:
+            keys = await self._redis.keys("workflow_execution:*")
+            for key in keys:
+                data = await self._redis.get(key)
+                if data:
+                    execution_data = json.loads(data)
+                    # Only load non-terminal executions or recent ones
+                    if execution_data.get("status") in ("running", "waiting_approval"):
+                        execution = WorkflowExecution.from_dict(execution_data)
+                        self._executions[execution.mission_id] = execution
+            logger.info("Loaded %d active workflow executions from Redis", len(keys))
+        except Exception as exc:
+            logger.warning("Failed to load workflow executions from Redis: %s", exc)
+
+    async def _save_execution(self, execution: WorkflowExecution):
+        if not self._persistence_enabled or not self._redis:
+            return
+        try:
+            key = f"workflow_execution:{execution.mission_id}"
+            await self._redis.set(key, json.dumps(execution.to_dict()))
+        except Exception as exc:
+            logger.debug(
+                "Redis save failed for workflow execution %s: %s",
+                execution.mission_id,
+                exc,
+            )
+
+    async def _remove_execution(self, mission_id: str):
+        if not self._persistence_enabled or not self._redis:
+            return
+        try:
+            await self._redis.delete(f"workflow_execution:{mission_id}")
+        except Exception:
+            pass
 
     async def execute_playbook(
         self,
@@ -141,6 +241,7 @@ class WorkflowEngine:
         )
         self._executions[mission.mission_id] = execution
         self._evict_old_executions()
+        await self._save_execution(execution)
 
         asyncio.create_task(self._run_workflow(mission.mission_id, pb))
 
@@ -191,6 +292,7 @@ class WorkflowEngine:
             execution.node_errors["workflow"] = str(e)
             mission_manager.update_status(mission_id, MissionStatus.failed)
         finally:
+            await self._save_execution(execution)
             async with self._running_lock:
                 self._running_missions.discard(mission_id)
 
@@ -332,6 +434,7 @@ class WorkflowEngine:
 
         execution = self._executions[mission.mission_id]
         execution.approvals_pending[approval_id] = node.task_id
+        await self._save_execution(execution)
 
         future = asyncio.get_running_loop().create_future()
         self._approval_callbacks[approval_id] = future
@@ -351,6 +454,7 @@ class WorkflowEngine:
         finally:
             execution.approvals_pending.pop(approval_id, None)
             self._approval_callbacks.pop(approval_id, None)
+            await self._save_execution(execution)
 
     async def _handle_decision_node(
         self,

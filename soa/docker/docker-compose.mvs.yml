@@ -189,11 +189,14 @@ services:
     environment:
       MCPO_PORT: 8001
       LOG_LEVEL: info
+      MAGENTA_API_KEY: "${MAGENTA_API_KEY:-magenta-dev-api-key}"
     volumes:
       - ./mcpo-config.mvs.json:/app/mcpo-config.json:ro
     mem_limit: 64m
     depends_on:
       magenta-redis:
+        condition: service_healthy
+      magenta-api:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/8001"]
@@ -208,7 +211,9 @@ services:
   # FastAPI REST API for missions, agents, approvals, MCP bridge.
   # Required for pipeline HTTP calls to magenta-api:8000
   magenta-api:
-    image: magenta/api:latest
+    build:
+      context: ../..
+      dockerfile: soa/docker/Dockerfile.api
     container_name: magenta-api
     ports:
       - "8000:8000"
@@ -216,12 +221,13 @@ services:
       MAGENTA_ENV: "dev"
       MAGENTA_SQL__URL: "sqlite+aiosqlite:///data/magenta.db"
       MAGENTA_REDIS_URL: "redis://magenta-redis:6379/0"
+      MAGENTA_REDIS_PERSISTENCE: "true"
       MAGENTA_LOG_LEVEL: "INFO"
       MAGENTA_CORS__ORIGINS: '["http://localhost:3000","http://localhost:8000"]'
       MAGENTA_ENTRA_JWT__ENABLED: "false"
     volumes:
       - magenta-sqlite-data:/app/data
-    mem_limit: 256m
+    mem_limit: 512m
     depends_on:
       magenta-redis:
         condition: service_healthy

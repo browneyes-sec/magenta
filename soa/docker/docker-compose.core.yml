@@ -30,12 +30,14 @@ services:
       MAGENTA_ENV: "dev"
       MAGENTA_SQL__URL: "sqlite+aiosqlite:///data/magenta.db"
       MAGENTA_REDIS_URL: "redis://magenta-redis:6379/0"
+      MAGENTA_REDIS_PERSISTENCE: "true"
       MAGENTA_LOG_LEVEL: "INFO"
       MAGENTA_CORS__ORIGINS: '["http://localhost:3000","http://localhost:8000"]'
       MAGENTA_ENTRA_JWT__ENABLED: "false"
+      MAGENTA_MOCK_AUTH: "true"
     volumes:
       - magenta-sqlite-data:/app/data
-    mem_limit: 256m
+    mem_limit: 512m
     depends_on:
       magenta-redis:
         condition: service_healthy
@@ -61,11 +63,13 @@ services:
       MAGENTA_ENV: "dev"
       MAGENTA_SQL__URL: "sqlite+aiosqlite:///data/magenta.db"
       MAGENTA_REDIS_URL: "redis://magenta-redis:6379/0"
+      MAGENTA_REDIS_PERSISTENCE: "true"
       MAGENTA_LOG_LEVEL: "INFO"
       MAGENTA_WORKER__CONCURRENCY: "2"
+      MAGENTA_API_KEY: "${MAGENTA_API_KEY:-magenta-dev-api-key}"
     volumes:
       - magenta-sqlite-data:/app/data
-    mem_limit: 128m
+    mem_limit: 256m
     depends_on:
       magenta-redis:
         condition: service_healthy
@@ -91,7 +95,9 @@ services:
       MAGENTA_ENV: "dev"
       MAGENTA_SQL__URL: "sqlite+aiosqlite:///data/magenta.db"
       MAGENTA_REDIS_URL: "redis://magenta-redis:6379/0"
+      MAGENTA_REDIS_PERSISTENCE: "true"
       MAGENTA_LOG_LEVEL: "INFO"
+      MAGENTA_API_KEY: "${MAGENTA_API_KEY:-magenta-dev-api-key}"
     volumes:
       - magenta-sqlite-data:/app/data
     mem_limit: 64m
@@ -122,6 +128,7 @@ services:
       MAGENTA_ENV: "dev"
       MAGENTA_SQL__URL: "sqlite+aiosqlite:///data/magenta.db"
       MAGENTA_REDIS_URL: "redis://magenta-redis:6379/0"
+      MAGENTA_REDIS_PERSISTENCE: "true"
       MAGENTA_LOG_LEVEL: "INFO"
     volumes:
       - magenta-sqlite-data:/app/data

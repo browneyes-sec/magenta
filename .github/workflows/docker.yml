@@ -1,0 +1,131 @@
+name: Docker Build & Push
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag (default: SHA)'
+        required: false
+        type: string
+      push:
+        description: 'Push to registry'
+        required: false
+        type: boolean
+        default: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    name: Build & Push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event.inputs.push == 'true' || github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for API
+        id: meta-api
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api
+          tags: |
+            type=raw,value=${{ github.event.inputs.tag || github.sha }}
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build & Push API
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: soa/docker/Dockerfile.api
+          push: ${{ github.event.inputs.push == 'true' || github.ref == 'refs/heads/main' }}
+          tags: ${{ steps.meta-api.outputs.tags }}
+          labels: ${{ steps.meta-api.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata for Worker
+        id: meta-worker
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker
+          tags: |
+            type=raw,value=${{ github.event.inputs.tag || github.sha }}
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build & Push Worker
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: soa/docker/Dockerfile.worker
+          push: ${{ github.event.inputs.push == 'true' || github.ref == 'refs/heads/main' }}
+          tags: ${{ steps.meta-worker.outputs.tags }}
+          labels: ${{ steps.meta-worker.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata for Scheduler
+        id: meta-scheduler
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/scheduler
+          tags: |
+            type=raw,value=${{ github.event.inputs.tag || github.sha }}
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build & Push Scheduler
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: soa/docker/Dockerfile.scheduler
+          push: ${{ github.event.inputs.push == 'true' || github.ref == 'refs/heads/main' }}
+          tags: ${{ steps.meta-scheduler.outputs.tags }}
+          labels: ${{ steps.meta-scheduler.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata for Agent Ops
+        id: meta-agent-ops
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/agent-ops
+          tags: |
+            type=raw,value=${{ github.event.inputs.tag || github.sha }}
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build & Push Agent Ops
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: soa/docker/Dockerfile.agent-ops
+          push: ${{ github.event.inputs.push == 'true' || github.ref == 'refs/heads/main' }}
+          tags: ${{ steps.meta-agent-ops.outputs.tags }}
+          labels: ${{ steps.meta-agent-ops.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

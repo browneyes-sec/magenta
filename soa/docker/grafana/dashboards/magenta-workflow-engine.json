@@ -1,0 +1,214 @@
+{
+  "title": "Magenta ASOAR — Workflow Engine",
+  "uid": "magenta-workflow-engine",
+  "version": 1,
+  "tags": ["magenta", "asoar", "workflow", "engine"],
+  "timezone": "browser",
+  "editable": false,
+  "panels": [
+    {
+      "title": "Workflow Executions Total",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [
+        {"expr": "rate(magenta_workflow_executions_total{status=\"running\"}[5m])", "legendFormat": "Running"},
+        {"expr": "rate(magenta_workflow_executions_total{status=\"completed\"}[5m])", "legendFormat": "Completed"},
+        {"expr": "rate(magenta_workflow_executions_total{status=\"failed\"}[5m])", "legendFormat": "Failed"},
+        {"expr": "rate(magenta_workflow_executions_total{status=\"cancelled\"}[5m])", "legendFormat": "Cancelled"}
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "ops", "min": 0},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Workflow Execution Duration (P95)",
+      "type": "timeseries",
+      "gridPos": {"x": 8, "y": 0, "w": 8, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, rate(magenta_workflow_execution_duration_seconds_bucket[5m]))", "legendFormat": "P95"},
+        {"expr": "histogram_quantile(0.50, rate(magenta_workflow_execution_duration_seconds_bucket[5m]))", "legendFormat": "P50"}
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "s", "min": 0},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Active Workflows",
+      "type": "stat",
+      "gridPos": {"x": 16, "y": 0, "w": 8, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "magenta_workflow_active_total", "legendFormat": "Active"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "orange", "value": 50},
+            {"color": "red", "value": 100}
+          ]}
+        }
+      }
+    },
+    {
+      "title": "Node Execution Duration by Type",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 6, "w": 8, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, rate(magenta_workflow_node_duration_seconds_bucket{node_type=\"agentic\"}[5m]))", "legendFormat": "Agentic"},
+        {"expr": "histogram_quantile(0.95, rate(magenta_workflow_node_duration_seconds_bucket{node_type=\"approval\"}[5m]))", "legendFormat": "Approval"},
+        {"expr": "histogram_quantile(0.95, rate(magenta_workflow_node_duration_seconds_bucket{node_type=\"decision\"}[5m]))", "legendFormat": "Decision"},
+        {"expr": "histogram_quantile(0.95, rate(magenta_workflow_node_duration_seconds_bucket{node_type=\"action\"}[5m]))", "legendFormat": "Action"}
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "s", "min": 0},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Node Success Rate by Type",
+      "type": "bargauge",
+      "gridPos": {"x": 8, "y": 6, "w": 8, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [
+        {"expr": "sum(rate(magenta_workflow_node_completed_total{node_type=\"agentic\"}[5m])) / sum(rate(magenta_workflow_node_total{node_type=\"agentic\"}[5m])) * 100", "legendFormat": "Agentic"},
+        {"expr": "sum(rate(magenta_workflow_node_completed_total{node_type=\"approval\"}[5m])) / sum(rate(magenta_workflow_node_total{node_type=\"approval\"}[5m])) * 100", "legendFormat": "Approval"},
+        {"expr": "sum(rate(magenta_workflow_node_completed_total{node_type=\"decision\"}[5m])) / sum(rate(magenta_workflow_node_total{node_type=\"decision\"}[5m])) * 100", "legendFormat": "Decision"},
+        {"expr": "sum(rate(magenta_workflow_node_completed_total{node_type=\"action\"}[5m])) / sum(rate(magenta_workflow_node_total{node_type=\"action\"}[5m])) * 100", "legendFormat": "Action"},
+        {"expr": "sum(rate(magenta_workflow_node_completed_total{node_type=\"subgraph\"}[5m])) / sum(rate(magenta_workflow_node_total{node_type=\"subgraph\"}[5m])) * 100", "legendFormat": "Subgraph"}
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "percent", "min": 0, "max": 100},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Approval Gate Latency",
+      "type": "timeseries",
+      "gridPos": {"x": 16, "y": 6, "w": 8, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, rate(magenta_workflow_approval_latency_seconds_bucket{decision=\"approved\"}[5m]))", "legendFormat": "Approved P95"},
+        {"expr": "histogram_quantile(0.95, rate(magenta_workflow_approval_latency_seconds_bucket{decision=\"denied\"}[5m]))", "legendFormat": "Denied P95"}
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "s", "min": 0},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Subgraph Invocations",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 12, "w": 8, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [
+        {"expr": "rate(magenta_workflow_subgraph_invocations_total{subgraph=\"triage_subgraph\",status=\"success\"}[5m])", "legendFormat": "Triage OK"},
+        {"expr": "rate(magenta_workflow_subgraph_invocations_total{subgraph=\"investigation_subgraph\",status=\"success\"}[5m])", "legendFormat": "Investigation OK"},
+        {"expr": "rate(magenta_workflow_subgraph_invocations_total{subgraph=\"containment_subgraph\",status=\"success\"}[5m])", "legendFormat": "Containment OK"},
+        {"expr": "rate(magenta_workflow_subgraph_invocations_total{subgraph=\"compliance_subgraph\",status=\"success\"}[5m])", "legendFormat": "Compliance OK"}
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "ops", "min": 0},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Subgraph Error Rate",
+      "type": "bargauge",
+      "gridPos": {"x": 8, "y": 12, "w": 8, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [
+        {"expr": "sum(rate(magenta_workflow_subgraph_invocations_total{status=\"error\"}[5m])) by (subgraph) / sum(rate(magenta_workflow_subgraph_invocations_total[5m])) by (subgraph) * 100", "legendFormat": "{{subgraph}}"}
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "percent", "min": 0, "max": 100},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Parallel Branch Utilization",
+      "type": "timeseries",
+      "gridPos": {"x": 16, "y": 12, "w": 8, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [
+        {"expr": "magenta_workflow_parallel_active_branches", "legendFormat": "Active Branches"},
+        {"expr": "magenta_workflow_parallel_max_branches", "legendFormat": "Max Branches"}
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "none", "min": 0},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Agent Utilization by Role",
+      "type": "bargauge",
+      "gridPos": {"x": 0, "y": 18, "w": 8, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [
+        {"expr": "magenta_agent_active_tasks{role=\"triage\"} / magenta_agent_max_concurrent_tasks{role=\"triage\"} * 100", "legendFormat": "Triage"},
+        {"expr": "magenta_agent_active_tasks{role=\"enrich\"} / magenta_agent_max_concurrent_tasks{role=\"enrich\"} * 100", "legendFormat": "Enrich"},
+        {"expr": "magenta_agent_active_tasks{role=\"contain\"} / magenta_agent_max_concurrent_tasks{role=\"contain\"} * 100", "legendFormat": "Contain"},
+        {"expr": "magenta_agent_active_tasks{role=\"investigate\"} / magenta_agent_max_concurrent_tasks{role=\"investigate\"} * 100", "legendFormat": "Investigate"},
+        {"expr": "magenta_agent_active_tasks{role=\"compliance\"} / magenta_agent_max_concurrent_tasks{role=\"compliance\"} * 100", "legendFormat": "Compliance"},
+        {"expr": "magenta_agent_active_tasks{role=\"report\"} / magenta_agent_max_concurrent_tasks{role=\"report\"} * 100", "legendFormat": "Report"}
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "percent", "min": 0, "max": 100},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Circuit Breaker State",
+      "type": "stat",
+      "gridPos": {"x": 8, "y": 18, "w": 4, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "magenta_circuit_breaker_open", "legendFormat": "Open"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "red", "value": 1}
+          ]}
+        }
+      }
+    },
+    {
+      "title": "LLM Calls by Tier",
+      "type": "bargauge",
+      "gridPos": {"x": 12, "y": 18, "w": 6, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [
+        {"expr": "sum(rate(magenta_workflow_llm_calls_total{tier=\"speed\"}[5m]))", "legendFormat": "Speed"},
+        {"expr": "sum(rate(magenta_workflow_llm_calls_total{tier=\"reasoning\"}[5m]))", "legendFormat": "Reasoning"},
+        {"expr": "sum(rate(magenta_workflow_llm_calls_total{tier=\"cost_save\"}[5m]))", "legendFormat": "Cost Save"}
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "ops", "min": 0},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Workflow Execution Status Breakdown",
+      "type": "piechart",
+      "gridPos": {"x": 18, "y": 18, "w": 6, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [
+        {"expr": "sum(magenta_workflow_executions_total) by (status)", "legendFormat": "{{status}}"}
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    }
+  ],
+  "schemaVersion": 38,
+  "time": {"from": "now-6h", "to": "now"},
+  "refresh": "30s"
+}
