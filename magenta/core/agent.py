@@ -1,17 +1,15 @@
 """Agent base class and registry."""
 
 from __future__ import annotations
+
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, Optional
-from uuid import uuid4
-import time
+from typing import Any
 
-from magenta.core.models import AgentConfig, AgentStatus, Mission, AutomationActivity
-from magenta.exceptions import AgentError
-from magenta.config import settings
-from magenta.telemetry import get_tracer, get_meter
+from magenta.core.models import AgentConfig, AgentStatus, Mission
 from magenta.logging import StructuredLogger, get_structured_logger
+from magenta.telemetry import get_meter, get_tracer
 
 
 class BaseAgent(ABC):
@@ -57,9 +55,9 @@ class BaseAgent(ABC):
         self._ensure_metrics()
         self.config = config
         self.status = AgentStatus.idle
-        self.current_mission: Optional[Mission] = None
+        self.current_mission: Mission | None = None
         self.turn_count = 0
-        self.started_at: Optional[datetime] = None
+        self.started_at: datetime | None = None
         self._heartbeat_count = 0
         self._active_tasks = 0
         self._pre_turn_rag: bool = True  # Enable pre-turn RAG by default (ADR-018)
@@ -224,7 +222,7 @@ class AgentRegistry:
     def get_by_role(self, role: str) -> list[BaseAgent]:
         return self._agents.get(role, [])
 
-    def get_by_id(self, agent_id: str) -> Optional[BaseAgent]:
+    def get_by_id(self, agent_id: str) -> BaseAgent | None:
         for agents in self._agents.values():
             for agent in agents:
                 if agent.agent_id == agent_id:
