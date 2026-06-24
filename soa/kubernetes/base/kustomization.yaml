@@ -1,0 +1,67 @@
+# Kustomize Base — All Services
+# Base configuration for all Magenta services.
+# Overlays in dev/staging/production override image tags and replicas.
+#
+# Usage:
+#   kubectl apply -k soa/kubernetes/base/
+#   kubectl apply -k soa/kubernetes/overlays/dev/
+#   kubectl apply -k soa/kubernetes/overlays/staging/
+#   kubectl apply -k soa/kubernetes/overlays/production/
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Core services
+  - base/api-deployment.yaml
+  - base/worker-deployment.yaml
+  - base/scheduler-deployment.yaml
+
+  # Agent Ops
+  - base/agent-ops/core-deployment.yaml
+  - base/agent-ops/tf-sidecar-deployment.yaml
+
+  # Agent Orchestrator
+  - base/agent-orchestrator-deployment.yaml
+
+  # MCP Bridge
+  - base/mcp-bridge-deployment.yaml
+
+  # Web Gateway
+  - base/web-gateway-deployment.yaml
+
+  # Collector
+  - base/collector-deployment.yaml
+
+  # OLLAMA GPU
+  - base/ollama-gpu/deployment.yaml
+
+  # Network Policies
+  - base/network/default-deny.yaml
+  - base/network/mcp-bridge-allow.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: magenta
+  app.kubernetes.io/managed-by: kustomize
+
+images:
+  - name: ghcr.io/browneyes-sec/magenta/api
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/worker
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/scheduler
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/agent-ops
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/agent-ops-tf-sidecar
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/agent-orchestrator
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/mcp-bridge
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/web-gateway
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/collector
+    newTag: sha-abc1234
+  - name: ollama/ollama
+    newTag: "0.5.7"

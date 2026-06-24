@@ -1,0 +1,33 @@
+# Mesh Gateway Configuration
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mesh-config
+  namespace: magenta-mesh
+data:
+  system.toml: |
+    [mesh]
+    qdrant_host = "qdrant.magenta-mesh.svc.cluster.local"
+    qdrant_port = 6334
+    qdrant_use_grpc = true
+    ollama_host = "http://ollama-embed.magenta-mesh.svc.cluster.local:11434"
+    ollama_model = "bge-m3"
+    redis_host = "redis.magenta-mesh.svc.cluster.local"
+    redis_port = 6379
+    embedding_dimension = 1024
+    collections_auto_create = true
+    log_level = "INFO"
+    
+    [mesh.chunking]
+    default_strategy = "semantic"
+    default_chunk_size = 512
+    default_overlap = 64
+    
+    [mesh.search]
+    default_top_k = 10
+    hybrid_enabled = true
+    rrf_k = 60
+    
+    [mesh.products]
+    catalog_refresh_seconds = 300

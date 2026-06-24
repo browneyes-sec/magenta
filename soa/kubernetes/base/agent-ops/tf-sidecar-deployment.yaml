@@ -1,0 +1,222 @@
+# Agent Ops Terraform Sidecar Deployment
+# Runs Terraform, Azure CLI, AWS CLI, and gcloud SDK as a sidecar.
+# Shares Terraform state with core pod via emptyDir.
+#
+# Build: docker build -t magenta/agent-ops-tf-sidecar:latest -f soa/docker/base/Dockerfile.tf-sidecar .
+# Size: ~800MB (distroless base + Terraform + 3 CLIs)
+#
+# K8s: Deploy alongside agent-ops-core in same namespace.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-ops-tf-sidecar
+  namespace: magenta-agents
+  labels:
+    app.kubernetes.io/name: agent-ops
+    app.kubernetes.io/component: tf-sidecar
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: agent-ops
+      app.kubernetes.io/component: tf-sidecar
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: agent-ops
+        app.kubernetes.io/component: tf-sidecar
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: agent-ops-tf
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: tf-sidecar
+          image: ghcr.io/browneyes-sec/magenta/agent-ops-tf-sidecar:latest
+          ports:
+            - containerPort: 9090
+              name: metrics
+              protocol: TCP
+          env:
+            - name: MAGENTA_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: agent-ops-config
+                  key: MAGENTA_ENV
+            - name: TF_IN_AUTOMATION
+              value: "1"
+            - name: TF_DATA_DIR
+              value: "/tmp/terraform"
+            - name: ARM_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: agent-ops-cloud-secrets
+                  key: ARM_CLIENT_ID
+                  optional: true
+            - name: ARM_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: agent-ops-cloud-secrets
+                  key: ARM_CLIENT_SECRET
+                  optional: true
+            - name: ARM_SUBSCRIPTION_ID
+              valueFrom:
+                secretKeyRef:
+                  name: agent-ops-cloud-secrets
+                  key: ARM_SUBSCRIPTION_ID
+                  optional: true
+            - name: ARM_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: agent-ops-cloud-secrets
+                  key: ARM_TENANT_ID
+                  optional: true
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: agent-ops-cloud-secrets
+                  key: AWS_ACCESS_KEY_ID
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: agent-ops-cloud-secrets
+                  key: AWS_SECRET_ACCESS_KEY
+                  optional: true
+            - name: AWS_DEFAULT_REGION
+              value: "us-east-1"
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: "/etc/google/credentials/service-account.json"
+          resources:
+            requests:
+              cpu: "1"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          volumeMounts:
+            - name: agent-ops-config
+              mountPath: /app/config
+              readOnly: true
+            - name: terraform-state
+              mountPath: /tmp/terraform
+            - name: terraform-modules
+              mountPath: /app/terraform
+              readOnly: true
+            - name: google-credentials
+              mountPath: /etc/google/credentials
+              readOnly: true
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "import magenta.agent_ops; print('ok')"
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "import magenta.agent_ops; print('ok')"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: agent-ops-config
+          configMap:
+            name: agent-ops-config
+        - name: terraform-state
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: terraform-modules
+          configMap:
+            name: agent-ops-terraform-modules
+        - name: google-credentials
+          secret:
+            secretName: agent-ops-google-credentials
+            optional: true
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agent-ops-tf
+  namespace: magenta-agents
+  labels:
+    app.kubernetes.io/name: agent-ops
+    app.kubernetes.io/component: tf-sidecar
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: agent-ops-cloud-secrets
+  namespace: magenta-agents
+  labels:
+    app.kubernetes.io/name: agent-ops
+    app.kubernetes.io/component: tf-sidecar
+type: Opaque
+# SECURITY: Use ExternalSecrets or SealedSecrets for production.
+# Do not commit real credential values in stringData.
+stringData:
+  ARM_CLIENT_ID: ""
+  ARM_CLIENT_SECRET: ""
+  ARM_SUBSCRIPTION_ID: ""
+  ARM_TENANT_ID: ""
+  AWS_ACCESS_KEY_ID: ""
+  AWS_SECRET_ACCESS_KEY: ""
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-ops-terraform-modules
+  namespace: magenta-agents
+  labels:
+    app.kubernetes.io/name: agent-ops
+    app.kubernetes.io/component: tf-sidecar
+data:
+  # Terraform modules are mounted here from the soa/terraform/ directory
+  # This ConfigMap is populated by the deployment script or kustomize
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: agent-ops-tf-sidecar
+  namespace: magenta-agents
+  labels:
+    app.kubernetes.io/name: agent-ops
+    app.kubernetes.io/component: tf-sidecar
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: agent-ops
+      app.kubernetes.io/component: tf-sidecar
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: agent-ops-tf-sidecar
+  namespace: magenta-agents
+  labels:
+    app.kubernetes.io/name: agent-ops
+    app.kubernetes.io/component: tf-sidecar
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: agent-ops
+      app.kubernetes.io/component: tf-sidecar
+  endpoints:
+    - port: metrics
+      interval: 30s
+      path: /metrics

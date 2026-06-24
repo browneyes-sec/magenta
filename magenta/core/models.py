@@ -6,26 +6,26 @@ schema defined in the DTP (§2.3).
 """
 
 from __future__ import annotations
-from datetime import datetime
-from enum import Enum
-from typing import Optional
-from uuid import uuid4
+
 import hashlib
-import json
+from datetime import datetime
+from enum import Enum, StrEnum
+from typing import Literal
+from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator
 
 
-class EventType(str, Enum):
+class EventType(StrEnum):
     automation_activity = "automation.activity"
 
 
-class SourceSystem(str, Enum):
+class SourceSystem(StrEnum):
     sentinel = "sentinel"
     splunk = "splunk"
 
 
-class ActionType(str, Enum):
+class ActionType(StrEnum):
     disable_account = "disable_account"
     isolate_host = "isolate_host"
     create_ticket = "create_ticket"
@@ -40,7 +40,7 @@ class ActionType(str, Enum):
     custom = "custom"
 
 
-class ActionStatus(str, Enum):
+class ActionStatus(StrEnum):
     queued = "queued"
     executing = "executing"
     succeeded = "succeeded"
@@ -49,7 +49,7 @@ class ActionStatus(str, Enum):
     pending_approval = "pending_approval"
 
 
-class ApprovalState(str, Enum):
+class ApprovalState(StrEnum):
     pending = "pending"
     approved = "approved"
     denied = "denied"
@@ -57,7 +57,7 @@ class ApprovalState(str, Enum):
     modified = "modified"
 
 
-class TargetType(str, Enum):
+class TargetType(StrEnum):
     user = "user"
     host = "host"
     ip = "ip"
@@ -67,21 +67,21 @@ class TargetType(str, Enum):
     application = "application"
 
 
-class AssetCriticality(str, Enum):
+class AssetCriticality(StrEnum):
     critical = "critical"
     high = "high"
     medium = "medium"
     low = "low"
 
 
-class BlastRadius(str, Enum):
+class BlastRadius(StrEnum):
     single_user = "single-user"
     subnet = "subnet"
     domain = "domain"
     enterprise = "enterprise"
 
 
-class MissionStatus(str, Enum):
+class MissionStatus(StrEnum):
     created = "created"
     scoped = "scoped"
     assigned = "assigned"
@@ -93,7 +93,7 @@ class MissionStatus(str, Enum):
     cancelled = "cancelled"
 
 
-class AgentStatus(str, Enum):
+class AgentStatus(StrEnum):
     idle = "idle"
     ready = "ready"
     executing = "executing"
@@ -114,7 +114,7 @@ class ApprovalRequest(BaseModel):
     correlation_id: str = Field(default_factory=lambda: str(uuid4()))
     agent_id: str
     action: ActionType
-    target: "Target"
+    target: Target
     risk_score: int = Field(ge=0, le=100)
     reasoning: str
     alternatives: list[dict] = Field(default_factory=list)
@@ -125,29 +125,31 @@ class ApprovalRequest(BaseModel):
     def model_post_init(self, __context):
         if not self.expires_at:
             from datetime import timedelta
+
             self.expires_at = datetime.utcnow() + timedelta(minutes=15)
 
 
 class Target(BaseModel):
     type: TargetType
     id: str
-    asset_criticality: Optional[AssetCriticality] = None
+    asset_criticality: AssetCriticality | None = None
 
 
 class Executor(BaseModel):
     type: Literal["agent", "logic_app", "function"] = "agent"
     id: str
-    managed_identity: Optional[str] = None
+    managed_identity: str | None = None
 
 
 class Evidence(BaseModel):
-    input_hash: Optional[str] = None
-    raw_alert_ref: Optional[str] = None
-    output_ref: Optional[str] = None
+    input_hash: str | None = None
+    raw_alert_ref: str | None = None
+    output_ref: str | None = None
 
 
 class AutomationActivity(BaseModel):
     """Canonical automation.activity event schema."""
+
     schema_version: str = "1.0"
     event_type: EventType = EventType.automation_activity
     event_id: str = Field(default_factory=lambda: str(uuid4()))
@@ -162,12 +164,12 @@ class AutomationActivity(BaseModel):
     action: ActionType
     target: Target
     status: ActionStatus = ActionStatus.queued
-    approval: Optional[dict] = None
+    approval: dict | None = None
     risk_score: int = 0
     blast_radius: BlastRadius = BlastRadius.single_user
     mitre_tactics: list[str] = Field(default_factory=list)
     started_at: datetime = Field(default_factory=datetime.utcnow)
-    ended_at: Optional[datetime] = None
+    ended_at: datetime | None = None
     executor: Executor
     evidence: Evidence = Field(default_factory=Evidence)
     tags: list[str] = Field(default_factory=list)
@@ -212,7 +214,7 @@ class Mission(BaseModel):
     artifact_bundle: dict = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
     correlation_id: str = Field(default_factory=lambda: str(uuid4()))
 
 
@@ -229,9 +231,102 @@ class Playbook(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class WorkflowNodeType(StrEnum):
+    ingest = "ingest"
+    agentic = "agentic"
+    decision = "decision"
+    approval = "approval"
+    action = "action"
+    publisher = "publisher"
+    parallel = "parallel"
+    subgraph = "subgraph"
+
+
+class WorkflowNode(BaseModel):
+    id: str
+    type: WorkflowNodeType
+    label: str = ""
+    agent: str | None = None
+    subgraph: str | None = None
+    depends_on: list[str] = Field(default_factory=list)
+    config: dict = Field(default_factory=dict)
+    condition: str | None = None
+    position: dict = Field(default_factory=dict)
+
+
+class WorkflowEdge(BaseModel):
+    source: str
+    target: str
+    condition: str | None = None
+    label: str = ""
+
+
+class WorkflowSpec(BaseModel):
+    nodes: list[WorkflowNode] = Field(default_factory=list)
+    edges: list[WorkflowEdge] = Field(default_factory=list)
+    parameters: dict = Field(default_factory=dict)
+
+
+class SubgraphSpec(BaseModel):
+    name: str
+    description: str = ""
+    entry_node: str
+    nodes: list[dict] = Field(default_factory=list)
+    edges: list[WorkflowEdge] = Field(default_factory=list)
+    state_schema: dict = Field(default_factory=dict)
+
+
+class GovernanceSpec(BaseModel):
+    approval_required: list[dict] = Field(default_factory=list)
+    audit: dict = Field(default_factory=dict)
+    compliance_frameworks: list[str] = Field(default_factory=list)
+    cost_limits: dict = Field(default_factory=dict)
+    sla: dict = Field(default_factory=dict)
+
+
+class PlaybookV2(BaseModel):
+    apiVersion: str = "magenta.soar/v1"  # noqa: N815
+    kind: str = "Playbook"
+    metadata: dict = Field(default_factory=dict)
+    spec: dict = Field(default_factory=dict)
+
+    @classmethod
+    def from_legacy(cls, legacy: Playbook) -> PlaybookV2:
+        return cls(
+            apiVersion="magenta.soar/v1",
+            kind="Playbook",
+            metadata={
+                "name": legacy.name,
+                "version": legacy.version,
+                "description": legacy.description,
+                "tags": legacy.tags,
+                "created": legacy.created_at.isoformat(),
+                "updated": legacy.updated_at.isoformat(),
+            },
+            spec={
+                "trigger": legacy.trigger,
+                "orchestration": legacy.orchestration,
+                "stages": legacy.stages,
+                "governance": legacy.governance,
+            },
+        )
+
+    def to_legacy(self) -> Playbook:
+        return Playbook(
+            name=self.metadata.get("name", ""),
+            version=self.metadata.get("version", "1.0.0"),
+            description=self.metadata.get("description", ""),
+            trigger=self.spec.get("trigger", {}),
+            orchestration=self.spec.get("orchestration", {}),
+            stages=self.spec.get("stages", []),
+            governance=self.spec.get("governance", {}),
+            tags=self.metadata.get("tags", []),
+        )
+
+
 class HealthStatus(BaseModel):
     status: Literal["healthy", "degraded", "down"] = "healthy"
-    checks: dict[str, "ComponentHealth"] = Field(default_factory=dict)
+    checks: dict[str, ComponentHealth] = Field(default_factory=dict)
     uptime_seconds: float = 0.0
 
 
@@ -241,6 +336,3 @@ class ComponentHealth(BaseModel):
     error_rate: float = 0.0
     message: str = ""
     last_check: datetime = Field(default_factory=datetime.utcnow)
-
-
-from typing import Literal

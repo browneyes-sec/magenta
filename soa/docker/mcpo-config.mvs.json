@@ -1,0 +1,112 @@
+{
+  "mcpServers": {
+    "registry": {
+      "name": "Registry",
+      "transport": "http",
+      "url": "http://magenta-api:8000/mcp/registry",
+      "description": "Mission, agent, directive search",
+      "headers": {
+        "Authorization": "Bearer ${MAGENTA_API_KEY}"
+      }
+    },
+    "artifacts": {
+      "name": "Artifact Generator",
+      "transport": "http",
+      "url": "http://magenta-api:8000/mcp/artifacts",
+      "description": "HTML dashboard artifact generation",
+      "headers": {
+        "Authorization": "Bearer ${MAGENTA_API_KEY}"
+      }
+    },
+    "sentinel": {
+      "name": "Sentinel",
+      "transport": "http",
+      "url": "http://magenta-api:8000/mcp/sentinel",
+      "description": "Microsoft Sentinel KQL queries and Log Ingestion",
+      "headers": {
+        "Authorization": "Bearer ${MAGENTA_API_KEY}"
+      }
+    },
+    "defender": {
+      "name": "Defender",
+      "transport": "http",
+      "url": "http://magenta-api:8000/mcp/defender",
+      "description": "Microsoft Defender for Endpoint machine status and alerts",
+      "headers": {
+        "Authorization": "Bearer ${MAGENTA_API_KEY}"
+      }
+    },
+    "entra": {
+      "name": "Entra ID",
+      "transport": "http",
+      "url": "http://magenta-api:8000/mcp/entra",
+      "description": "Microsoft Entra ID user, group, and device lookups",
+      "headers": {
+        "Authorization": "Bearer ${MAGENTA_API_KEY}"
+      }
+    },
+    "datalake": {
+      "name": "Data Lake",
+      "transport": "http",
+      "url": "http://magenta-api:8000/mcp/datalake",
+      "description": "Artifact store read/write operations",
+      "headers": {
+        "Authorization": "Bearer ${MAGENTA_API_KEY}"
+      }
+    },
+    "workflows": {
+      "name": "Workflows",
+      "transport": "http",
+      "url": "http://magenta-api:8000/mcp/workflows",
+      "description": "Playbook execution, validation, status, approvals, subgraphs, tools",
+      "headers": {
+        "Authorization": "Bearer ${MAGENTA_API_KEY}"
+      }
+    },
+    "playbooks": {
+      "name": "Playbooks",
+      "transport": "http",
+      "url": "http://magenta-api:8000/mcp/playbooks",
+      "description": "Playbook CRUD, versioning, CACAO translation",
+      "headers": {
+        "Authorization": "Bearer ${MAGENTA_API_KEY}"
+      }
+    },
+    "missions": {
+      "name": "Missions",
+      "transport": "http",
+      "url": "http://magenta-api:8000/mcp/missions",
+      "description": "Mission lifecycle, status, artifact bundles",
+      "headers": {
+        "Authorization": "Bearer ${MAGENTA_API_KEY}"
+      }
+    },
+    "agents": {
+      "name": "Agents",
+      "transport": "http",
+      "url": "http://magenta-api:8000/mcp/agents",
+      "description": "Agent registry, capabilities, assignment",
+      "headers": {
+        "Authorization": "Bearer ${MAGENTA_API_KEY}"
+      }
+    },
+    "approvals": {
+      "name": "Approvals",
+      "transport": "http",
+      "url": "http://magenta-api:8000/mcp/approvals",
+      "description": "Approval gate requests, responses, audit trail",
+      "headers": {
+        "Authorization": "Bearer ${MAGENTA_API_KEY}"
+      }
+    },
+    "mcp": {
+      "name": "MCP Bridge",
+      "transport": "http",
+      "url": "http://magenta-api:8000/mcp/mcp",
+      "description": "MCP server management, tool discovery, proxy",
+      "headers": {
+        "Authorization": "Bearer ${MAGENTA_API_KEY}"
+      }
+    }
+  }
+}

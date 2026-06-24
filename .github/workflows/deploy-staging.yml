@@ -1,0 +1,184 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [main, staging]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: false
+        type: choice
+        options: [staging]
+        default: staging
+      force:
+        description: 'Force deploy even if no changes'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  ENVIRONMENT: staging
+  TF_WORKING_DIR: soa/terraform
+  KUBE_CONFIG: ${{ secrets.KUBECONFIG_STAGING }}
+
+jobs:
+  validate:
+    name: Validate Changes
+    runs-on: ubuntu-latest
+    outputs:
+      tf_plan_output: ${{ steps.tf-plan.outputs.stdout }}
+      has_changes: ${{ steps.tf-plan.outputs.has_changes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.x"
+
+      - name: Terraform init
+        run: terraform -chdir=${{ env.TF_WORKING_DIR }} init
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform plan
+        id: tf-plan
+        run: |
+          terraform -chdir=${{ env.TF_WORKING_DIR }} plan -out=tfplan -detailed-exitcode > plan.txt 2>&1 || true
+          cat plan.txt
+          if grep -q "Plan: [1-9]" plan.txt; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+          echo "stdout<<EOF" >> $GITHUB_OUTPUT
+          cat plan.txt
+          echo "EOF" >> $GITHUB_OUTPUT
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_environment: ${{ env.ENVIRONMENT }}
+
+  deploy-infra:
+    name: Deploy Infrastructure
+    needs: validate
+    if: needs.validate.outputs.has_changes == 'true' || github.event.inputs.force == 'true'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.x"
+
+      - name: Terraform init
+        run: terraform -chdir=${{ env.TF_WORKING_DIR }} init
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform apply
+        run: terraform -chdir=${{ env.TF_WORKING_DIR }} apply -auto-approve tfplan
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_environment: ${{ env.ENVIRONMENT }}
+
+  deploy-k8s:
+    name: Deploy Kubernetes
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.KUBECONFIG_STAGING }}
+
+      - name: Deploy via Kustomize
+        run: |
+          kubectl apply -k soa/kubernetes/overlays/staging
+          kubectl rollout status deployment/magenta-api -n magenta-soa --timeout=300s
+          kubectl rollout status deployment/magenta-worker -n magenta-soa --timeout=300s
+          kubectl rollout status deployment/magenta-scheduler -n magenta-soa --timeout=300s
+          kubectl rollout status deployment/magenta-agent-ops -n magenta-agents --timeout=300s
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n magenta-soa -l app=magenta-api
+          kubectl get pods -n magenta-soa -l app=magenta-worker
+          kubectl get pods -n magenta-agents -l app=magenta-agent-ops
+
+      - name: Health check
+        run: |
+          sleep 30
+          API_URL=$(kubectl get svc magenta-api -n magenta-soa -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          if [ -z "$API_URL" ]; then
+            API_URL=$(kubectl get svc magenta-api -n magenta-soa -o jsonpath='{.spec.clusterIP}')
+          fi
+          curl -sf "http://$API_URL:8000/api/v1/health" | jq -r '.status'
+          echo "Deployment verified!"
+
+  smoke-tests:
+    name: Smoke Tests
+    needs: deploy-k8s
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run smoke tests
+        run: |
+          sleep 30
+          API_URL=$(kubectl get svc magenta-api -n magenta-soa -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          if [ -z "$API_URL" ]; then
+            API_URL=$(kubectl get svc magenta-api -n magenta-soa -o jsonpath='{.spec.clusterIP}')
+          fi
+          python scripts/smoke_test_staging.py --url "http://$API_URL:8000" --api-key "${{ secrets.MAGENTA_API_KEY }}"
+        env:
+          MAGENTA_MOCK_AUTH: "true"
+
+  notify:
+    name: Notify
+    needs: [deploy-infra, deploy-k8s]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post deployment summary
+        run: |
+          STATUS="${{ needs.deploy-infra.result }}/${{ needs.deploy-k8s.result }}"
+          echo "## Staging Deployment Complete"
+          echo ""
+          echo "**Status:** $STATUS"
+          echo "**Environment:** ${{ env.ENVIRONMENT }}"
+          echo "**Commit:** ${{ github.sha }}"
+          echo "**Branch:** ${{ github.ref_name }}"
+          echo ""
+          if [ "${{ needs.deploy-infra.result }}" == "success" ] && [ "${{ needs.deploy-k8s.result }}" == "success" ]; then
+            echo "✅ Deployment successful"
+          else
+            echo "❌ Deployment failed - check logs"
+          fi

@@ -135,6 +135,18 @@ Every data product is a versioned, documented, queryable asset published by a so
 | `agent.memory.semantic` | Knowledge base, playbooks, runbooks | `mem-semantic` | Indefinite |
 | `agent.memory.procedural` | Tool usage patterns, delegation history | `mem-procedural` | 30 days |
 
+### 3.7 Endpoint & Cloud Log Data Products (ADR-011)
+
+| Product | Source | Vectorized | Qdrant Collection | Primary Consumer |
+|---|---|---|---|---|
+| `endpoint.windows.events` | WEF / AMA / WAC | Yes | `endpoint_windows` | Investigate agent |
+| `endpoint.linux.syslog` | rsyslog / Fluent Bit | Yes | `endpoint_linux` | Investigate agent |
+| `customer.logs.custom` | SFTP / HTTPS drops | Yes | `customer_custom` | Mission-specific RAG |
+| `cloud.azure.activity` | Azure Monitor / DCR | Yes | `cloud_azure` | Enrichment, compliance |
+| `cloud.azure.identity` | Entra ID Graph API | Yes | `cloud_azure_identity` | Identity audit |
+| `cloud.aws.activity` | CloudTrail → Event Hubs | Yes | `cloud_aws` | Enrichment |
+| `cloud.gcp.activity` | Cloud Logging → Event Hubs | Yes | `cloud_gcp` | Enrichment |
+
 ---
 
 ## 4. Vectorization Pipeline
@@ -150,6 +162,11 @@ Every data product is a versioned, documented, queryable asset published by a so
 | Identity directory | Entity → embedding | N/A | N/A |
 | Threat intel reports | Semantic split (paragraph) | 1024 tokens | 128 tokens |
 | Agent decision logs | Turn-level | 2048 tokens | 256 tokens |
+| Windows Event XML | Semantic split on message body | 512 tokens | 64 tokens |
+| Linux syslog (single-line) | Line-level | 256 tokens | 0 |
+| Linux syslog (multi-line stack trace) | Stack trace grouping | 1024 tokens | 128 tokens |
+| Cloud JSON (Azure/AWS/GCP activity) | Document-level (one activity = one embedding) | N/A | N/A |
+| Customer custom (CSV/JSON/CEF) | Configurable per-source (TOML defined) | 512 tokens | 64 tokens |
 
 ### 4.2 Embedding Configuration
 
@@ -286,44 +303,124 @@ On first connection, the mesh auto-discovers table/collection schemas:
 
 ## 6. Agent Memory & Context Integration
 
+> **Superseded by**: ADR-018 (LLM-RAG Hybrid Memory Architecture) — this section reflects the updated dual-path design with tier-based token budgets, explicit multi-tenancy, and hybrid injection strategy.
+
 ### 6.1 Memory Types
 
-| Memory | Backing Store | Vector Collection | Query Pattern |
-|---|---|---|---|
-| **Episodic** | Qdrant `mem-episodic` | `(agent_role, mission_id, turn_number) → embedding` | "What did the triage agent do in mission X?" |
-| **Semantic** | Qdrant `mem-semantic` | `(text) → embedding` | "Find playbooks for ransomware containment" |
-| **Procedural** | Qdrant `mem-procedural` | `(tool_name, parameters) → embedding` | "How was disk isolation invoked last time?" |
+| Memory | Backing Store | Vector Collection | Injection | Query Pattern |
+|---|---|---|---|---|
+| **Episodic** | Qdrant `mem_episodic` | `(agent_role, mission_id, tenant_id, turn_number) → embedding` | **Auto** (every turn, turn 2+) | "What did the triage agent do in mission X?" |
+| **Semantic** | Qdrant `mem_semantic` | `(text, tenant_id, tags) → embedding` | **On-demand** via `memory.search_semantic` tool | "Find playbooks for ransomware containment" |
+| **Procedural** | Qdrant `mem_procedural` | `(tool_name, parameters_hash, tenant_id) → embedding` | **On-demand** via `memory.search_procedures` tool | "How was disk isolation invoked last time?" |
 
-### 6.2 Context Injection Flow
+### 6.2 Dual-Path Memory Architecture (ADR-018)
+
+Agents use two concurrent paths for memory:
+
+| Path | When | Latency Budget | Purpose |
+|------|------|----------------|---------|
+| **LLM Route** | Every agent turn | < 2s (speed tier) | Reasoning, tool selection, decision-making |
+| **RAG Path** | Pre-inference (auto episodic) + on-demand (semantic/procedural) | < 200ms cached, < 500ms cold | Historical grounding, pattern matching |
+
+**Config**: `agent.memory.pre_turn_rag.enabled` (default: `true` for episodic)
+
+### 6.3 Context Injection Flow
 
 ```
-1. Agent receives query / alert
-2. Agent calls mesh-gateway: POST /api/v1/mesh/query
-   {
-     "query": "ransomware containment steps for finance hosts",
-     "products": ["agent.memory.semantic", "siem.alerts"],
-     "filters": {"severity": "critical", "tags": ["bu:finance"]},
-     "top_k": 5
-   }
-3. Mesh gateway:
-   a. Embeds query via OLLAMA
-   b. Searches Qdrant collections (semantic + filters)
-   c. Searches BM25 index for keyword matches
-   d. Fuses results via reciprocal rank fusion (RRF)
-   e. Returns ranked documents with payloads
-4. Agent injects top-3 results into LLM context window
-5. Agent responds with evidence-grounded decision
+┌──────────────────────────────────────────────────────────────────────────┐
+│  AGENT TURN (n ≥ 2)                                                     │
+│                                                                          │
+│  1. PRE-TURN RAG (auto episodic)                                         │
+│     ├─ memory_mcp.search_episodes(                                       │
+│     │     query=current_alert_summary,                                   │
+│     │     agent_role=self.config.role,                                   │
+│     │     mission_id=mission.mission_id,                                 │
+│     │     tenant_id=self.config.tenant_id,                               │
+│     │     top_k=3                                                        │
+│     │   )                                                                │
+│     ├─ Truncate to tier budget (1000/3000/500 tokens)                    │
+│     └─ Inject into system_prompt as "Relevant Past Decisions"            │
+│                                                                          │
+│  2. LLM INFERENCE                                                        │
+│     ├─ llm_generate(                                                     │
+│     │     prompt=system_prompt + user_context,                           │
+│     │     tier=self._resolve_task_type(),                                │
+│     │     temperature=0.2                                                │
+│     │   )                                                                │
+│     └─ Response: content + tool_calls[]                                  │
+│                                                                          │
+│  3. TOOL EXECUTION (if tool_calls)                                       │
+│     ├─ Execute tool (sentinel, entra, defender, etc.)                    │
+│     └─ Result: action_outcome                                           │
+│                                                                          │
+│  4. POST-TURN WRITE (auto episodic)                                      │
+│     ├─ log_activity(mission, action, status)                             │
+│     │   └─ memory_mcp.write_episode(                                     │
+│     │         agent_role=role,                                           │
+│     │         mission_id=mission_id,                                     │
+│     │         turn_number=turn_count,                                    │
+│     │         text="Action: {action} | Status: {status}",                │
+│     │         correlation_id=correlation_id,                             │
+│     │         tenant_id=tenant_id                                        │
+│     │       )                                                            │
+│     └─ VectorizationPipeline.ingest() → Qdrant mem_episodic             │
+│                                                                          │
+│  5. OPTIONAL SEMANTIC/PROCEDURAL (tool-call triggered)                   │
+│     ├─ If agent calls memory.search_semantic → retrieve policy           │
+│     ├─ If agent calls memory.search_procedures → tool patterns          │
+│     └─ Results injected into next turn context                           │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 6.3 Context Window Budget
+### 6.4 Context Token Budget (Dynamic by Tier — ADR-018)
 
-| Agent Turn | Tokens | Allocation |
-|---|---|---|
-| System prompt | 1000 | Role, tools, guardrails |
-| Retrieved context (mesh) | 3000 | Top-3 docs, 1000 tokens each |
-| Conversation history | 2000 | Last 5 turns |
-| Current query/alert | 1000 | Raw input |
-| **Total** | **7000** | Within 8K context window |
+| Tier | Budget (tokens) | Use Case |
+|------|-----------------|----------|
+| `speed` | 1,000 | Real-time containment, triage |
+| `reasoning` | 3,000 | Investigation, swarm manager |
+| `cost_save` | 500 | Audit, reporting |
+
+**Allocation within tier budget**:
+
+| Allocation | % of Tier Budget | Notes |
+|------------|------------------|-------|
+| System prompt | 30% | Role, tools, guardrails |
+| Retrieved context (RAG) | 40% | Top-3 results from memory |
+| Conversation history | 20% | Last 5 turns |
+| Current query/alert | 10% | Raw input |
+
+### 6.5 Multi-Tenancy (ADR-018)
+
+All memory payloads include `tenant_id` field:
+
+```json
+{
+  "agent_role": "triage",
+  "mission_id": "M123",
+  "tenant_id": "acme-corp",
+  "turn_number": 3,
+  "memory_type": "episodic",
+  "provenance": {
+    "pipeline_step": "memory.write_episode",
+    "input_hash": "a1b2c3d4..."
+  }
+}
+```
+
+**Query filter**: `filter={"must": [{"key": "tenant_id", "match": {"value": tenant_id}}]}`
+
+Default `tenant_id`: `"default"` (single-tenant deployments).
+
+### 6.6 Embedding Cache (Redis — ADR-018)
+
+| Parameter | Value |
+|-----------|-------|
+| TTL | 24 hours |
+| Key format | `embed:{model}:{text_sha256[:16]}` |
+| Max entries | 100,000 |
+| Eviction | LRU |
+
+Cache hit: skip OLLAMA embed call. Cache miss: embed + store.
 
 ---
 
@@ -475,11 +572,13 @@ Each data product publishes its schema to a central registry:
 - [x] Architecture documented
 - [x] Docker Compose for local dev
 - [x] K8s manifests for Qdrant, OLLAMA, mesh-gateway
+- [ ] Telemetry collection plane (ADR-011): raw-logs topic, Log Normalizer, ingest API
 - [ ] Vectorization pipeline: chunker → embedder → indexer
 - [ ] CDC connectors for external SQL (Debezium)
 - [ ] CDC connectors for NoSQL (MongoDB, Cosmos)
 - [ ] Mesh gateway: `/query`, `/ingest`, `/products`, `/health`
 - [ ] Agent memory integration: episodic + semantic writes
+- [ ] Endpoint/cloud data product ingestion in mesh catalog
 
 ### Phase 2 (Next) — Analytics + Binary
 

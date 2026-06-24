@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-ops-core
+  namespace: magenta-staging
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: agent-ops
+          env:
+            - name: MAGENTA_ENV
+              value: "staging"
+            - name: MAGENTA_LOG_LEVEL
+              value: "INFO"
+            - name: MAGENTA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: magenta-secrets
+                  key: api-key
+            - name: MAGENTA_REDIS_PERSISTENCE
+              value: "true"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-ops-tf-sidecar
+  namespace: magenta-staging
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: tf-sidecar
+          env:
+            - name: MAGENTA_ENV
+              value: "staging"
+            - name: MAGENTA_LOG_LEVEL
+              value: "INFO"
+            - name: MAGENTA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: magenta-secrets
+                  key: api-key
+            - name: MAGENTA_REDIS_PERSISTENCE
+              value: "true"
+          resources:
+            requests:
+              cpu: "1"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"

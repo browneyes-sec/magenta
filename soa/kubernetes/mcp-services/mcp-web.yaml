@@ -1,0 +1,115 @@
+# MCP Web — Web Application Layer Gateway
+# Wraps the Magenta HTTP REST API as an MCP service.
+# Proxies agent requests to the upstream API with auth and rate-limiting.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-web
+  namespace: magenta-soa
+  labels:
+    app: mcp-web
+    component: web-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mcp-web
+  template:
+    metadata:
+      labels:
+        app: mcp-web
+        component: web-gateway
+    spec:
+      serviceAccountName: mcp-web-sa
+      containers:
+        - name: web
+          image: magenta/mcp-web:0.1.0
+          ports:
+            - containerPort: 8081
+              name: http
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: WEB__UPSTREAM
+              value: "http://magenta-api:8000"
+            - name: WEB__AUTH_ENABLED
+              value: "true"
+            - name: WEB__LOG_LEVEL
+              value: INFO
+            - name: WEB__TIMEOUT_SECONDS
+              value: "30"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /mcp/web/health
+              port: 8081
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: soa-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-web
+  namespace: magenta-soa
+  labels:
+    app: mcp-web
+    component: web-gateway
+spec:
+  ports:
+    - name: http
+      port: 8081
+      targetPort: 8081
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+  selector:
+    app: mcp-web
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-web-sa
+  namespace: magenta-soa
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mcp-web-role
+  namespace: magenta-soa
+rules:
+  - apiGroups: [""]
+    resources: ["services", "endpoints", "pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mcp-web-rolebinding
+  namespace: magenta-soa
+subjects:
+  - kind: ServiceAccount
+    name: mcp-web-sa
+    namespace: magenta-soa
+roleRef:
+  kind: Role
+  name: mcp-web-role
+  apiGroup: rbac.authorization.k8s.io

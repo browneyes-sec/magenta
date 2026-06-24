@@ -1,0 +1,101 @@
+# OLLAMA Embedding Inference Service
+# Provides nomic-embed-text / bge-m3 vector embeddings for the mesh pipeline.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama-embed
+  namespace: magenta-mesh
+  labels:
+    app: ollama-embed
+    component: embedding-service
+spec:
+  ports:
+    - name: http
+      port: 11434
+      targetPort: 11434
+  selector:
+    app: ollama-embed
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama-embed
+  namespace: magenta-mesh
+  labels:
+    app: ollama-embed
+    component: embedding-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama-embed
+  template:
+    metadata:
+      labels:
+        app: ollama-embed
+        component: embedding-service
+    spec:
+      containers:
+        - name: ollama
+          image: ollama/ollama:0.5.7
+          ports:
+            - containerPort: 11434
+          env:
+            - name: OLLAMA_HOST
+              value: "0.0.0.0"
+            - name: OLLAMA_KEEP_ALIVE
+              value: "5m"
+            - name: OLLAMA_NUM_PARALLEL
+              value: "2"
+            - name: OLLAMA_MAX_LOADED_MODELS
+              value: "1"
+          resources:
+            requests:
+              cpu: "2"
+              memory: "4Gi"
+            limits:
+              cpu: "8"
+              memory: "12Gi"
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 11434
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 11434
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          volumeMounts:
+            - name: ollama-models
+              mountPath: /root/.ollama
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - sh
+                  - -c
+                  - |
+                    sleep 10
+                    ollama pull nomic-embed-text:v1.5
+      volumes:
+        - name: ollama-models
+          persistentVolumeClaim:
+            claimName: ollama-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-pvc
+  namespace: magenta-mesh
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: standard

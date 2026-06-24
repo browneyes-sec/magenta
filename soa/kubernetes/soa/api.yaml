@@ -1,0 +1,115 @@
+# Magenta API Server — FastAPI REST API for missions, agents, playbooks, approvals
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: magenta-api
+  namespace: magenta-soa
+  labels:
+    app: magenta-api
+    role: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: magenta-api
+  template:
+    metadata:
+      labels:
+        app: magenta-api
+        role: api
+    spec:
+      serviceAccountName: magenta-api-sa
+      containers:
+        - name: api
+          image: magenta/api:0.1.0
+          ports:
+            - containerPort: 8000
+              name: http
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: MAGENTA_ENV
+              value: "staging"
+            - name: MAGENTA_SQL__URL
+              valueFrom:
+                secretKeyRef:
+                  name: magenta-secrets
+                  key: sql-url
+            - name: MAGENTA_ELASTIC__HOSTS
+              value: "http://magenta-elasticsearch:9200"
+            - name: MAGENTA_REDIS_URL
+              value: "redis://magenta-redis:6379/0"
+            - name: MAGENTA_EVENTHUB__CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: magenta-secrets
+                  key: eventhub-connection-string
+            - name: MAGENTA_CORS__ORIGINS
+              value: "https://magenta.example.com"
+            - name: MAGENTA_ENTRA_JWT__ENABLED
+              value: "true"
+            - name: MAGENTA_ENTRA_JWT__TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: magenta-secrets
+                  key: entra-tenant-id
+            - name: MAGENTA_ENTRA_JWT__AUDIENCE
+              value: "api://magenta-asoar"
+            - name: MAGENTA_ENTRA_JWT__ISSUER
+              value: "https://login.microsoftonline.com/$(MAGENTA_ENTRA_JWT__TENANT_ID)/v2.0"
+            - name: MAGENTA_SECURITY_HEADERS__ENABLED
+              value: "true"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+      volumes:
+        - name: config
+          configMap:
+            name: soa-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: magenta-api
+  namespace: magenta-soa
+  labels:
+    app: magenta-api
+    role: api
+spec:
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+  selector:
+    app: magenta-api
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: magenta-api-sa
+  namespace: magenta-soa
+  annotations:
+    azure.workload.identity/client-id: "${MAGENTA_API_CLIENT_ID}"

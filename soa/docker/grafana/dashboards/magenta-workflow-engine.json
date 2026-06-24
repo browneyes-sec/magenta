@@ -1,0 +1,176 @@
+{
+  "title": "Magenta ASOAR — Workflow Engine",
+  "uid": "magenta-workflow-engine",
+  "version": 1,
+  "tags": ["magenta", "asoar", "workflow", "engine"],
+  "timezone": "browser",
+  "editable": false,
+  "panels": [
+    {
+      "title": "Active Workflow Executions",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "workflow_active_executions", "legendFormat": "Active"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "orange", "value": 10},
+            {"color": "red", "value": 50}
+          ]}
+        }
+      }
+    },
+    {
+      "title": "Total Workflow Executions",
+      "type": "stat",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "workflow_total_executions", "legendFormat": "Total"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null}
+          ]}
+        }
+      }
+    },
+    {
+      "title": "Pending Approvals",
+      "type": "stat",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "workflow_pending_approvals", "legendFormat": "Pending"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "orange", "value": 5},
+            {"color": "red", "value": 20}
+          ]}
+        }
+      }
+    },
+    {
+      "title": "Active Missions",
+      "type": "stat",
+      "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "mission_active_total", "legendFormat": "Active"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "orange", "value": 20},
+            {"color": "red", "value": 50}
+          ]}
+        }
+      }
+    },
+    {
+      "title": "Total Missions",
+      "type": "stat",
+      "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "mission_total_total", "legendFormat": "Total"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        }
+      }
+    },
+    {
+      "title": "Total Agents",
+      "type": "stat",
+      "gridPos": {"x": 20, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "agent_total", "legendFormat": "Total"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        }
+      }
+    },
+    {
+      "title": "Workflow Executions Over Time",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [
+        {"expr": "workflow_active_executions", "legendFormat": "Active"},
+        {"expr": "workflow_total_executions", "legendFormat": "Total"}
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "none", "min": 0},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Pending Approvals Over Time",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [
+        {"expr": "workflow_pending_approvals", "legendFormat": "Pending"}
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "none", "min": 0},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Active Missions Over Time",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [
+        {"expr": "mission_active_total", "legendFormat": "Active"},
+        {"expr": "mission_total_total", "legendFormat": "Total"}
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "none", "min": 0},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Agents by Role",
+      "type": "barchart",
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "agent_by_role", "legendFormat": "{{role}}"}],
+      "fieldConfig": {
+        "defaults": {"unit": "none"},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Model Providers Available",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 20, "w": 4, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "model_available_total", "legendFormat": "Models"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "red", "value": null},
+            {"color": "green", "value": 1}
+          ]}
+        }
+      }
+    }
+  ],
+  "schemaVersion": 38,
+  "time": {"from": "now-6h", "to": "now"},
+  "refresh": "30s"
+}

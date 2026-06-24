@@ -1,9 +1,9 @@
 """API routes — Dictator super-agent oversight and directives."""
 
-from typing import Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from magenta.agents.dictator import dictator
+from magenta.api.routes.workflows import require_execution_role, require_read_role
 from magenta.dictator.directives import DirectiveType
 from magenta.dictator.policies import OrchestrationPolicy
 
@@ -11,19 +11,19 @@ router = APIRouter()
 
 
 @router.get("/status")
-async def get_dictator_status():
+async def get_dictator_status(role: str = Depends(require_read_role)):
     """Get Dictator and framework status."""
     return await dictator.get_framework_status()
 
 
 @router.get("/oversight")
-async def get_oversight_board():
+async def get_oversight_board(role: str = Depends(require_read_role)):
     """Get the full Dictator oversight board."""
     return await dictator.get_oversight_board()
 
 
 @router.get("/oversight/{mission_id}")
-async def get_mission_oversight(mission_id: str):
+async def get_mission_oversight(mission_id: str, role: str = Depends(require_read_role)):
     """Get oversight details for a specific mission."""
     result = await dictator.get_mission_oversight(mission_id)
     if not result:
@@ -32,7 +32,9 @@ async def get_mission_oversight(mission_id: str):
 
 
 @router.get("/directives")
-async def get_directives(limit: int = Query(50, ge=1, le=500)):
+async def get_directives(
+    limit: int = Query(50, ge=1, le=500), role: str = Depends(require_read_role)
+):
     """Get the Dictator directive log."""
     return await dictator.get_directive_log(limit=limit)
 
@@ -41,9 +43,10 @@ async def get_directives(limit: int = Query(50, ge=1, le=500)):
 async def issue_directive(
     directive_type: str,
     target: str,
-    mission_id: Optional[str] = None,
+    mission_id: str | None = None,
     payload: dict = {},
     reason: str = "",
+    role: str = Depends(require_execution_role),
 ):
     """Issue a new Dictator directive."""
     try:
@@ -62,19 +65,31 @@ async def issue_directive(
 
 
 @router.post("/halt/{mission_id}")
-async def halt_mission(mission_id: str, reason: str = "API override"):
+async def halt_mission(
+    mission_id: str,
+    reason: str = "API override",
+    role: str = Depends(require_execution_role),
+):
     """Halt a running mission."""
     return await dictator.halt_mission(mission_id, reason)
 
 
 @router.post("/escalate/{mission_id}")
-async def escalate_mission(mission_id: str, reason: str = ""):
+async def escalate_mission(
+    mission_id: str,
+    reason: str = "",
+    role: str = Depends(require_execution_role),
+):
     """Escalate a mission to human operators."""
     return await dictator.escalate_mission(mission_id, reason)
 
 
 @router.post("/deploy/{role}")
-async def deploy_agent(role: str, model: Optional[str] = None):
+async def deploy_agent(
+    role: str,
+    model: str | None = None,
+    _auth_role: str = Depends(require_execution_role),
+):
     """Deploy a new agent by role."""
     kwargs = {}
     if model:
@@ -89,7 +104,7 @@ async def deploy_agent(role: str, model: Optional[str] = None):
 
 
 @router.delete("/agents/{agent_id}")
-async def recall_agent(agent_id: str):
+async def recall_agent(agent_id: str, role: str = Depends(require_execution_role)):
     """Recall (unregister) an agent."""
     result = await dictator.recall_agent(agent_id)
     if not result:
@@ -98,30 +113,40 @@ async def recall_agent(agent_id: str):
 
 
 @router.post("/teaming/{mission_id}")
-async def override_teaming(mission_id: str, structure: str):
+async def override_teaming(
+    mission_id: str,
+    structure: str,
+    role: str = Depends(require_execution_role),
+):
     """Override the teaming structure for a mission."""
     valid_structures = ["pipeline", "supervisor", "debate", "mesh", "referee"]
     if structure not in valid_structures:
-        raise HTTPException(status_code=400, detail=f"Invalid structure. Must be one of: {valid_structures}")
+        raise HTTPException(
+            status_code=400, detail=f"Invalid structure. Must be one of: {valid_structures}"
+        )
     return await dictator.override_teaming(mission_id, structure)
 
 
 @router.post("/policies/override")
-async def apply_policy_override(policy: OrchestrationPolicy):
+async def apply_policy_override(
+    policy: OrchestrationPolicy,
+    role: str = Depends(require_execution_role),
+):
     """Apply a temporary policy override."""
     return await dictator.apply_policy_override(policy)
 
 
 @router.delete("/policies/overrides")
-async def clear_policy_overrides():
+async def clear_policy_overrides(role: str = Depends(require_execution_role)):
     """Clear all active policy overrides."""
     return await dictator.clear_policy_overrides()
 
 
 @router.get("/policies")
-async def list_policies():
+async def list_policies(role: str = Depends(require_read_role)):
     """List all orchestration policies."""
     from magenta.dictator.policies import policy_engine
+
     return {
         "policies": [p.model_dump() for p in policy_engine._policies],
         "overrides": {n: p.model_dump() for n, p in policy_engine._overrides.items()},
@@ -129,12 +154,16 @@ async def list_policies():
 
 
 @router.post("/probes/promote")
-async def promote_probe(name: str, guard: bool = False):
+async def promote_probe(
+    name: str,
+    guard: bool = False,
+    role: str = Depends(require_execution_role),
+):
     """Promote a probe, optionally to an enforcement guard."""
     return await dictator.promote_probe(name, guard=guard)
 
 
 @router.get("/framework")
-async def framework_status():
+async def framework_status(role: str = Depends(require_read_role)):
     """Get comprehensive framework status."""
     return await dictator.get_framework_status()

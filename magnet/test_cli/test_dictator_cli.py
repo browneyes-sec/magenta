@@ -40,7 +40,9 @@ class TestDictatorCLIActions:
         assert "halted" in result.stdout
 
     def test_escalate(self, runner):
-        result = runner.invoke(app, ["dictator", "escalate", "test-mission", "--reason", "CLI test"])
+        result = runner.invoke(
+            app, ["dictator", "escalate", "test-mission", "--reason", "CLI test"]
+        )
         assert result.exit_code == 0
         assert "escalated" in result.stdout
 
@@ -72,11 +74,18 @@ class TestDictatorCLIPolicy:
         assert "Orchestration Policies" in result.stdout
 
     def test_policy_override(self, runner):
-        result = runner.invoke(app, [
-            "dictator", "policy", "override",
-            "--name", "cli_test",
-            "--rules", '{"teaming": "mesh"}',
-        ])
+        result = runner.invoke(
+            app,
+            [
+                "dictator",
+                "policy",
+                "override",
+                "--name",
+                "cli_test",
+                "--rules",
+                '{"teaming": "mesh"}',
+            ],
+        )
         assert result.exit_code == 0
         assert "override applied" in result.stdout
 
@@ -101,7 +110,9 @@ class TestDictatorCLIProbe:
         assert "promoted" in result.stdout
 
     def test_probe_promote_guard(self, runner):
-        result = runner.invoke(app, ["dictator", "probe", "promote", "--name", "net_test", "--guard"])
+        result = runner.invoke(
+            app, ["dictator", "probe", "promote", "--name", "net_test", "--guard"]
+        )
         assert result.exit_code == 0
         assert "to guard" in result.stdout
 

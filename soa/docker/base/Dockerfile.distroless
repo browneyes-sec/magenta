@@ -1,0 +1,49 @@
+# Magenta Base — Distroless CPU Variant
+# Minimal Python 3.12 base for all non-GPU services.
+# Non-root user (10001), CA certs, tzdata.
+#
+# Build: docker build -t magenta/base:distroless -f soa/docker/base/Dockerfile.distroless .
+# Size: ~80-120MB (vs ~300MB with python:3.12-slim)
+
+FROM chainguard/python:3.12 AS builder
+
+WORKDIR /app
+
+# Install uv for dependency management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Copy dependency manifest
+COPY pyproject.toml uv.lock README.md /app/
+
+# Install dependencies (no dev deps, frozen lockfile)
+RUN uv sync --frozen --no-dev
+
+# ── Runtime ───────────────────────────────────────────────────────────────
+
+FROM chainguard/python:3.12
+
+WORKDIR /app
+
+# Non-root user (uid 10001)
+RUN addgroup -g 10001 magenta && \
+    adduser -u 10001 -G magenta -s /bin/sh -D magenta
+
+# Writable directories
+RUN mkdir -p /app/data /app/config && \
+    chown -R magenta:magenta /app
+
+# Copy venv from builder
+COPY --from=builder /app/.venv /app/.venv
+
+# Environment
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONFAULTHANDLER=1
+
+EXPOSE 8000 9090
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD ["python", "-c", "print('ok')"]
+
+ENTRYPOINT ["python"]

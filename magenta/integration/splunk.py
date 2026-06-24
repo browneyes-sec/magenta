@@ -1,8 +1,8 @@
 """Splunk REST API connector."""
 
-from typing import Any, Optional
-import httpx
 import xml.etree.ElementTree as ET
+
+import httpx
 
 from magenta.exceptions import IntegrationError
 
@@ -21,7 +21,7 @@ class SplunkConnector:
         self.base_url = f"{'https' if use_ssl else 'http'}://{host}:{port}"
         self.username = username
         self.password = password
-        self._session_key: Optional[str] = None
+        self._session_key: str | None = None
 
     async def _login(self) -> str:
         """Authenticate and get session key."""

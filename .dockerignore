@@ -1,0 +1,35 @@
+# Ignore everything by default
+*
+
+# Include only what's needed for the API build
+!magenta/
+!soa/
+!pyproject.toml
+!uv.lock
+!README.md
+!scripts/
+
+# Exclude test files
+magenta/**/__pycache__/
+magenta/**/*.pyc
+magenta/**/.pytest_cache/
+tests/
+
+# Exclude development files
+*.md
+!README.md
+!.github/
+!soa/docker/
+!soa/config/
+!soa/proto/
+
+# Exclude large data directories
+data/
+*.db
+*.sqlite
+
+# Exclude editor/IDE files
+.vscode/
+.idea/
+*.swp
+*.swo

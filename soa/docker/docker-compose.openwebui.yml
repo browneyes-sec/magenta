@@ -1,0 +1,338 @@
+# Magenta ASOAR — Open WebUI Integration Stack
+# Combines Open WebUI, OLLAMA, MCP Proxy, LangChain Pipelines,
+# and the full Magenta observability stack (OTel + Prometheus + Grafana).
+#
+# Start:   docker compose -f soa/docker/docker-compose.openwebui.yml up -d
+# Stop:    docker compose -f soa/docker/docker-compose.openwebui.yml down
+# Logs:    docker compose -f soa/docker/docker-compose.openwebui.yml logs -f
+#
+# Exposed ports:
+#   3000 - Open WebUI (operator control plane)
+#   3001 - Grafana (operational dashboards)
+#
+# Internal ports (magenta-internal network only):
+#   11434 - OLLAMA
+#   9099  - Pipelines
+#   8001  - MCP Orchestrator
+#   8082  - Open Terminal
+#   4317/4318 - OTel Collector
+#   9090  - Prometheus
+#   8086  - InfluxDB
+#   6379  - Redis
+
+name: magenta-openwebui
+
+services:
+
+  # ── 1. OLLAMA ────────────────────────────────────────────
+  magenta-ollama:
+    image: ollama/ollama:latest
+    container_name: magenta-ollama
+    ports:
+      - "11434"
+    environment:
+      OLLAMA_HOST: 0.0.0.0
+      OLLAMA_KEEP_ALIVE: 24h
+      OLLAMA_NUM_PARALLEL: 2
+    volumes:
+      - magenta-ollama-data:/root/.ollama
+    mem_limit: 1024m
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/11434"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - magenta-internal
+    restart: unless-stopped
+
+  # ── 2. Open WebUI ─────────────────────────────────────────
+  magenta-open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: magenta-open-webui
+    ports:
+      - "3000:8080"
+    environment:
+      OLLAMA_BASE_URL: http://magenta-ollama:11434
+      WEBUI_SECRET_KEY: "${WEBUI_SECRET_KEY:-change-me-in-production}"
+      WEBUI_NAME: Magenta ASOAR
+      ENABLE_SIGNUP: "false"
+      DEFAULT_MODELS: qwen2.5:0.5b
+      OPENAI_API_BASE_URL: http://magenta-pipelines:9099
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-sk-magenta-pipeline}"
+    volumes:
+      - magenta-openwebui-data:/app/backend/data
+    mem_limit: 1024m
+    depends_on:
+      magenta-ollama:
+        condition: service_healthy
+      magenta-pipelines:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - magenta-internal
+    restart: unless-stopped
+
+  # ── 3. Pipelines (LangChain) ──────────────────────────────
+  magenta-pipelines:
+    image: ghcr.io/open-webui/pipelines:main
+    container_name: magenta-pipelines
+    ports:
+      - "9099:9099"
+    environment:
+      PIPELINES_URL: http://localhost:9099
+      PIPELINES_API_KEY: "${OPENAI_API_KEY:-sk-magenta-pipeline}"
+      RUNTIME: "openai"
+    volumes:
+      - ./pipelines:/app/pipelines
+      - magenta-pipelines-data:/app/data
+    mem_limit: 256m
+    depends_on:
+      magenta-redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9099/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - magenta-internal
+    restart: unless-stopped
+
+  # ── 4. MCP Orchestrator (MCPO) ────────────────────────────
+  magenta-mcpo:
+    image: ghcr.io/open-webui/mcpo:latest
+    container_name: magenta-mcpo
+    command: ["--config", "/app/mcpo-config.json", "--port", "8001"]
+    ports:
+      - "8001:8001"
+    environment:
+      MCPO_PORT: 8001
+      LOG_LEVEL: info
+    volumes:
+      - ./mcpo-config.json:/app/mcpo-config.json:ro
+    mem_limit: 256m
+    depends_on:
+      magenta-redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/8001"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - magenta-internal
+    restart: unless-stopped
+
+  # ── 5. Open Terminal ──────────────────────────────────────
+  magenta-open-terminal:
+    image: ghcr.io/open-webui/open-terminal:latest
+    container_name: magenta-open-terminal
+    ports:
+      - "8082"
+    environment:
+      TERMINAL_TITLE: "Magenta Dictator CLI"
+      DEFAULT_SHELL: /bin/bash
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - magenta-internal
+    restart: unless-stopped
+
+  # ── 6. OTel Collector ─────────────────────────────────────
+  magenta-otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: magenta-otel-collector
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8888:8888"
+    environment:
+      TZ: UTC
+    volumes:
+      - ./otel/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    command: ["--config", "/etc/otel-collector-config.yaml"]
+    mem_limit: 256m
+    depends_on:
+      magenta-prometheus:
+        condition: service_started
+    healthcheck:
+      disable: true
+    networks:
+      - magenta-internal
+    restart: unless-stopped
+
+  # ── 7. Prometheus ─────────────────────────────────────────
+  magenta-prometheus:
+    image: prom/prometheus:latest
+    container_name: magenta-prometheus
+    ports:
+      - "9090"
+    environment:
+      TZ: UTC
+    volumes:
+      - ./otel/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - magenta-prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+      - "--web.enable-lifecycle"
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - magenta-internal
+    restart: unless-stopped
+
+  # ── 8. Grafana ────────────────────────────────────────────
+  magenta-grafana:
+    image: grafana/grafana:latest
+    container_name: magenta-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_PASSWORD:-magenta}"
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/magenta-asoar-ops.json
+    volumes:
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+      - magenta-grafana-data:/var/lib/grafana
+    mem_limit: 256m
+    depends_on:
+      magenta-prometheus:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - magenta-internal
+    restart: unless-stopped
+
+  # ── 9. InfluxDB ───────────────────────────────────────────
+  magenta-influxdb:
+    image: influxdb:2.7-alpine
+    container_name: magenta-influxdb
+    ports:
+      - "8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: "${INFLUXDB_USER:-admin}"
+      DOCKER_INFLUXDB_INIT_PASSWORD: "${INFLUXDB_PASSWORD:-magenta123}"
+      DOCKER_INFLUXDB_INIT_ORG: magenta
+      DOCKER_INFLUXDB_INIT_BUCKET: magenta
+      DOCKER_INFLUXDB_INIT_RETENTION: 7d
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: "${INFLUXDB_TOKEN:-magenta-token}"
+    volumes:
+      - magenta-influxdb-data:/var/lib/influxdb2
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8086/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - magenta-internal
+    restart: unless-stopped
+
+  # ── 10. Redis ─────────────────────────────────────────────
+  magenta-redis:
+    image: redis:7-alpine
+    container_name: magenta-redis
+    ports:
+      - "6379"
+    environment:
+      REDIS_APPENDONLY: "yes"
+    volumes:
+      - magenta-redis-data:/data
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - magenta-internal
+    restart: unless-stopped
+
+  # ── 11. Log Collector Sidecar ─────────────────────────────
+  # Runs magenta collector processes: Linux SFTP pull, Cloud API pollers,
+  # Customer SFTP adapter. Windows collection via WAC/WinRM runs externally.
+  magenta-collector-sidecar:
+    build:
+      context: ../..
+      dockerfile: soa/docker/Dockerfile.collector
+    container_name: magenta-collector-sidecar
+    environment:
+      MAGENTA_CONFIG_PATH: /config/collectors.toml
+      MAGENTA_EVENTHUB_CONNECTION_STRING: "${EVENTHUB_CONNECTION_STRING:-}"
+      MAGENTA_EVENTHUB_NAMESPACE: "${EVENTHUB_NAMESPACE:-}"
+      MAGENTA_AZURE_WORKSPACE_ID: "${AZURE_WORKSPACE_ID:-}"
+      MAGENTA_AZURE_TENANT_ID: "${AZURE_TENANT_ID:-}"
+      MAGENTA_AZURE_CLIENT_ID: "${AZURE_CLIENT_ID:-}"
+      MAGENTA_AZURE_CLIENT_SECRET: "${AZURE_CLIENT_SECRET:-}"
+      MAGENTA_AWS_S3_BUCKET: "${AWS_S3_BUCKET:-}"
+      MAGENTA_AWS_REGION: "${AWS_REGION:-us-east-1}"
+      MAGENTA_GCP_PROJECT: "${GCP_PROJECT:-}"
+      MAGENTA_GCP_PUBSUB_SUBSCRIPTION: "${GCP_PUBSUB_SUBSCRIPTION:-}"
+      MAGENTA_LINUX_SFTP_HOST: "${LINUX_SFTP_HOST:-}"
+      MAGENTA_LINUX_SFTP_USER: "${LINUX_SFTP_USER:-magenta-collector}"
+      MAGENTA_LINUX_SSH_KEY_PATH: /config/keys/linux-collector
+      MAGENTA_CUSTOMER_SFTP_HOST: "${CUSTOMER_SFTP_HOST:-}"
+      MAGENTA_CUSTOMER_DROP_PATH: "${CUSTOMER_DROP_PATH:-/incoming}"
+      MAGENTA_WINDOWS_WINRM_HOST: "${WINDOWS_WINRM_HOST:-}"
+      MAGENTA_WINDOWS_WINRM_USER: "${WINDOWS_WINRM_USER:-svc-magenta-collector}"
+      MAGENTA_WINDOWS_WINRM_PASSWORD: "${WINDOWS_WINRM_PASSWORD:-}"
+      MAGENTA_WINDOWS_WINRM_PORT: "5986"
+      MAGENTA_LOG_LEVEL: "INFO"
+    volumes:
+      - ./config/collectors.toml:/config/collectors.toml:ro
+      - ./config/keys:/config/keys:ro
+    mem_limit: 512m
+    depends_on:
+      magenta-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import magenta.integration.collectors; print('OK')"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
+    networks:
+      - magenta-internal
+    restart: unless-stopped
+
+volumes:
+  magenta-ollama-data:
+  magenta-openwebui-data:
+  magenta-pipelines-data:
+  magenta-prometheus-data:
+  magenta-grafana-data:
+  magenta-influxdb-data:
+  magenta-redis-data:
+
+networks:
+  magenta-internal:
+    driver: bridge

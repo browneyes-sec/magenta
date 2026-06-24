@@ -1,0 +1,147 @@
+# Magenta SOA — Minikube Development Environment
+# Start: docker compose -f soa/docker/docker-compose.minikube.yml up -d
+# Stop:  docker compose -f soa/docker/docker-compose.minikube.yml down
+#
+# Runs all SOA services locally for minikube-free development.
+# MCP Bridge acts as the central gateway on port 8080.
+
+name: magenta-soa
+
+services:
+
+  # ── MCP Bridge (Gateway) ────────────────────────────────
+  mcp-bridge:
+    build:
+      context: ../../
+      dockerfile: soa/docker/Dockerfile.mcp-bridge
+    image: magenta/mcp-bridge:dev
+    container_name: magenta-mcp-bridge
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+      - "9090:9090"
+    environment:
+      MCP__SERVICE_CATALOG: /app/config/catalog.toml
+      MCP__AUTH_ENABLED: "false"
+      MCP__RATE_LIMIT_PER_AGENT: "200"
+      MCP__LOG_LEVEL: DEBUG
+    volumes:
+      - ../../soa/config:/app/config:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/mcp/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - soa-net
+
+  # ── Agent Ops ────────────────────────────────────────────
+  agent-ops:
+    build:
+      context: ../../
+      dockerfile: soa/docker/Dockerfile.agent-ops
+    image: magenta/agent-ops:dev
+    container_name: magenta-agent-ops
+    ports:
+      - "50060:50060"
+      - "9091:9090"
+    environment:
+      AGENT_OPS__CONFIG_DIR: /app/config
+      AGENT_OPS__TERRAFORM_DIR: /app/terraform
+      AGENT_OPS__CLOUD_PROVIDERS: azure,aws,gcp
+      AGENT_OPS__FINOPS_ENABLED: "true"
+      AGENT_OPS__LOG_LEVEL: DEBUG
+    volumes:
+      - ../../soa/config:/app/config:ro
+      - ../../soa/terraform:/app/terraform:ro
+      - agent-ops-state:/app/state
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:50060/mcp/agent-ops/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - soa-net
+
+  # ── Agent Orchestrator ──────────────────────────────────
+  agent-orchestrator:
+    build:
+      context: ../../
+      dockerfile: soa/docker/Dockerfile.agent-orchestrator
+    image: magenta/agent-orchestrator:dev
+    container_name: magenta-agent-orchestrator
+    ports:
+      - "50061:50061"
+      - "9092:9090"
+    environment:
+      ORCHESTRATOR__CONFIG_DIR: /app/config
+      ORCHESTRATOR__BRIDGE_ENDPOINT: mcp-bridge:8080
+      ORCHESTRATOR__LOG_LEVEL: DEBUG
+      ORCHESTRATOR__MISSION_TIMEOUT_SECONDS: "3600"
+    volumes:
+      - ../../soa/config:/app/config:ro
+      - orchestrator-state:/app/state
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:50061/mcp/orchestrator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - mcp-bridge
+    networks:
+      - soa-net
+
+  # ── MCP Web ──────────────────────────────────────────────
+  mcp-web:
+    build:
+      context: ../../
+      dockerfile: soa/docker/Dockerfile.web-gateway
+    image: magenta/mcp-web:dev
+    container_name: magenta-mcp-web
+    ports:
+      - "8081:8081"
+      - "9093:9090"
+    environment:
+      WEB__UPSTREAM: http://magenta-api:8000
+      WEB__AUTH_ENABLED: "false"
+      WEB__LOG_LEVEL: DEBUG
+      WEB__TIMEOUT_SECONDS: "30"
+    volumes:
+      - ../../soa/config:/app/config:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/mcp/web/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - soa-net
+
+  # ── MCP FinOps ───────────────────────────────────────────
+  mcp-finops:
+    image: magenta/mcp-finops:dev
+    container_name: magenta-mcp-finops
+    ports:
+      - "50062:50062"
+      - "9094:9090"
+    environment:
+      FINOPS__CONFIG_DIR: /app/config
+      FINOPS__LOG_LEVEL: DEBUG
+      FINOPS__CURRENCY: USD
+      FINOPS__ANOMALY_THRESHOLD: "0.2"
+    volumes:
+      - ../../soa/config:/app/config:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:50062/mcp/finops/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - soa-net
+
+volumes:
+  agent-ops-state:
+  orchestrator-state:
+
+networks:
+  soa-net:
+    driver: bridge

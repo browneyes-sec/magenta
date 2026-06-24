@@ -1,6 +1,11 @@
 # Magenta SOA — Top-Level Kustomization
 # Apply: kubectl apply -k soa/kubernetes/
 # Deploy: ./soa/kubernetes/minikube/start.sh
+#
+# For environment-specific overlays, use:
+#   kubectl apply -k soa/kubernetes/overlays/dev
+#   kubectl apply -k soa/kubernetes/overlays/staging
+#   kubectl apply -k soa/kubernetes/overlays/production
 
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -10,7 +15,9 @@ namespace: magenta-soa
 resources:
   - namespaces/magenta-soa.yaml
   - mcp-services/mcp-bridge.yaml
+  - mcp-services/mcp-web.yaml
   - agents/agent-ops.yaml
+  - agents/agent-orchestrator.yaml
 
 commonLabels:
   app.kubernetes.io/name: magenta
@@ -30,8 +37,15 @@ configMapGenerator:
     files:
       - terraform/main.tf
       - terraform/providers.tf
+      - terraform/variables.tf
+      - terraform/outputs.tf
       - terraform/modules/compute/main.tf
       - terraform/modules/kubernetes/main.tf
+      - terraform/modules/aks/main.tf
+      - terraform/modules/eks/main.tf
+      - terraform/modules/gke/main.tf
+      - terraform/modules/vsphere/main.tf
+      - terraform/modules/network/main.tf
 
 secretGenerator:
   - name: mcp-tls
@@ -48,4 +62,10 @@ images:
   - name: magenta/mcp-bridge
     newTag: 0.1.0
   - name: magenta/agent-ops
+    newTag: 0.1.0
+  - name: magenta/agent-orchestrator
+    newTag: 0.1.0
+  - name: magenta/mcp-web
+    newTag: 0.1.0
+  - name: magenta/mcp-finops
     newTag: 0.1.0

@@ -1,0 +1,123 @@
+# Magenta MCPO — MCP Proxy for Open WebUI tool calling
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: magenta-mcpo
+  namespace: magenta-soa
+  labels:
+    app: magenta-mcpo
+    role: mcpo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: magenta-mcpo
+  template:
+    metadata:
+      labels:
+        app: magenta-mcpo
+        role: mcpo
+    spec:
+      serviceAccountName: magenta-mcpo-sa
+      containers:
+        - name: mcpo
+          image: ghcr.io/open-webui/mcpo:latest
+          command: ["mcpo", "--config", "/app/mcpo-config.json", "--port", "8001"]
+          ports:
+            - containerPort: 8001
+              name: http
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: MCPO_PORT
+              value: "8001"
+            - name: LOG_LEVEL
+              value: "info"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: mcpo-config
+              mountPath: /app/mcpo-config.json
+              subPath: mcpo-config.json
+      volumes:
+        - name: mcpo-config
+          configMap:
+            name: mcpo-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: magenta-mcpo
+  namespace: magenta-soa
+  labels:
+    app: magenta-mcpo
+    role: mcpo
+spec:
+  ports:
+    - name: http
+      port: 8001
+      targetPort: 8001
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+  selector:
+    app: magenta-mcpo
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ServiceAccount:
+  name: magenta-mcpo-sa
+  namespace: magenta-soa
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcpo-config
+  namespace: magenta-soa
+data:
+  mcpo-config.json: |
+    {
+      "mcpServers": {
+        "mcp-sentinel": {
+          "url": "http://mcp-sentinel:50051",
+          "transport": "grpc"
+        },
+        "mcp-entra-id": {
+          "url": "http://mcp-entra-id:50052",
+          "transport": "grpc"
+        },
+        "mcp-defender": {
+          "url": "http://mcp-defender:50053",
+          "transport": "grpc"
+        },
+        "mcp-threat-intel": {
+          "url": "http://mcp-threat-intel:50054",
+          "transport": "grpc"
+        },
+        "mcp-datalake": {
+          "url": "http://mcp-datalake:50055",
+          "transport": "grpc"
+        },
+        "mcp-agent-ops": {
+          "url": "http://agent-ops.magenta-agents.svc.cluster.local:50060",
+          "transport": "grpc"
+        }
+      }
+    }

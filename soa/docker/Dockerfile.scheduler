@@ -1,0 +1,34 @@
+# Magenta Scheduler — Cron scheduler
+# Distroless base image (~80MB vs ~300MB with python:3.12-slim)
+#
+# Build: docker build -t magenta/scheduler:latest -f soa/docker/Dockerfile.scheduler .
+# Size: ~120MB (distroless base + app)
+
+FROM magenta/base:distroless AS builder
+
+WORKDIR /app
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY pyproject.toml uv.lock README.md /app/
+RUN uv sync --frozen --no-dev
+
+FROM magenta/base:distroless
+
+WORKDIR /app
+
+# Copy venv from builder
+COPY --from=builder /app/.venv /app/.venv
+
+# Copy application code
+COPY magenta/ /app/magenta/
+
+# Non-root user (inherited from base)
+USER 10001:10001
+
+EXPOSE 9090
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD ["python", "-c", "import magenta.scheduler; print('ok')"]
+
+ENTRYPOINT ["python", "-m", "magenta.scheduler"]
+CMD ["--config", "/app/config/system.toml"]

@@ -1,0 +1,37 @@
+# Default code owners — all changes require review by the team.
+* @browneyes-sec
+
+# Python / Agent Ops
+magenta/ @browneyes-sec
+magnet/ @browneyes-sec
+
+# Terraform
+soa/terraform/ @browneyes-sec
+
+# Kubernetes
+soa/kubernetes/ @browneyes-sec
+
+# Docker
+soa/docker/ @browneyes-sec
+
+# Configuration
+soa/config/ @browneyes-sec
+soa/services/ @browneyes-sec
+soa/proto/ @browneyes-sec
+
+# CI / GitHub
+.github/ @browneyes-sec
+
+# Architecture
+architecture/ @browneyes-sec
+
+# Data Mesh
+data/ @browneyes-sec
+
+# Documentation
+docs/ @browneyes-sec
+*.md @browneyes-sec
+
+# Root config files
+AGENTS.md @browneyes-sec
+Makefile @browneyes-sec

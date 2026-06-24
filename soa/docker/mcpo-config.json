@@ -1,0 +1,46 @@
+{
+  "mcpServers": {
+    "sentinel": {
+      "name": "Microsoft Sentinel",
+      "transport": "stdio",
+      "command": "python",
+      "args": ["-m", "magenta.mcp.sentinel_mcp_server"],
+      "description": "KQL queries and Log Ingestion API"
+    },
+    "entra": {
+      "name": "Microsoft Entra ID",
+      "transport": "stdio",
+      "command": "python",
+      "args": ["-m", "magenta.mcp.entra_mcp_server"],
+      "description": "User, group, and device lookups"
+    },
+    "defender": {
+      "name": "Microsoft Defender",
+      "transport": "stdio",
+      "command": "python",
+      "args": ["-m", "magenta.mcp.defender_mcp_server"],
+      "description": "Machine status and alerts"
+    },
+    "datalake": {
+      "name": "Data Lake",
+      "transport": "stdio",
+      "command": "python",
+      "args": ["-m", "magenta.mcp.datalake_mcp_server"],
+      "description": "Artifact store read/write"
+    },
+    "registry": {
+      "name": "Registry",
+      "transport": "stdio",
+      "command": "python",
+      "args": ["-m", "magenta.mcp.registry_mcp_server"],
+      "description": "Mission, agent, directive search"
+    },
+    "artifacts": {
+      "name": "Artifact Generator",
+      "transport": "stdio",
+      "command": "python",
+      "args": ["-m", "magenta.mcp.artifacts_mcp_server"],
+      "description": "HTML dashboard artifact generation"
+    }
+  }
+}

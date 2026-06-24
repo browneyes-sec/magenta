@@ -1,13 +1,10 @@
 """Webhook receiver server."""
 
-from typing import Any, Callable, Awaitable
-import json
-from fastapi import FastAPI, Request, HTTPException
-from pydantic import BaseModel
-from datetime import datetime
-from uuid import uuid4
+from collections.abc import Callable
 
-from magenta.webhooks import sentinel, splunk, generic
+from fastapi import FastAPI, HTTPException, Request
+
+from magenta.webhooks import generic, sentinel, splunk
 
 
 class WebhookServer:

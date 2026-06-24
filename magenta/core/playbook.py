@@ -1,10 +1,11 @@
 """Playbook parsing, validation, and management."""
 
 from __future__ import annotations
-from pathlib import Path
-from typing import Any, Optional
-import yaml
+
 import json
+from pathlib import Path
+
+import yaml
 
 from magenta.core.models import Playbook
 from magenta.exceptions import PlaybookError
@@ -29,6 +30,7 @@ class PlaybookManager:
             data = json.loads(raw)
         elif path.suffix == ".toml":
             import tomli
+
             data = tomli.loads(raw)
         else:
             raise PlaybookError(f"Unsupported playbook format: {path.suffix}")
@@ -70,23 +72,32 @@ class PlaybookManager:
         self._playbooks[key] = playbook
         return playbook
 
-    def get(self, name: str, version: Optional[str] = None) -> Optional[Playbook]:
-        """Get a playbook by name and optional version."""
+    def get(self, name: str, version: str | None = None) -> Playbook | None:
+        """Get a playbook by name and optional version.
+
+        When version is None, returns the latest registered version.
+        """
         if version:
             return self._playbooks.get(f"{name}:{version}")
-        for key, pb in self._playbooks.items():
-            if key.startswith(f"{name}:"):
-                return pb
-        return None
+        matching = [
+            (v, pb)
+            for k, pb in self._playbooks.items()
+            if k.startswith(f"{name}:")
+            for v in [k.split(":", 1)[1]]
+        ]
+        if not matching:
+            return None
+        matching.sort(key=lambda t: t[0], reverse=True)
+        return matching[0][1]
 
-    def list(self, tag: Optional[str] = None) -> list[Playbook]:
+    def list(self, tag: str | None = None) -> list[Playbook]:
         """List all registered playbooks."""
         playbooks = list(self._playbooks.values())
         if tag:
             playbooks = [p for p in playbooks if tag in p.tags]
         return sorted(playbooks, key=lambda p: p.name)
 
-    def remove(self, name: str, version: Optional[str] = None) -> bool:
+    def remove(self, name: str, version: str | None = None) -> bool:
         """Remove a playbook."""
         if version:
             key = f"{name}:{version}"

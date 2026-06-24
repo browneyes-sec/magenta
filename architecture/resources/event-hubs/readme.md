@@ -4,13 +4,18 @@
 
 Azure Event Hubs serves as the **Security Automation Bus** — the central message backbone connecting all agents in the Magenta fabric. Every agent publishes and subscribes to typed topics, enabling decoupled, asynchronous, and scalable communication.
 
-From the DTP (§2.1):
+From the DTP (§2.1), extended by ADR-011:
 
 ```
-raw-alerts ──► enriched-alerts ──► actions ──► audit
-     │                │                │           │
- Source          Normalizer        Orchestrator   Registry
- Agents          + Enrichment      + Execution    Agent
+raw-logs ──► enriched-events ──► actions ──► audit
+   │              │                   │           │
+Collectors    Log Normalizer      Orchestrator   Registry
++ Ingest API  + Vectorizer        + Execution    Agent
+
+raw-alerts ──► enriched-alerts
+   │                │
+ Source          Normalizer
+ Agents          + Enrichment
 ```
 
 ## Topic Topology
@@ -18,9 +23,13 @@ raw-alerts ──► enriched-alerts ──► actions ──► audit
 | Topic | Schema | Retention | Partition Count | Produced By | Consumed By |
 |---|---|---|---|---|---|
 | `raw-alerts` | Source-native JSON (Sentinel incident, Splunk alert) | 7 days | 4-8 | Source Agents (Sentinel, Splunk) | Normalizer Agent |
+| `raw-logs` | Source-native JSON/syslog/CEF | 7 days | 8-16 | Endpoint collectors, cloud connectors, ingest API | Log Normalizer, Capture → Lake |
 | `enriched-alerts` | Canonical ASIM-aligned `automation.activity` | 1 day | 4-8 | Normalizer Agent, Enrichment Agent | Orchestrator Agent |
+| `enriched-events` | Canonical `security.event` (log-specific) | 1 day | 4-8 | Log Normalizer | Vectorizer, Investigate Agent |
 | `actions` | Action request envelope | 1 day | 2-4 | Orchestrator Agent | Execution Agent, Registry Agent |
 | `audit` | Completed `automation.activity` | 7 days | 2-4 | Execution Agent, Registry Agent | Registry Agent (sink) |
+| `cdc-{source}` | Debezium envelopes | 3 days | 2-4 | External DB sources | Vectorizer |
+| `dead-letter` | Original payload + error | 48 h | 1 | Any producer | Debugging, replay |
 
 ## Partitioning Strategy
 
@@ -30,21 +39,39 @@ eventhub:
   topics:
     raw-alerts:
       partitions: 8
-      retention_hours: 168  # 7 days
+      retention_hours: 168
       capture_enabled: true
       capture_format: Parquet
-      partition_key_source: correlation_id  # ensures alert ordering per incident
+      partition_key_source: correlation_id
+    raw-logs:
+      partitions: 16
+      retention_hours: 168
+      capture_enabled: true
+      capture_format: Parquet
+      partition_key_source: source_host  # isolates per-host log streams
     enriched-alerts:
+      partitions: 8
+      retention_hours: 24
+      partition_key_source: correlation_id
+    enriched-events:
       partitions: 8
       retention_hours: 24
       partition_key_source: correlation_id
     actions:
       partitions: 4
       retention_hours: 24
-      partition_key_source: target_type  # isolates host/network/identity actions
+      partition_key_source: target_type
     audit:
       partitions: 4
       retention_hours: 168
+      capture_enabled: true
+      capture_format: Parquet
+    cdc-servicenow:
+      partitions: 2
+      retention_hours: 72
+    dead-letter:
+      partitions: 1
+      retention_hours: 48
       capture_enabled: true
       capture_format: Parquet
 ```
@@ -62,15 +89,20 @@ Partition count formula: `max(throughput_MBps / 1, concurrent_consumers × 2)`
 
 Each agent role gets a dedicated consumer group, allowing independent offset tracking:
 
-| Consumer Group | Agents | Purpose |
-|---|---|---|
-| `$Default` | — | Reserved |
-| `normalizer` | Normalizer Agent | Read raw-alerts |
-| `enricher` | Enrichment Agent | Read enriched-alerts |
-| `orchestrator` | Orchestrator Agent | Read enriched-alerts |
-| `executor` | Execution Agent | Read actions |
-| `registry` | Registry Agent | Read audit |
-| `soar-audit` | SOAR Audit Agent | External SOAR audit |
+| Consumer Group | Topic | Agents | Purpose |
+|---|---|---|---|
+| `$Default` | — | — | Reserved |
+| `normalizer` | `raw-alerts` | Normalizer Agent | Read SIEM alerts |
+| `log-normalizer` | `raw-logs` | Log Normalizer | Read raw log payloads |
+| `enricher` | `enriched-alerts` | Enrichment Agent | Read enriched alerts |
+| `orchestrator` | `enriched-alerts` | Orchestrator Agent | Read enriched alerts |
+| `vectorizer-logs` | `enriched-events` | Vectorization pipeline | Ingest log events into Qdrant |
+| `investigate` | `enriched-events` | Investigate agents | Direct event consumption |
+| `executor` | `actions` | Execution Agent | Read action requests |
+| `registry` | `audit` | Registry Agent | Read audit trail |
+| `soar-audit` | `audit` | SOAR Audit Agent | External SOAR audit |
+| `cdc-vectorizer` | `cdc-{source}` | Vectorization pipeline | Read CDC change events |
+| `dlq-debug` | `dead-letter` | Debugging tools | Read failed events |
 
 ## Event Hubs Capture
 
@@ -94,8 +126,12 @@ Capture output path:
 magenta-lake/
 ├── raw-alerts/
 │   └── Ehns_magenta-agent-bus/raw-alerts/0/2026/06/13/14/30/00.parquet
+├── raw-logs/
+│   └── Ehns_magenta-agent-bus/raw-logs/0/2026/06/13/14/30/00.parquet
 ├── enriched-alerts/
-└── audit/
+├── enriched-events/
+├── audit/
+└── dead-letter/
 ```
 
 ## Throughput & Sizing

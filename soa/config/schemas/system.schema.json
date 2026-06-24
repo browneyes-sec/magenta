@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Magenta System Configuration",
+  "description": "JSON Schema for soa/config/system.toml",
+  "type": "object",
+  "required": ["system", "network", "gateway", "auth"],
+  "properties": {
+    "system": {
+      "type": "object",
+      "required": ["name", "version", "environment"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^magenta-" },
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "environment": { "type": "string", "enum": ["dev", "staging", "production"] }
+      }
+    },
+    "network": {
+      "type": "object",
+      "properties": {
+        "domain": { "type": "string" },
+        "service_mesh": { "type": "string", "enum": ["istio", "linkerd", "consul"] }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["mcp-bridge"] },
+        "http_port": { "type": "integer", "minimum": 1024, "maximum": 65535 }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "required": ["provider", "protocol"],
+      "properties": {
+        "provider": { "type": "string" },
+        "protocol": { "type": "string", "enum": ["jwt", "mtls", "oidc"] }
+      }
+    }
+  }
+}

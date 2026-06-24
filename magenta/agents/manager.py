@@ -1,29 +1,36 @@
 """Swarm Manager Agent — orchestrates multi-agent missions."""
 
 from typing import Any
-from datetime import datetime
 
 from magenta.agents.base import LLMAgent
-from magenta.core.models import (
-    Mission, MissionStatus, AgentConfig, SeverityLevel, ActionStatus
-)
-from magenta.core.swarm import swarm_manager
-from magenta.core.mission import mission_manager
 from magenta.core.agent import agent_registry
+from magenta.core.mission import mission_manager
+from magenta.core.models import ActionStatus, AgentConfig, Mission, MissionStatus
+from magenta.core.swarm import swarm_manager
 
 
 class SwarmManagerAgent(LLMAgent):
     """Meta-agent that orchestrates the multi-agent swarm for a mission."""
 
+    sensitivity_level = "medium"
+    task_type = "orchestrate"
+
     def __init__(self, config: AgentConfig):
-        config.instructions = config.instructions or """You are the Swarm Manager — the orchestrator of the Magenta multi-agent system.
+        config.instructions = (
+            config.instructions
+            or """You are the Swarm Manager — the orchestrator of the Magenta multi-agent system.
 Your job is to decompose security incidents into tasks, assign agents,
 monitor progress, handle failures, and ensure mission completion."""
+        )
         super().__init__(config)
 
-    async def process(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
-        self.status = "executing"
-        self.turn_count += 1
+    async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
+        # Pre-turn RAG: retrieve relevant past orchestration patterns (ADR-018)
+        rag_context = await self.retrieve_context(
+            query_summary=mission.description,
+            mission_id=mission.mission_id,
+            tenant_id=context.get("tenant_id", "default"),
+        )
 
         # Decompose mission into tasks
         tasks = await swarm_manager.decompose_mission(mission)
@@ -43,11 +50,16 @@ monitor progress, handle failures, and ensure mission completion."""
             "teaming_structure": structure,
             "severity": mission.severity.value,
             "risk_score": mission.risk_score,
+            "rag_context": rag_context,
         }
 
         mission_manager.update_status(mission.mission_id, MissionStatus.executing)
-        await self.log_activity(mission, "orchestrate", ActionStatus.succeeded)
-        self.status = "done"
+        await self.log_activity(
+            mission,
+            "orchestrate",
+            ActionStatus.succeeded,
+            tenant_id=context.get("tenant_id", "default"),
+        )
         return result
 
     async def run_mission(self, mission: Mission) -> dict[str, Any]:

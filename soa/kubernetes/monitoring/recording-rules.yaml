@@ -1,0 +1,145 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: magenta-reliability-rules
+  namespace: magenta-soa
+  labels:
+    prometheus: magenta
+    team: platform
+spec:
+  groups:
+  - name: magenta_reliability
+    interval: 30s
+    rules:
+    # Mission Latency P95
+    - record: magenta:mission_latency_p95
+      expr: |
+        histogram_quantile(0.95, 
+          sum by (le, mission_severity) (
+            rate(magenta_mission_duration_seconds_bucket{job="magenta-api"}[5m])
+          )
+        )
+      labels:
+        severity: "critical"
+        sla: "mission_latency"
+
+    # Event Pipeline Consumer Lag
+    - record: magenta:event_pipeline_lag
+      expr: |
+        sum by (consumer_group, topic) (
+          azure_eventhub_consumer_lag
+        )
+      labels:
+        severity: "warning"
+        sla: "event_pipeline_lag"
+
+    # Outbox Orphaned Events (unpublished > 5 min)
+    - record: magenta:outbox_orphan_count
+      expr: |
+        magenta_outbox_unpublished_total{age_minutes="5"}
+      labels:
+        severity: "critical"
+        sla: "data_loss"
+
+    # Circuit Breaker Open Rate
+    - record: magenta:circuit_breaker_open_rate
+      expr: |
+        sum by (model_tier) (
+          rate(magenta_model_circuit_open_total[5m])
+        ) 
+        / 
+        sum by (model_tier) (
+          rate(magenta_model_requests_total[5m])
+        )
+      labels:
+        severity: "warning"
+        sla: "llm_availability"
+
+    # Approval Queue Drain Time P95
+    - record: magenta:approval_queue_drain_p95
+      expr: |
+        histogram_quantile(0.95,
+          sum by (le) (
+            rate(magenta_approval_resolution_duration_seconds_bucket[5m])
+          )
+        )
+      labels:
+        severity: "critical"
+        sla: "approval_sla"
+
+    # Agent Heartbeat Missed Count
+    - record: magenta:agent_heartbeat_missing
+      expr: |
+        count by (role) (
+          time() - magenta_agent_last_heartbeat_timestamp > 90
+        )
+      labels:
+        severity: "warning"
+        sla: "agent_health"
+
+  - name: magenta_error_budgets
+    interval: 60s
+    rules:
+    # API Server Error Budget Burn (99.5% SLO = 0.5% error budget)
+    - alert: MagentaAPIErrorBudgetBurn
+      expr: |
+        (
+          sum(rate(magenta_api_requests_total{status=~"5.."}[1h])) 
+          / 
+          sum(rate(magenta_api_requests_total[1h]))
+        ) > 0.005
+      for: 5m
+      labels:
+        severity: critical
+        team: platform
+      annotations:
+        summary: "API Server error budget burning fast"
+        description: "Error rate > 0.5% over 1h (99.5% SLO). Budget burn rate: {{ $value | humanizePercentage }}"
+
+    # Event Pipeline Lag Error Budget (99% SLO)
+    - alert: MagentaEventPipelineErrorBudgetBurn
+      expr: |
+        magenta:event_pipeline_lag > 50
+      for: 10m
+      labels:
+        severity: warning
+        team: platform
+      annotations:
+        summary: "Event pipeline lag exceeds steady state"
+        description: "Consumer lag > 50 events for 10m (99% SLO)"
+
+    # Approval Gate Error Budget (99.9% SLO = immediate alert)
+    - alert: MagentaApprovalGateErrorBudgetBurn
+      expr: |
+        magenta:approval_queue_drain_p95 > 1800
+      for: 1m
+      labels:
+        severity: critical
+        team: soc
+      annotations:
+        summary: "Approval queue drain P95 > 30 min"
+        description: "Approval SLO (99.9%) at risk. P95 drain: {{ $value }}s"
+
+    # LLM Routing Error Budget (95% SLO)
+    - alert: MagentaLLMErrorBudgetBurn
+      expr: |
+        magenta:circuit_breaker_open_rate > 0.05
+      for: 5m
+      labels:
+        severity: warning
+        team: agent-ops
+      annotations:
+        summary: "LLM circuit breaker open rate > 5%"
+        description: "Model routing degraded. Open rate: {{ $value | humanizePercentage }}"
+
+    # Data Registry Write Error Budget (99% SLO)
+    - alert: MagentaDataRegistryErrorBudgetBurn
+      expr: |
+        rate(magenta_registry_write_errors_total[5m]) > 0.01
+      for: 5m
+      labels:
+        severity: warning
+        team: platform
+      annotations:
+        summary: "Data registry write error rate > 1%"
+        description: "Registry writes failing. Error rate: {{ $value | humanizePercentage }}"

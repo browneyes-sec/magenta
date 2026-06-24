@@ -1,0 +1,137 @@
+# Magenta Data Mesh — Local Development Stack
+# Start with: docker compose -f data/deploy/docker-compose.yml up -d
+# Stop with:   docker compose -f data/deploy/docker-compose.yml down
+
+name: magenta-mesh
+
+services:
+
+  # ── Vector Database ──────────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:v1.12.0
+    container_name: magenta-qdrant
+    ports:
+      - "6333:6333"   # REST
+      - "6334:6334"   # gRPC
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__SERVICE__HTTP_PORT: 6333
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - mesh-net
+
+  # ── Embedding Inference ──────────────────────────────────
+  ollama:
+    image: ollama/ollama:0.5.7
+    container_name: magenta-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    entrypoint:
+      - sh
+      - -c
+      - |
+        ollama serve &
+        sleep 5
+        ollama pull bge-m3
+        wait
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    networks:
+      - mesh-net
+
+  # ── Metadata Cache ───────────────────────────────────────
+  redis:
+    image: redis:7.4-alpine
+    container_name: magenta-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    networks:
+      - mesh-net
+
+  # ── Object Store (CDC state, schema registry) ────────────
+  minio:
+    image: minio/minio:RELEASE.2025-03-12T18-04-18Z
+    container_name: magenta-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - mesh-net
+
+  # ── Mesh Gateway ─────────────────────────────────────────
+  mesh-gateway:
+    image: magenta-mesh-gateway:dev
+    container_name: magenta-mesh-gateway
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      MESH__QDRANT_HOST: qdrant
+      MESH__QDRANT_PORT: 6334
+      MESH__QDRANT_USE_GRPC: "true"
+      MESH__OLLAMA_HOST: http://ollama:11434
+      MESH__OLLAMA_MODEL: bge-m3
+      MESH__REDIS_HOST: redis
+      MESH__REDIS_PORT: 6379
+      MESH__EMBEDDING_DIMENSION: "1024"
+      MESH__SQL__URL: sqlite+aiosqlite:///data/magenta.db
+    volumes:
+      - ../../config:/app/config:ro
+      - mesh_data:/app/data
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      uvicorn magenta.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+    networks:
+      - mesh-net
+
+volumes:
+  qdrant_data:
+  ollama_data:
+  redis_data:
+  minio_data:
+  mesh_data:
+
+networks:
+  mesh-net:
+    driver: bridge

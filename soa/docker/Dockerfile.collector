@@ -1,0 +1,32 @@
+# Magenta Collector Sidecar
+# Distroless base image (~400MB vs ~600MB with python:3.12-slim)
+#
+# Build: docker build -t magenta/collector:latest -f soa/docker/Dockerfile.collector .
+# Size: ~400MB (distroless base + build deps + app)
+
+FROM magenta/base:collector AS builder
+
+WORKDIR /app
+
+# Install Python deps (core + collectors extras)
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --extra collectors --extra aws --extra gcp
+
+# ── Runtime ───────────────────────────────────────────────────────────────
+
+FROM magenta/base:collector
+
+WORKDIR /app
+
+# Copy venv from builder
+COPY --from=builder /app/.venv /app/.venv
+
+# Copy source
+COPY magenta/ /app/magenta/
+COPY soa/config/collectors.toml /app/soa/config/collectors.toml
+
+# Non-root user (inherited from base)
+USER 10001:10001
+
+ENTRYPOINT ["/collector-entrypoint.sh"]
+CMD ["python", "-m", "magenta.integration.collectors.runner"]

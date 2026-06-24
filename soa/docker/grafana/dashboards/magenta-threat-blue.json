@@ -1,0 +1,140 @@
+{
+  "title": "Magenta ASOAR — Threat & Blue Team Ops",
+  "uid": "magenta-threat-blue",
+  "version": 1,
+  "tags": ["magenta", "asoar", "threat", "blueteam"],
+  "timezone": "browser",
+  "editable": false,
+  "panels": [
+    {
+      "title": "Active Threat Level",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "magenta_threat_level", "legendFormat": "Level"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "yellow", "value": 2},
+            {"color": "orange", "value": 3},
+            {"color": "red", "value": 4}
+          ]}
+        }
+      }
+    },
+    {
+      "title": "Incidents by Severity",
+      "type": "barchart",
+      "gridPos": {"x": 4, "y": 0, "w": 8, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "magenta_incident_active_total", "legendFormat": "{{severity}}"}],
+      "fieldConfig": {
+        "defaults": {"unit": "none"},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Alert Ingest Rate",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "rate(magenta_alert_ingested_total[5m])", "legendFormat": "{{source}}"}],
+      "fieldConfig": {
+        "defaults": {"unit": "ops", "min": 0},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Mean Time to Respond (MTTR)",
+      "type": "timeseries",
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "magenta_mttr_seconds", "legendFormat": "MTTR"}],
+      "fieldConfig": {
+        "defaults": {"unit": "s", "min": 0},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Actions Taken (24h)",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 4, "w": 4, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "sum(increase(magenta_action_executed_total[24h]))", "legendFormat": "Actions"}],
+      "fieldConfig": {
+        "defaults": {"unit": "short"},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Containment Success Rate",
+      "type": "gauge",
+      "gridPos": {"x": 4, "y": 4, "w": 4, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "magenta_containment_success_ratio * 100", "legendFormat": "Success Rate"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0, "max": 100,
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "red", "value": null},
+            {"color": "orange", "value": 80},
+            {"color": "green", "value": 95}
+          ]}
+        }
+      }
+    },
+    {
+      "title": "Enrichment Pipeline Latency",
+      "type": "timeseries",
+      "gridPos": {"x": 8, "y": 4, "w": 8, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "histogram_quantile(0.95, rate(magenta_enrichment_duration_seconds_bucket[5m]))", "legendFormat": "P95"},
+                  {"expr": "histogram_quantile(0.50, rate(magenta_enrichment_duration_seconds_bucket[5m]))", "legendFormat": "P50"}],
+      "fieldConfig": {
+        "defaults": {"unit": "s", "min": 0},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Model Response Time by Provider",
+      "type": "timeseries",
+      "gridPos": {"x": 16, "y": 4, "w": 8, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "magenta_model_latency_seconds", "legendFormat": "{{provider}}/{{model}}"}],
+      "fieldConfig": {
+        "defaults": {"unit": "s", "min": 0},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Recent Escalations",
+      "type": "table",
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "magenta_escalation_events", "legendFormat": ""}],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "title": "Top Affected Assets",
+      "type": "table",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "magenta-prometheus"},
+      "targets": [{"expr": "sort_desc(magenta_asset_affected_total)", "legendFormat": "{{asset}}"}],
+      "fieldConfig": {
+        "defaults": {"unit": "none"},
+        "overrides": []
+      }
+    }
+  ],
+  "schemaVersion": 38,
+  "time": {"from": "now-24h", "to": "now"},
+  "refresh": "30s"
+}

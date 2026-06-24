@@ -1,0 +1,65 @@
+{
+  "version": "3.1.0",
+  "release_date": "2026-06-14",
+  "integration_layer": "Open WebUI",
+  "components": {
+    "open_webui": "main",
+    "ollama": "latest",
+    "pipelines": "main",
+    "mcpo": "latest",
+    "open_terminal": "latest",
+    "otel_collector": "latest",
+    "prometheus": "latest",
+    "grafana": "latest",
+    "influxdb": "2.7",
+    "redis": "7"
+  },
+  "artifacts": [
+    "mission_throughput",
+    "threat_analytics",
+    "blue_team_ops",
+    "directive_timeline",
+    "policy_status",
+    "dead_letter"
+  ],
+  "dashboards": [
+    "magenta-asoar-ops",
+    "magenta-threat-blue",
+    "openwebui-usage"
+  ],
+  "pipeline_tools": [
+    "check_pending_approvals",
+    "policy_list",
+    "policy_set",
+    "policy_clear",
+    "dictator_status",
+    "dictator_halt",
+    "dictator_deploy",
+    "dictator_escalate",
+    "dictator_override_teaming",
+    "connector_health",
+    "registry_search",
+    "save_artifact",
+    "generate_artifact",
+    "dictator_langchain_pipeline",
+    "approval_card",
+    "artifact_generator"
+  ],
+  "pipelines": {
+    "magenta_dictator_langchain_pipeline": {
+      "type": "pipe",
+      "valves": true,
+      "tools": 13
+    },
+    "magenta_approval_card": {
+      "type": "pipe",
+      "valves": true,
+      "tools": 1
+    },
+    "magenta_artifact_generator": {
+      "type": "pipe",
+      "valves": true,
+      "tools": 6
+    }
+  }
+}

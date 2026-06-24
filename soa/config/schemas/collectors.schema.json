@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Collectors Configuration Schema",
+  "description": "Validates soa/config/collectors.toml per ADR-003 and ADR-011",
+  "type": "object",
+  "patternProperties": {
+    "^collector\\.": {
+      "type": "object",
+      "required": ["type", "enabled", "poll_interval_seconds"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "azure_monitor", "entra_id", "aws_cloudtrail", "gcp_logging",
+            "linux_syslog", "windows_event", "customer_sftp"
+          ]
+        },
+        "description": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "poll_interval_seconds": { "type": "integer", "minimum": 10, "maximum": 86400 },
+        "batch_size": { "type": "integer", "minimum": 1, "maximum": 100000 },
+        "options": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

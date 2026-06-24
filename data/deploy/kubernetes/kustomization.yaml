@@ -1,0 +1,29 @@
+# Magenta Data Mesh — Kustomize Overlay
+# Apply to production: kubectl apply -k data/deploy/kubernetes/overlays/production
+#
+# Usage:
+#   kubectl apply -k .
+#   kubectl -n magenta-mesh get all
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: magenta-mesh
+
+resources:
+  - mesh-namespace.yaml
+  - vector-store-statefulset.yaml
+  - embedding-service.yaml
+  - mesh-gateway.yaml
+  - qdrant-collection-configs.yaml
+  - mesh-config.yaml
+
+commonLabels:
+  app.kubernetes.io/name: magenta
+  app.kubernetes.io/component: data-mesh
+  app.kubernetes.io/version: 0.1.0
+  app.kubernetes.io/managed-by: kustomize
+
+images:
+  - name: magenta/mesh-gateway
+    newTag: 0.1.0

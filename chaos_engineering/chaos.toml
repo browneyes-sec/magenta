@@ -1,0 +1,89 @@
+# Magenta Chaos Engineering Suite — Configuration
+# All scenarios are configurable here. Disable/enable per scenario.
+
+[defaults]
+intensity = 3
+stealth = false
+timeout = 300
+auto_validate = true
+probes = true
+regression = true
+max_concurrent = 1
+
+[logging]
+level = "INFO"
+format = "json"
+log_dir = "chaos_engineering/reports"
+
+[certification]
+output_dir = "docs/certifications"
+format = "markdown"
+prefix = "magenta_chaos"
+
+[scenarios.agent_failure]
+enabled = true
+description = "Kill agent mid-mission and validate recovery"
+severity = "medium"
+dtp_reference = "DTP-03 §5.3 Scenario 1"
+max_intensity = 5
+stealth_capable = true
+targets = ["triage", "enrich", "contain"]
+recovery_timeout = 60
+
+[scenarios.directive_flood]
+enabled = true
+description = "Overwhelm Dictator with rapid-fire directives"
+severity = "high"
+dtp_reference = "DTP-03 §5.3 Scenario 2"
+max_intensity = 3
+stealth_capable = false
+flood_count = 100
+flood_interval_ms = 100
+
+[scenarios.model_degradation]
+enabled = true
+description = "Simulate LLM provider outage and circuit breaker activation"
+severity = "medium"
+dtp_reference = "DTP-03 §5.3 Scenario 3"
+max_intensity = 5
+stealth_capable = true
+providers = ["ollama", "groq", "gemini"]
+circuit_breaker_threshold = 5
+
+[scenarios.mission_timeout]
+enabled = true
+description = "Mission exceeds SLA deadline"
+severity = "low"
+dtp_reference = "DTP-03 §5.3 Scenario 4"
+max_intensity = 5
+stealth_capable = true
+timeout_seconds = 0
+
+[scenarios.registry_poison]
+enabled = true
+description = "Inject malformed agent configs into registry"
+severity = "high"
+dtp_reference = "DTP-03 §5.3 Scenario 5"
+max_intensity = 3
+stealth_capable = false
+poison_types = ["missing_role", "invalid_model", "null_config"]
+
+[scenarios.pipeline_backpressure]
+enabled = true
+description = "Event pipeline congestion and outbox blocking"
+severity = "medium"
+dtp_reference = "DTP-03 §5.3 Scenario 6"
+max_intensity = 5
+stealth_capable = true
+block_duration_seconds = 30
+buffer_threshold = 200
+
+[scenarios.custom]
+enabled = false
+description = "User-defined scenario (see readme.md for configuration)"
+severity = "low"
+dtp_reference = "Custom"
+max_intensity = 5
+stealth_capable = false
+module = ""
+class_name = ""
