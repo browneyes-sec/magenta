@@ -89,29 +89,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen --all-extras
 
-      - name: Validate TOML configs
-        run: |
-          python -c "
-import tomllib
-from pathlib import Path
-config_dir = Path('soa/config')
-for f in config_dir.rglob('*.toml'):
-    with open(f, 'rb') as fp:
-        tomllib.load(fp)
-    print(f'✓ {f}')
-          "
-
-      - name: Validate JSON schemas
-        run: |
-          python -c "
-import json
-from pathlib import Path
-schema_dir = Path('soa/config')
-for f in schema_dir.rglob('*.schema.json'):
-    with open(f) as fp:
-        json.load(fp)
-    print(f'✓ {f}')
-          "
+      - name: Validate configs
+        run: uv run python scripts/validate_configs.py
 
   docker-build:
     name: Docker Build Test
@@ -200,5 +179,5 @@ for f in schema_dir.rglob('*.schema.json'):
       - name: Post drift comment
         if: failure()
         run: |
-          echo "⚠️ Terraform drift detected in staging environment"
+          echo "WARNING: Terraform drift detected in staging environment"
           echo "Run 'terraform plan' locally to investigate"
