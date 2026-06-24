@@ -136,6 +136,31 @@ jobs:
           curl -sf "http://$API_URL:8000/api/v1/health" | jq -r '.status'
           echo "Deployment verified!"
 
+  smoke-tests:
+    name: Smoke Tests
+    needs: deploy-k8s
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run smoke tests
+        run: |
+          sleep 30
+          API_URL=$(kubectl get svc magenta-api -n magenta-soa -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          if [ -z "$API_URL" ]; then
+            API_URL=$(kubectl get svc magenta-api -n magenta-soa -o jsonpath='{.spec.clusterIP}')
+          fi
+          python scripts/smoke_test_staging.py --url "http://$API_URL:8000" --api-key "${{ secrets.MAGENTA_API_KEY }}"
+        env:
+          MAGENTA_MOCK_AUTH: "true"
+
   notify:
     name: Notify
     needs: [deploy-infra, deploy-k8s]

@@ -103,7 +103,7 @@ class TestPaperPublisher:
 
     def test_publish_markdown(self, publisher, sample_mission, sample_artifacts):
         config = PaperConfig(template="incident-report", format="markdown")
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             publisher.publish_from_mission(sample_mission, sample_artifacts, config)
         )
         assert isinstance(result, PaperResult)
@@ -115,7 +115,7 @@ class TestPaperPublisher:
 
     def test_publish_latex(self, publisher, sample_mission, sample_artifacts):
         config = PaperConfig(template="incident-report", format="latex")
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             publisher.publish_from_mission(sample_mission, sample_artifacts, config)
         )
         assert len(result.latex) > 0
@@ -125,7 +125,7 @@ class TestPaperPublisher:
 
     def test_publish_both(self, publisher, sample_mission, sample_artifacts):
         config = PaperConfig(format="both")
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             publisher.publish_from_mission(sample_mission, sample_artifacts, config)
         )
         assert len(result.markdown) > 0
@@ -133,7 +133,7 @@ class TestPaperPublisher:
 
     def test_metadata_populated(self, publisher, sample_mission, sample_artifacts):
         config = PaperConfig(keywords=["phishing", "test"])
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             publisher.publish_from_mission(sample_mission, sample_artifacts, config)
         )
         assert result.metadata["template"] == "incident-report"
@@ -142,7 +142,7 @@ class TestPaperPublisher:
 
     def test_custom_title(self, publisher, sample_mission, sample_artifacts):
         config = PaperConfig(title="Custom Report Title")
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             publisher.publish_from_mission(sample_mission, sample_artifacts, config)
         )
         assert result.title == "Custom Report Title"
@@ -150,7 +150,7 @@ class TestPaperPublisher:
 
     def test_empty_artifacts(self, publisher, sample_mission):
         config = PaperConfig()
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             publisher.publish_from_mission(sample_mission, {}, config)
         )
         assert len(result.markdown) > 0
@@ -158,7 +158,7 @@ class TestPaperPublisher:
 
     def test_mitre_section(self, publisher, sample_mission, sample_artifacts):
         config = PaperConfig(format="markdown")
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             publisher.publish_from_mission(sample_mission, sample_artifacts, config)
         )
         assert "T1566.001" in result.markdown
@@ -166,7 +166,7 @@ class TestPaperPublisher:
 
     def test_scope_section(self, publisher, sample_mission, sample_artifacts):
         config = PaperConfig(format="markdown")
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             publisher.publish_from_mission(sample_mission, sample_artifacts, config)
         )
         assert "Blast Radius" in result.markdown
@@ -174,7 +174,7 @@ class TestPaperPublisher:
 
     def test_compliance_section(self, publisher, sample_mission, sample_artifacts):
         config = PaperConfig(format="markdown")
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             publisher.publish_from_mission(sample_mission, sample_artifacts, config)
         )
         assert "NIST CSF" in result.markdown
