@@ -314,6 +314,10 @@ def create_app() -> FastAPI:
         from magenta.api.middleware.auth import EntraJWTAuthMiddleware
         app.add_middleware(EntraJWTAuthMiddleware)
 
+    from magenta.api.middleware import CorrelationIDMiddleware, RateLimitMiddleware
+    app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(CorrelationIDMiddleware)
+
     app.include_router(agents.router, prefix="/api/v1/agents", tags=["Agents"])
     app.include_router(missions.router, prefix="/api/v1/missions", tags=["Missions"])
     app.include_router(playbooks.router, prefix="/api/v1/playbooks", tags=["Playbooks"])
