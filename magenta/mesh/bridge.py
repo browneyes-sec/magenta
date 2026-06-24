@@ -5,9 +5,9 @@ via the Magenta API mesh endpoints.
 
 Usage in pipelines:
     from magenta.mesh.bridge import MemoryBridge
-    
+
     bridge = MemoryBridge(api_url="http://magenta-api:8000")
-    
+
     # Write episodic memory
     await bridge.write_episode(
         agent_role="operator",
@@ -15,7 +15,7 @@ Usage in pipelines:
         turn_number=0,
         text="Approved firewall rule change for 10.0.0.0/8",
     )
-    
+
     # Search episodic memory
     results = await bridge.search_episodes(
         query="firewall rule changes",

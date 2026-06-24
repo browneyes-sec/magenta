@@ -39,7 +39,7 @@ class CloudOrchestrator:
             return {"error": f"Unknown provider: {provider}", "provider": provider}
 
         prov_cfg = self.providers[provider]
-        prov_type = prov_cfg.get("type", "public")
+        prov_cfg.get("type", "public")
 
         logger.info("Provisioning resource", provider=provider, type=resource_type, region=region)
 
@@ -66,7 +66,7 @@ class CloudOrchestrator:
         if resource_type == "compute":
             from azure.mgmt.compute import ComputeManagementClient
             sub_id = spec.get("subscription_id", os.environ.get("AZURE_SUBSCRIPTION_ID", ""))
-            client = ComputeManagementClient(credential, sub_id)
+            ComputeManagementClient(credential, sub_id)
             # Simulated — real call would create VM/VMSS
             return {
                 "provider": "azure",
@@ -81,7 +81,7 @@ class CloudOrchestrator:
         import boto3
         session = boto3.Session(region_name=region)
         if resource_type == "compute":
-            ec2 = session.client("ec2")
+            session.client("ec2")
             # Simulated
             return {
                 "provider": "aws",

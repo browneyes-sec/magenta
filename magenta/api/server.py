@@ -25,7 +25,6 @@ from magenta.api.routes import (
 from magenta.config import settings
 from magenta.core.agent import agent_registry
 from magenta.core.mission import mission_manager
-from magenta.core.redis_manager import redis_manager
 from magenta.dictator.state import dictator_state
 from magenta.workflows.engine import workflow_engine
 
@@ -224,6 +223,8 @@ def generate_metrics() -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from magenta.core.redis_manager import redis_manager
+
     # Startup — initialize shared Redis connection pool
     try:
         await redis_manager.initialize()

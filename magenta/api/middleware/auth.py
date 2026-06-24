@@ -83,7 +83,7 @@ def _validate_mock_token(token: str) -> dict | None:
 
 class EntraJWTAuthMiddleware(BaseHTTPMiddleware):
     """Validates Bearer tokens against Entra ID JWKS endpoint.
-    
+
     Supports mock mode via MAGENTA_MOCK_AUTH=true for development.
     Skips validation for docs, health, and root endpoints.
     """

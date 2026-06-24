@@ -192,7 +192,7 @@ def override(
     """Override teaming structure for a mission."""
     import asyncio
     try:
-        result = asyncio.run(dictator.override_teaming(mission_id, structure))
+        asyncio.run(dictator.override_teaming(mission_id, structure))
         print_success(f"Teaming overridden to {structure} for {mission_id[:12]}")
     except Exception as e:
         print_error(str(e))
@@ -234,11 +234,11 @@ def policy(
             print_error("--name and --rules required for override")
             raise typer.Exit(1)
         policy = OrchestrationPolicy(name=name, rules=json_mod.loads(rules))
-        result = asyncio.run(dictator.apply_policy_override(policy))
+        asyncio.run(dictator.apply_policy_override(policy))
         print_success(f"Policy override applied: {name}")
 
     elif action == "clear":
-        result = asyncio.run(dictator.clear_policy_overrides())
+        asyncio.run(dictator.clear_policy_overrides())
         print_success("All policy overrides cleared")
 
     else:
@@ -255,7 +255,7 @@ def probe(
     """Manage probes in the magnet layer."""
     import asyncio
     if action == "promote":
-        result = asyncio.run(dictator.promote_probe(name, guard=guard))
+        asyncio.run(dictator.promote_probe(name, guard=guard))
         print_success(f"Probe '{name}' promoted" + (" to guard" if guard else ""))
     else:
         print_error(f"Unknown action: {action}")

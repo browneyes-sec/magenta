@@ -264,8 +264,8 @@ class FinOpsEngine:
             from azure.identity import DefaultAzureCredential
             from azure.mgmt.costmanagement import CostManagementClient
             credential = DefaultAzureCredential()
-            scope = f"/subscriptions/{os.environ.get('AZURE_SUBSCRIPTION_ID', '')}"
-            client = CostManagementClient(credential)
+            f"/subscriptions/{os.environ.get('AZURE_SUBSCRIPTION_ID', '')}"
+            CostManagementClient(credential)
             # Check existing budget via REST
             results["azure_budget_checked"] = True
         except Exception:

@@ -212,7 +212,7 @@ class EventHubClient:
             if self._connection_string:
                 async with EventHubProducerClient.from_connection_string(
                     self._connection_string,
-                ) as p:
+                ):
                     pass
             return True
         except Exception:
