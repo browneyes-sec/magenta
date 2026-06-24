@@ -96,37 +96,41 @@ def generate_metrics() -> str:
             lines.append(f'magenta_workflow_execution_duration_seconds_sum {duration}')
             lines.append('magenta_workflow_execution_duration_seconds_count 1')
 
-    # Node execution metrics (simplified)
-    node_type_counts = {}
+    # Node execution metrics (from node_results dict: {task_id: result_dict})
+    node_type_counts: dict[str, int] = {}
     for e in workflow_engine._executions.values():
-        for node_id, node_exec in e.node_executions.items():
-            node_type = node_exec.node_type
+        for node_id, node_result in e.node_results.items():
+            if not isinstance(node_result, dict):
+                continue
+            node_type = node_result.get("node_type", node_result.get("type", "unknown"))
+            if node_type == "unknown":
+                continue
             node_type_counts[node_type] = node_type_counts.get(node_type, 0) + 1
-            # Duration buckets
-            if node_exec.started_at and node_exec.completed_at:
-                duration = (node_exec.completed_at - node_exec.started_at).total_seconds()
-                base = f'magenta_workflow_node_duration_seconds_bucket{{node_type="{node_type}"'
-                lines.append(f'{base},le="0.5"}} 1')
-                lines.append(f'{base},le="1.0"}} 1')
-                lines.append(f'{base},le="5.0"}} 1')
-                lines.append(f'{base},le="10.0"}} 1')
-                lines.append(f'{base},le="+Inf"}} 1')
-                lines.append(
-                    f'magenta_workflow_node_duration_seconds_sum{{node_type="{node_type}"}} '
-                    f'{duration}'
-                )
-                lines.append(
-                    f'magenta_workflow_node_duration_seconds_count{{node_type="{node_type}"}} 1'
-                )
-
-            # Completed counter
-            if node_exec.status == "completed":
+            lines.append(f'magenta_workflow_node_total{{node_type="{node_type}"}} 1')
+            if node_result.get("status") == "completed":
                 lines.append(
                     f'magenta_workflow_node_completed_total{{node_type="{node_type}"}} 1'
                 )
-            lines.append(
-                f'magenta_workflow_node_total{{node_type="{node_type}"}} 1'
-            )
+            started = node_result.get("started_at")
+            completed = node_result.get("completed_at")
+            if started and completed:
+                from datetime import datetime
+                try:
+                    t0 = datetime.fromisoformat(started) if isinstance(started, str) else started
+                    t1 = datetime.fromisoformat(completed) if isinstance(completed, str) else completed
+                    duration = (t1 - t0).total_seconds()
+                    base = f'magenta_workflow_node_duration_seconds_bucket{{node_type="{node_type}"'
+                    for le in ("0.5", "1.0", "5.0", "10.0", "+Inf"):
+                        lines.append(f'{base},le="{le}"}} 1')
+                    lines.append(
+                        f'magenta_workflow_node_duration_seconds_sum{{node_type="{node_type}"}} '
+                        f'{duration}'
+                    )
+                    lines.append(
+                        f'magenta_workflow_node_duration_seconds_count{{node_type="{node_type}"}} 1'
+                    )
+                except (TypeError, ValueError):
+                    pass
 
     # Approval metrics
     for e in workflow_engine._executions.values():
@@ -153,12 +157,15 @@ def generate_metrics() -> str:
                 )
 
     # Subgraph metrics
-    subgraph_calls = {}
+    subgraph_calls: dict[tuple[str, str], int] = {}
     for e in workflow_engine._executions.values():
-        for node_id, node_exec in e.node_executions.items():
-            if node_exec.node_type == "subgraph":
-                subgraph = node_exec.config.get("subgraph", "unknown")
-                status = node_exec.status
+        for node_id, node_result in e.node_results.items():
+            if not isinstance(node_result, dict):
+                continue
+            node_type = node_result.get("node_type", node_result.get("type", ""))
+            if node_type == "subgraph":
+                subgraph = node_result.get("subgraph", node_result.get("subgraph_name", "unknown"))
+                status = node_result.get("status", "unknown")
                 key = (subgraph, status)
                 subgraph_calls[key] = subgraph_calls.get(key, 0) + 1
 
@@ -171,7 +178,10 @@ def generate_metrics() -> str:
     # Parallel branch metrics
     max_branches = 0
     for e in workflow_engine._executions.values():
-        parallel_count = sum(1 for ne in e.node_executions.values() if ne.node_type == "parallel")
+        parallel_count = sum(
+            1 for ne in e.node_results.values()
+            if isinstance(ne, dict) and ne.get("node_type") == "parallel"
+        )
         max_branches = max(max_branches, parallel_count)
 
     lines.append(f'magenta_workflow_parallel_active_branches {max_branches}')
