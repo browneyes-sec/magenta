@@ -1,4 +1,3 @@
-import typer
 from magenta.cli.app import create_app
 
 app = create_app()

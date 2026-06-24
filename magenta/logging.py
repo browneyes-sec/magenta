@@ -3,7 +3,6 @@
 import json
 import logging
 from datetime import datetime
-from typing import Any, Optional
 
 
 class StructuredFormatter(logging.Formatter):
@@ -77,9 +76,9 @@ class StructuredLogger:
     def __init__(
         self,
         logger: logging.Logger,
-        mission_id: Optional[str] = None,
-        agent_id: Optional[str] = None,
-        correlation_id: Optional[str] = None,
+        mission_id: str | None = None,
+        agent_id: str | None = None,
+        correlation_id: str | None = None,
     ):
         self._logger = logger
         self.mission_id = mission_id

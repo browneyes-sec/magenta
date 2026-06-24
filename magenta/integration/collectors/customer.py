@@ -7,8 +7,7 @@ import io
 import json
 import logging
 import re
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 
 from magenta.integration.collectors.base import BaseCollector, CollectorConfig
 
@@ -89,7 +88,7 @@ class CustomerSFTPCollector(BaseCollector):
 
             sftp.close()
             ssh.close()
-            self._last_poll = datetime.now(timezone.utc).isoformat()
+            self._last_poll = datetime.now(UTC).isoformat()
         except Exception as e:
             logger.exception("Customer SFTP poll failed for %s: %s", self._host, e)
 

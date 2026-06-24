@@ -3,9 +3,7 @@
 import asyncio
 import logging
 import signal
-import sys
 
-from magenta.orchestration.dag_executor import dag_executor
 from magenta.orchestration.outbox import get_outbox_publisher
 from magenta.response.executor import approval_gate
 

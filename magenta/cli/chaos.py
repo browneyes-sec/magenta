@@ -1,13 +1,17 @@
 """Magenta chaos CLI — Chaos engineering fault injection and resilience validation."""
 
-import typer
 import json
-from typing import Optional
 from pathlib import Path
-from datetime import datetime
+
+import typer
 
 from magenta.cli.utils import (
-    print_table, print_output, print_error, print_success, print_info, print_warning, status_badge,
+    print_error,
+    print_info,
+    print_success,
+    print_table,
+    print_warning,
+    status_badge,
 )
 
 chaos_app = typer.Typer(
@@ -21,14 +25,14 @@ chaos_app = typer.Typer(
 
 @chaos_app.command()
 def run(
-    scenario: Optional[str] = typer.Argument(None, help="Scenario name or comma-separated list (default: all enabled)"),
+    scenario: str | None = typer.Argument(None, help="Scenario name or comma-separated list (default: all enabled)"),
     intensity: int = typer.Option(3, "--intensity", "-i", help="Injection intensity 1-5"),
     stealth: bool = typer.Option(False, "--stealth", help="Enable stealth mode (delayed logging)"),
     timeout: int = typer.Option(300, "--timeout", help="Timeout in seconds"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would happen without injecting"),
     probes: bool = typer.Option(True, "--probes/--no-probes", help="Run probes after chaos"),
     regression: bool = typer.Option(True, "--regression/--no-regression", help="Run regression after chaos"),
-    output: Optional[str] = typer.Option(None, "--output", help="Export report to file"),
+    output: str | None = typer.Option(None, "--output", help="Export report to file"),
     format: str = typer.Option("markdown", "--format", "-f", help="Export format: markdown (default), json"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
 ):
@@ -40,7 +44,7 @@ def run(
     """
     from chaos_engineering.chaos import ChaosEngine
 
-    print_info(f"Chaos Engine initializing...")
+    print_info("Chaos Engine initializing...")
     print_info(f"Intensity: {intensity} | Stealth: {'ON' if stealth else 'OFF'} | Timeout: {timeout}s")
 
     if dry_run:
@@ -118,7 +122,7 @@ def run(
 
 @chaos_app.command()
 def scenarios(
-    show: Optional[str] = typer.Option(None, "--show", help="Show details for a specific scenario"),
+    show: str | None = typer.Option(None, "--show", help="Show details for a specific scenario"),
     enabled_only: bool = typer.Option(False, "--enabled", help="Show only enabled scenarios"),
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
@@ -168,9 +172,9 @@ def scenarios(
 
 @chaos_app.command()
 def report(
-    run_id: Optional[str] = typer.Option(None, "--run-id", help="Report run ID (default: latest)"),
+    run_id: str | None = typer.Option(None, "--run-id", help="Report run ID (default: latest)"),
     recommendations: bool = typer.Option(True, "--recommendations/--no-recommendations", help="Include recommendations"),
-    output: Optional[str] = typer.Option(None, "--output", help="Export to file"),
+    output: str | None = typer.Option(None, "--output", help="Export to file"),
     format: str = typer.Option("markdown", "--format", "-f", help="Export format: markdown (default), json"),
 ):
     """Generate or view chaos report from last run."""
@@ -222,7 +226,7 @@ def report(
 
 @chaos_app.command()
 def config(
-    set_val: Optional[str] = typer.Option(None, "--set", help="Set a config value (key=value)"),
+    set_val: str | None = typer.Option(None, "--set", help="Set a config value (key=value)"),
     reset: bool = typer.Option(False, "--reset", help="Reset to defaults"),
     show: bool = typer.Option(True, "--show/--no-show", help="Show current config"),
 ):

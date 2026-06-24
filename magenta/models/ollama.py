@@ -1,8 +1,8 @@
 """OLLAMA model client."""
 
-import httpx
-from typing import Optional, Any
 from datetime import datetime
+
+import httpx
 
 from magenta.models.base import BaseModelClient, ModelRequest, ModelResponse
 

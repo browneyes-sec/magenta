@@ -1,15 +1,11 @@
 """Orchestration engine — DAG-based mission executor."""
 
-from typing import Any, Optional
 import asyncio
 
-from magenta.core.models import Mission, MissionStatus
 from magenta.core.mission import mission_manager
+from magenta.core.models import Mission, MissionStatus
 from magenta.core.swarm import swarm_manager
-from magenta.core.agent import agent_registry
-from magenta.agents.manager import SwarmManagerAgent
 from magenta.orchestration.dag_executor import dag_executor
-from magenta.exceptions import MissionError
 
 
 class OrchestrationEngine:
@@ -34,7 +30,7 @@ class OrchestrationEngine:
         try:
             result = await dag_executor.execute_mission(mission_id)
             return result
-        except Exception as e:
+        except Exception:
             mission_manager.update_status(mission_id, MissionStatus.failed)
             raise
 

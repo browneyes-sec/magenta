@@ -5,7 +5,6 @@ Best-effort only: failures are logged, never raised.
 
 import logging
 from datetime import datetime
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 

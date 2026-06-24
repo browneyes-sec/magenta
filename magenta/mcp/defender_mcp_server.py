@@ -1,6 +1,5 @@
 """MCP server — Microsoft Defender for Endpoint machine status and alerts."""
 
-from typing import Optional
 
 
 class DefenderMCPServer:
@@ -54,8 +53,8 @@ class DefenderMCPServer:
             Isolation result.
         """
         try:
-            from magenta.integration.defender import defender_connector
             from magenta.core.models import ActionType
+            from magenta.integration.defender import defender_connector
             result = await defender_connector.execute_action(
                 ActionType.isolate_host, machine_id, {"reason": reason}
             )

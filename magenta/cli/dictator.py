@@ -1,16 +1,20 @@
 """Magenta dictator CLI — Super-agent orchestration commands."""
 
-import typer
 import json as json_mod
-from typing import Optional
-from datetime import datetime
+
+import typer
 
 from magenta.agents.dictator import dictator
-from magenta.dictator.directives import DirectiveType
-from magenta.dictator.policies import OrchestrationPolicy
 from magenta.cli.utils import (
-    print_table, print_output, print_error, print_success, print_info, print_warning, status_badge,
+    print_error,
+    print_info,
+    print_output,
+    print_success,
+    print_table,
+    print_warning,
+    status_badge,
 )
+from magenta.dictator.policies import OrchestrationPolicy
 
 dictator_app = typer.Typer(
     name="dictator",
@@ -55,7 +59,7 @@ def status():
 
 @dictator_app.command()
 def oversight(
-    mission_id: Optional[str] = typer.Option(None, "--mission", "-m", help="Mission ID"),
+    mission_id: str | None = typer.Option(None, "--mission", "-m", help="Mission ID"),
 ):
     """View Dictator oversight for all or a specific mission."""
     import asyncio
@@ -147,7 +151,7 @@ def escalate(
 @dictator_app.command()
 def deploy(
     role: str = typer.Argument(..., help="Agent role to deploy"),
-    model: Optional[str] = typer.Option(None, "--model", help="Model name"),
+    model: str | None = typer.Option(None, "--model", help="Model name"),
 ):
     """Deploy a new agent into the registry."""
     import asyncio
@@ -198,8 +202,8 @@ def override(
 @dictator_app.command()
 def policy(
     action: str = typer.Argument(..., help="Action: list/override/clear"),
-    name: Optional[str] = typer.Option(None, "--name", help="Policy name"),
-    rules: Optional[str] = typer.Option(None, "--rules", help="Policy rules as JSON"),
+    name: str | None = typer.Option(None, "--name", help="Policy name"),
+    rules: str | None = typer.Option(None, "--rules", help="Policy rules as JSON"),
 ):
     """Manage orchestration policies."""
     import asyncio

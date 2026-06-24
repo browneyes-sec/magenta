@@ -85,8 +85,9 @@ class OllamaEmbedder:
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         """Embed a batch of texts. Returns list of embedding vectors."""
-        import httpx
         import time
+
+        import httpx
 
         embeddings: list[list[float]] = []
         uncached_texts: list[str] = []

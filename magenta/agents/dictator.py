@@ -6,27 +6,28 @@ It issues directives, evaluates policies, manages oversight, and
 can override any subsystem at runtime.
 """
 
-from typing import Any, Optional
 from datetime import datetime
-import asyncio
+from typing import Any
 
-from magenta.core.models import (
-    Mission, MissionStatus, AgentConfig, SeverityLevel, ActionStatus,
-)
-from magenta.core.agent import agent_registry, BaseAgent
-from magenta.core.mission import mission_manager
-from magenta.core.swarm import swarm_manager
-from magenta.core.playbook import playbook_manager
 from magenta.agents.base import LLMAgent
 from magenta.agents.manager import SwarmManagerAgent
-from magenta.orchestration.engine import orchestration_engine
-from magenta.orchestration.dispatcher import dispatcher
-from magenta.dictator.state import dictator_state, DictatorStatus
-from magenta.dictator.directives import (
-    Directive, DirectiveType, DirectivePriority, issue_directive,
-)
-from magenta.dictator.policies import policy_engine, OrchestrationPolicy
 from magenta.config import settings
+from magenta.core.agent import BaseAgent, agent_registry
+from magenta.core.mission import mission_manager
+from magenta.core.models import (
+    AgentConfig,
+    Mission,
+    MissionStatus,
+)
+from magenta.core.swarm import swarm_manager
+from magenta.dictator.directives import (
+    Directive,
+    DirectivePriority,
+    DirectiveType,
+    issue_directive,
+)
+from magenta.dictator.policies import OrchestrationPolicy, policy_engine
+from magenta.dictator.state import DictatorStatus, dictator_state
 from magenta.exceptions import AgentError
 
 
@@ -43,7 +44,7 @@ class DictatorAgent(LLMAgent):
     sensitivity_level = "high"
     task_type = "command"
 
-    def __init__(self, config: Optional[AgentConfig] = None):
+    def __init__(self, config: AgentConfig | None = None):
         if config is None:
             config = AgentConfig(
                 agent_id="dictator-001",
@@ -128,8 +129,8 @@ teaming structures, inject probes, halt missions, and escalate incidents.""",
         self,
         dtype: DirectiveType,
         target: str,
-        mission_id: Optional[str] = None,
-        payload: Optional[dict] = None,
+        mission_id: str | None = None,
+        payload: dict | None = None,
         reason: str = "",
     ) -> Directive:
         """Issue a framework directive."""
@@ -181,7 +182,6 @@ teaming structures, inject probes, halt missions, and escalate incidents.""",
             **kwargs,
         )
         from magenta.agents.triage import TriageAgent
-        from magenta.agents.manager import SwarmManagerAgent
 
         role_map: dict[str, type[BaseAgent]] = {
             "triage": TriageAgent,
@@ -299,7 +299,7 @@ teaming structures, inject probes, halt missions, and escalate incidents.""",
             "uptime": (datetime.utcnow() - dictator_state.started_at).total_seconds(),
         }
 
-    async def get_mission_oversight(self, mission_id: str) -> Optional[dict]:
+    async def get_mission_oversight(self, mission_id: str) -> dict | None:
         """Get oversight details for a specific mission."""
         oversight = dictator_state.active_missions.get(mission_id)
         if oversight:

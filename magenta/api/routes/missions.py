@@ -1,18 +1,17 @@
 """API routes — missions."""
 
+
 from fastapi import APIRouter, HTTPException, Query
-from typing import Optional
 
 from magenta.core.mission import mission_manager
 from magenta.orchestration.engine import orchestration_engine
-from magenta.core.models import Mission, MissionStatus
 
 router = APIRouter()
 
 
 @router.get("/")
 async def list_missions(
-    status: Optional[str] = Query(None),
+    status: str | None = Query(None),
     limit: int = Query(50),
 ):
     """List missions."""

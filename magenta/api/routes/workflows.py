@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Optional
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query, Body, Depends, Request, Header
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 
+from magenta.core.mission import mission_manager
 from magenta.core.models import Playbook, PlaybookV2
 from magenta.core.playbook import playbook_manager
-from magenta.core.mission import mission_manager
+from magenta.exceptions import PlaybookError
 from magenta.workflows.compiler import workflow_compiler
 from magenta.workflows.engine import workflow_engine
-from magenta.exceptions import PlaybookError
 
 router = APIRouter()
 
@@ -34,7 +33,7 @@ async def require_roles(request: Request, required_roles: set[str]) -> str:
                 detail=f"Role '{x_magenta_role}' not authorized",
             )
         return role
-    
+
     # Then check JWT token roles from auth middleware
     token_roles = getattr(request.state, "token_roles", [])
     if token_roles:
@@ -45,7 +44,7 @@ async def require_roles(request: Request, required_roles: set[str]) -> str:
             status_code=403,
             detail=f"Required roles: {required_roles}, found: {token_roles}",
         )
-    
+
     # No roles found
     raise HTTPException(
         status_code=403,
@@ -72,7 +71,7 @@ async def require_read_role(request: Request) -> str:
 
 @router.get("/playbooks")
 async def list_playbooks(
-    tag: Optional[str] = Query(None),
+    tag: str | None = Query(None),
     role: str = Depends(require_read_role),
 ):
     """List registered playbooks."""
@@ -302,7 +301,7 @@ async def respond_to_approval(
 @router.get("/subgraphs/list")
 async def list_subgraphs(role: str = Depends(require_read_role)):
     """List available LangGraph subgraphs."""
-    from magenta.workflows.langgraph.engine import list_subgraphs, HAS_LANGGRAPH
+    from magenta.workflows.langgraph.engine import HAS_LANGGRAPH, list_subgraphs
     if not HAS_LANGGRAPH:
         return {"subgraphs": [], "note": "LangGraph not available"}
     return {"subgraphs": list_subgraphs()}
@@ -313,7 +312,7 @@ async def list_subgraphs(role: str = Depends(require_read_role)):
 @router.get("/tools/list")
 async def list_workflow_tools(role: str = Depends(require_read_role)):
     """List MCP tools available to workflow subgraphs."""
-    from magenta.workflows.mcp.tool_registry import list_tools, HAS_LANGCHAIN
+    from magenta.workflows.mcp.tool_registry import HAS_LANGCHAIN, list_tools
     if not HAS_LANGCHAIN:
         return {"tools": [], "note": "LangChain not available"}
     return {"tools": list_tools()}

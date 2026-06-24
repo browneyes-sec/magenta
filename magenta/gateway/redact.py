@@ -1,7 +1,6 @@
 import re
-from typing import Optional
-from magenta.models.base import ModelRequest
 
+from magenta.models.base import ModelRequest
 
 PII_PATTERNS: dict[str, str] = {
     "usernames": r"(?i)\b(?:user(?:name)?|login|handle)[=:]\s*\S+",
@@ -15,7 +14,7 @@ PII_PATTERNS: dict[str, str] = {
 
 
 class RedactionLayer:
-    def __init__(self, enabled: bool = True, default_fields: Optional[list[str]] = None):
+    def __init__(self, enabled: bool = True, default_fields: list[str] | None = None):
         self.enabled = enabled
         self.default_fields = default_fields or ["usernames", "ips", "email_addresses"]
 

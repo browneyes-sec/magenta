@@ -3,21 +3,20 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 try:
-    from opentelemetry import trace, metrics
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
-    from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
-    from opentelemetry.sdk.metrics import MeterProvider
-    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+    from opentelemetry import metrics, trace
+    from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
     from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
     from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
     from opentelemetry.instrumentation.redis import RedisInstrumentor
     from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
-    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-    from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
     _OTEL_AVAILABLE = True
 except ImportError:
     _OTEL_AVAILABLE = False
@@ -36,8 +35,8 @@ from magenta.config import settings
 
 logger = logging.getLogger(__name__)
 
-_tracer_provider: Optional["TracerProvider"] = None
-_meter_provider: Optional["MeterProvider"] = None
+_tracer_provider: TracerProvider | None = None
+_meter_provider: MeterProvider | None = None
 _initialized = False
 
 
@@ -121,14 +120,14 @@ def setup_telemetry(app=None) -> None:
     _initialized = True
 
 
-def get_tracer(name: str = "magenta") -> "trace.Tracer":
+def get_tracer(name: str = "magenta") -> trace.Tracer:
     """Get a tracer instance."""
     if not _OTEL_AVAILABLE or trace is None:
         return _NoOpTracer()
     return trace.get_tracer(name)
 
 
-def get_meter(name: str = "magenta") -> "metrics.Meter":
+def get_meter(name: str = "magenta") -> metrics.Meter:
     """Get a meter instance."""
     if not _OTEL_AVAILABLE or metrics is None:
         return _NoOpMeter()

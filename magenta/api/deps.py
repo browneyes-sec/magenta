@@ -1,12 +1,10 @@
 """API dependency injection."""
 
-from typing import AsyncGenerator
-from fastapi import Request
 
 from magenta.config import settings
+from magenta.core.agent import agent_registry
 from magenta.core.mission import mission_manager
 from magenta.core.playbook import playbook_manager
-from magenta.core.agent import agent_registry
 from magenta.models.router import model_router
 from magenta.orchestration.engine import orchestration_engine
 

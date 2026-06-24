@@ -7,21 +7,20 @@ import logging
 import signal
 import sys
 from pathlib import Path
-from typing import Any
 
 import tomli
 
 from magenta.config import settings
 from magenta.integration.collectors.base import BaseCollector, CollectorConfig
 from magenta.integration.collectors.cloud import (
+    AWSCloudTrailCollector,
     AzureMonitorCollector,
     EntraIDLogCollector,
-    AWSCloudTrailCollector,
     GCPLoggingCollector,
 )
+from magenta.integration.collectors.customer import CustomerSFTPCollector
 from magenta.integration.collectors.linux import LinuxSyslogCollector
 from magenta.integration.collectors.windows import WindowsEventCollector
-from magenta.integration.collectors.customer import CustomerSFTPCollector
 
 logger = logging.getLogger(__name__)
 

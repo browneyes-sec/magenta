@@ -4,11 +4,9 @@ import asyncio
 import logging
 import signal
 from datetime import datetime, timedelta
-from typing import Optional
 
 from magenta.core.mission import mission_manager
 from magenta.core.models import MissionStatus
-from magenta.orchestration.engine import orchestration_engine
 
 logger = logging.getLogger(__name__)
 

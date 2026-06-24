@@ -6,9 +6,7 @@ Reads provider configuration from providers.toml.
 
 from __future__ import annotations
 
-from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 import structlog
 import tomli
@@ -67,7 +65,6 @@ class CloudOrchestrator:
         credential = DefaultAzureCredential()
         if resource_type == "compute":
             from azure.mgmt.compute import ComputeManagementClient
-            from azure.mgmt.resource import ResourceManagementClient
             sub_id = spec.get("subscription_id", os.environ.get("AZURE_SUBSCRIPTION_ID", ""))
             client = ComputeManagementClient(credential, sub_id)
             # Simulated — real call would create VM/VMSS
@@ -96,7 +93,6 @@ class CloudOrchestrator:
         return {"provider": "aws", "resource_type": resource_type, "note": f"AWS {resource_type} stub"}
 
     def _provision_gcp(self, resource_type: str, spec: dict, region: str) -> dict:
-        from google.cloud import compute_v1
         return {"provider": "gcp", "resource_type": resource_type, "note": f"GCP {resource_type} stub"}
 
     def _provision_vsphere(self, resource_type: str, spec: dict, region: str) -> dict:

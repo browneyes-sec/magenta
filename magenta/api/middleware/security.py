@@ -1,7 +1,6 @@
 """Security headers middleware for FastAPI."""
 
 from fastapi import Request
-from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from magenta.config import settings

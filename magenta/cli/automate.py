@@ -1,12 +1,15 @@
 """Magenta automate CLI — Playbook, rule, and trigger management."""
 
-import typer
-from typing import Optional, List
 
-from magenta.core.playbook import playbook_manager
+import typer
+
 from magenta.cli.utils import (
-    print_table, print_output, print_error, print_success, print_info, status_badge
+    print_error,
+    print_info,
+    print_output,
+    print_success,
 )
+from magenta.core.playbook import playbook_manager
 
 automate_app = typer.Typer(
     name="automate",
@@ -21,7 +24,7 @@ automate_app.add_typer(playbook_app)
 
 @playbook_app.command("list")
 def playbook_list(
-    tag: Optional[str] = typer.Option(None, "--tag", help="Filter by tag"),
+    tag: str | None = typer.Option(None, "--tag", help="Filter by tag"),
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
     """List registered playbooks."""
@@ -96,7 +99,7 @@ def playbook_validate(
 @playbook_app.command("show")
 def playbook_show(
     name: str = typer.Argument(..., help="Playbook name"),
-    version: Optional[str] = typer.Option(None, "--version", help="Version"),
+    version: str | None = typer.Option(None, "--version", help="Version"),
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
     """Show playbook details."""

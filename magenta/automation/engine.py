@@ -1,6 +1,7 @@
 """Automation rules engine — evaluates YAML rules against alerts."""
 
-from typing import Any, Optional
+from typing import Any
+
 import yaml
 
 

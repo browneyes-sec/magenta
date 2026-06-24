@@ -1,6 +1,5 @@
 """MCP server — Microsoft Entra ID user, group, and device lookups."""
 
-from typing import Optional
 
 
 class EntraMCPServer:

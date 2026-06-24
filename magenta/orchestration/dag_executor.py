@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-from collections import defaultdict, deque
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Optional
 import asyncio
 import logging
+from collections import defaultdict, deque
+from dataclasses import dataclass, field
+from typing import Any
 
-from magenta.core.models import Mission, MissionStatus, AgentConfig
 from magenta.core.agent import agent_registry
 from magenta.core.mission import mission_manager
+from magenta.core.models import Mission, MissionStatus
 from magenta.exceptions import MissionError
 
 logger = logging.getLogger(__name__)
@@ -22,12 +21,12 @@ class DAGNode:
     """A node in the execution DAG."""
     task_id: str
     role: str
-    agent_id: Optional[str] = None
+    agent_id: str | None = None
     depends_on: list[str] = field(default_factory=list)
     params: dict[str, Any] = field(default_factory=dict)
     status: str = "pending"  # pending, running, completed, failed
-    result: Optional[dict] = None
-    error: Optional[str] = None
+    result: dict | None = None
+    error: str | None = None
     attempts: int = 0
     max_retries: int = 2
 
@@ -38,7 +37,7 @@ class DAGExecutor:
     def __init__(self, max_concurrency: int = 5):
         self._running: dict[str, asyncio.Task] = {}
         self._max_concurrency = max_concurrency
-        self._semaphore: Optional[asyncio.Semaphore] = None
+        self._semaphore: asyncio.Semaphore | None = None
 
     def _build_dag(self, mission: Mission) -> dict[str, DAGNode]:
         """Build DAG from mission tasks/playbook stages."""

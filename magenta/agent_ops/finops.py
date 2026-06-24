@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
 
 import structlog
 import tomli
@@ -193,8 +192,8 @@ class FinOpsEngine:
     def forecast(self, horizon_days: int = 90, model: str = "prophet") -> dict:
         """Forecast future costs using Prophet time series model."""
         try:
-            from prophet import Prophet
             import pandas as pd
+            from prophet import Prophet
         except ImportError:
             return {
                 "error": "prophet not installed. Install with: pip install 'magenta-soa[finops]'",

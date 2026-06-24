@@ -1,7 +1,8 @@
 import os
-import yaml
 from pathlib import Path
-from fnmatch import fnmatch
+
+import yaml
+
 from magenta.models.base import ModelRequest, PolicyDecision
 
 

@@ -1,15 +1,12 @@
 """Swarm Manager Agent — orchestrates multi-agent missions."""
 
 from typing import Any
-from datetime import datetime
 
 from magenta.agents.base import LLMAgent
-from magenta.core.models import (
-    Mission, MissionStatus, AgentConfig, SeverityLevel, ActionStatus
-)
-from magenta.core.swarm import swarm_manager
-from magenta.core.mission import mission_manager
 from magenta.core.agent import agent_registry
+from magenta.core.mission import mission_manager
+from magenta.core.models import ActionStatus, AgentConfig, Mission, MissionStatus
+from magenta.core.swarm import swarm_manager
 
 
 class SwarmManagerAgent(LLMAgent):

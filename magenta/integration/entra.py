@@ -1,12 +1,11 @@
 """Entra ID (Azure AD) connector via Microsoft Graph API."""
 
-from typing import Any, Optional
 import logging
 
 import httpx
 
-from magenta.exceptions import IntegrationError
 from magenta.config import settings
+from magenta.exceptions import IntegrationError
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ class EntraIDConnector:
         self.tenant_id = tenant_id or settings.azure_auth.tenant_id
         self.client_id = client_id or settings.azure_auth.client_id
         self.client_secret = client_secret or settings.azure_auth.client_secret
-        self._token: Optional[str] = None
+        self._token: str | None = None
         self._credential = None
         self._use_default = (
             settings.azure_auth.use_default_credential
@@ -137,7 +136,7 @@ class EntraIDConnector:
         from datetime import datetime, timedelta
         since = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
         data = await self._graph_get(
-            f"auditLogs/signIns",
+            "auditLogs/signIns",
             params={"$filter": f"userId eq '{user_id}' and createdDateTime ge {since}"},
         )
         return data.get("value", [])

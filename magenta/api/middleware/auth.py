@@ -1,13 +1,12 @@
 """Entra ID JWT authentication middleware with mock mode for development."""
 
-from typing import Optional
 import json
 import logging
 import os
 
-import jwt
 import httpx
-from fastapi import Request, HTTPException
+import jwt
+from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -57,16 +56,15 @@ async def _fetch_jwks() -> list[dict]:
     return JWKS_CACHE["keys"]
 
 
-def _get_public_key(kid: str, keys: list[dict]) -> Optional[str]:
+def _get_public_key(kid: str, keys: list[dict]) -> str | None:
     for key in keys:
         if key.get("kid") == kid:
-            from cryptography.hazmat.primitives import serialization
             from jwt.algorithms import RSAAlgorithm
             return RSAAlgorithm.from_jwk(json.dumps(key))
     return None
 
 
-def _validate_mock_token(token: str) -> Optional[dict]:
+def _validate_mock_token(token: str) -> dict | None:
     """Validate mock token for development."""
     if token in MOCK_TOKENS:
         return MOCK_TOKENS[token]
@@ -103,7 +101,7 @@ class EntraJWTAuthMiddleware(BaseHTTPMiddleware):
             )
 
         token = auth_header.removeprefix("Bearer ").strip()
-        
+
         # Mock mode for development
         if MOCK_AUTH:
             mock_payload = _validate_mock_token(token)

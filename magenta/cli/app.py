@@ -1,17 +1,17 @@
 """Magenta CLI — Typer application and command groups."""
 
-import typer
-from typing import Optional
 
-from magenta.cli.orchestrate import orchestrate_app
+import typer
+
+from magenta import __about__
 from magenta.cli.automate import automate_app
-from magenta.cli.response import response_app
+from magenta.cli.chaos import chaos_app
+from magenta.cli.dictator import dictator_app
 from magenta.cli.health import health_app
 from magenta.cli.lab import lab_app
-from magenta.cli.dictator import dictator_app
+from magenta.cli.orchestrate import orchestrate_app
+from magenta.cli.response import response_app
 from magenta.cli.state import state_app
-from magenta.cli.chaos import chaos_app
-from magenta import __about__
 
 
 def create_app() -> typer.Typer:
@@ -75,7 +75,7 @@ def create_app() -> typer.Typer:
     @app.callback(invoke_without_command=True)
     def main(
         ctx: typer.Context,
-        config: Optional[str] = typer.Option(None, "--config", "-c", help="Path to config file"),
+        config: str | None = typer.Option(None, "--config", "-c", help="Path to config file"),
         env: str = typer.Option("dev", "--env", "-e", help="Environment (dev/staging/prod)"),
         verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
         format: str = typer.Option("text", "--format", "-f", help="Output format (text/json)"),

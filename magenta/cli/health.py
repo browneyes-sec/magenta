@@ -1,11 +1,14 @@
 """Magenta health CLI — System health checks."""
 
-import typer
-from typing import Optional
 from datetime import datetime
 
+import typer
+
 from magenta.cli.utils import (
-    print_table, print_output, print_error, print_success, print_info, status_badge
+    print_info,
+    print_output,
+    print_table,
+    status_badge,
 )
 
 health_app = typer.Typer(
@@ -46,7 +49,7 @@ def check(
 @health_app.command()
 def agents(
     watch: bool = typer.Option(False, "--watch", help="Continuously watch"),
-    role: Optional[str] = typer.Option(None, "--role", help="Filter by role"),
+    role: str | None = typer.Option(None, "--role", help="Filter by role"),
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
     """Check agent health status."""
@@ -77,7 +80,7 @@ def agents(
 
 @health_app.command()
 def models(
-    provider: Optional[str] = typer.Option(None, "--provider", help="Filter by provider"),
+    provider: str | None = typer.Option(None, "--provider", help="Filter by provider"),
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
     """Check LLM model health."""

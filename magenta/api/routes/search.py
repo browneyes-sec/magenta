@@ -1,7 +1,7 @@
 """API routes — search across registries."""
 
+
 from fastapi import APIRouter, Query
-from typing import Optional
 
 router = APIRouter()
 
@@ -9,7 +9,7 @@ router = APIRouter()
 @router.get("/")
 async def search(
     q: str = Query(..., description="Search query"),
-    source: Optional[str] = Query(None, description="Filter by source (elastic, sentinel, lake)"),
+    source: str | None = Query(None, description="Filter by source (elastic, sentinel, lake)"),
     limit: int = Query(50),
 ):
     """Search across all registries.
@@ -29,10 +29,10 @@ async def search(
 
 @router.get("/activity")
 async def search_activity(
-    correlation_id: Optional[str] = Query(None),
-    alert_id: Optional[str] = Query(None),
-    action: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
+    correlation_id: str | None = Query(None),
+    alert_id: str | None = Query(None),
+    action: str | None = Query(None),
+    status: str | None = Query(None),
     limit: int = Query(50),
 ):
     """Search automation.activity events."""

@@ -1,13 +1,17 @@
 """API routes — approval gate management."""
 
 from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException, Query
 from uuid import uuid4
 
+from fastapi import APIRouter, HTTPException, Query
+
 from magenta.core.models import (
-    ActionType, ApprovalRequest, Target, TargetType,
+    ActionType,
+    ApprovalRequest,
+    Target,
+    TargetType,
 )
-from magenta.response.executor import approval_gate, DurableApprovalStore
+from magenta.response.executor import DurableApprovalStore, approval_gate
 
 router = APIRouter()
 

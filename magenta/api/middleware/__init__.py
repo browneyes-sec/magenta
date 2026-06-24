@@ -1,8 +1,9 @@
 """API middleware: auth, rate limiting, request logging."""
 
-from fastapi import Request, HTTPException
 import time
+
 import jwt
+from fastapi import HTTPException, Request
 
 
 async def validate_auth(request: Request) -> dict:

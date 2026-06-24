@@ -2,9 +2,8 @@
 
 from fastapi import APIRouter, HTTPException
 
-from magenta.core.models import AgentConfig
 from magenta.core.agent import agent_registry
-from magenta.api.deps import get_agent_registry
+from magenta.core.models import AgentConfig
 
 router = APIRouter()
 

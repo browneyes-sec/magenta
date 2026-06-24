@@ -1,6 +1,6 @@
 """API routes — Dictator super-agent oversight and directives."""
 
-from typing import Optional
+
 from fastapi import APIRouter, HTTPException, Query
 
 from magenta.agents.dictator import dictator
@@ -41,7 +41,7 @@ async def get_directives(limit: int = Query(50, ge=1, le=500)):
 async def issue_directive(
     directive_type: str,
     target: str,
-    mission_id: Optional[str] = None,
+    mission_id: str | None = None,
     payload: dict = {},
     reason: str = "",
 ):
@@ -74,7 +74,7 @@ async def escalate_mission(mission_id: str, reason: str = ""):
 
 
 @router.post("/deploy/{role}")
-async def deploy_agent(role: str, model: Optional[str] = None):
+async def deploy_agent(role: str, model: str | None = None):
     """Deploy a new agent by role."""
     kwargs = {}
     if model:

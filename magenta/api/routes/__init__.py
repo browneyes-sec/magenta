@@ -1,6 +1,17 @@
 from magenta.api.routes import (
-    agents, missions, playbooks, health, search, dictator,
-    approvals, monitoring, instrumentation, ingest, mesh, mcp, workflows,
+    agents,
+    approvals,
+    dictator,
+    health,
+    ingest,
+    instrumentation,
+    mcp,
+    mesh,
+    missions,
+    monitoring,
+    playbooks,
+    search,
+    workflows,
 )
 
 __all__ = [

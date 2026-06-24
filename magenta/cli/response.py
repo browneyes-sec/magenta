@@ -1,13 +1,14 @@
 """Magenta response CLI — Incident, action, and approval management."""
 
-import typer
-from typing import Optional
 from datetime import datetime
-import json
 
-from magenta.core.models import ActionType, ApprovalState
+import typer
+
 from magenta.cli.utils import (
-    print_table, print_output, print_error, print_success, print_info, status_badge
+    print_error,
+    print_info,
+    print_output,
+    print_success,
 )
 
 response_app = typer.Typer(
@@ -23,7 +24,7 @@ response_app.add_typer(actions_app)
 
 @actions_app.command("list")
 def actions_list(
-    role: Optional[str] = typer.Option(None, "--role", help="Filter by agent role"),
+    role: str | None = typer.Option(None, "--role", help="Filter by agent role"),
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
     """List available response actions."""
@@ -97,7 +98,7 @@ def actions_execute(
     """Execute a response action."""
     print_info(f"Executing '{action_name}' on target '{target or 'N/A'}'")
     if not force:
-        print_info(f"Risk assessment required (stub — approval gate pending)")
+        print_info("Risk assessment required (stub — approval gate pending)")
     print_success(f"Action '{action_name}' executed (stub)")
 
     print_output({
@@ -117,7 +118,7 @@ response_app.add_typer(approval_app)
 @approval_app.command("list")
 def approval_list(
     queue: bool = typer.Option(False, "--queue", help="Show queue depth"),
-    role: Optional[str] = typer.Option(None, "--role", help="Filter by agent role"),
+    role: str | None = typer.Option(None, "--role", help="Filter by agent role"),
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
     """List pending approvals."""
@@ -155,8 +156,8 @@ response_app.add_typer(incidents_app)
 
 @incidents_app.command("list")
 def incidents_list(
-    severity: Optional[str] = typer.Option(None, "--severity", help="Filter by severity"),
-    status: Optional[str] = typer.Option(None, "--status", help="Filter by status"),
+    severity: str | None = typer.Option(None, "--severity", help="Filter by severity"),
+    status: str | None = typer.Option(None, "--status", help="Filter by status"),
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
     """List active incidents."""

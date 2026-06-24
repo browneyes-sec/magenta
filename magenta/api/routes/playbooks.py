@@ -1,16 +1,16 @@
 """API routes — playbooks."""
 
-from fastapi import APIRouter, HTTPException, Query
-from typing import Optional
 
-from magenta.core.playbook import playbook_manager
+from fastapi import APIRouter, HTTPException, Query
+
 from magenta.core.models import Playbook
+from magenta.core.playbook import playbook_manager
 
 router = APIRouter()
 
 
 @router.get("/")
-async def list_playbooks(tag: Optional[str] = Query(None)):
+async def list_playbooks(tag: str | None = Query(None)):
     """List registered playbooks."""
     playbooks = playbook_manager.list(tag=tag)
     return [
@@ -26,7 +26,7 @@ async def list_playbooks(tag: Optional[str] = Query(None)):
 
 
 @router.get("/{name}")
-async def get_playbook(name: str, version: Optional[str] = Query(None)):
+async def get_playbook(name: str, version: str | None = Query(None)):
     """Get playbook details."""
     pb = playbook_manager.get(name, version=version)
     if not pb:

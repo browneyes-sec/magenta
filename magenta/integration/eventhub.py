@@ -7,11 +7,11 @@ import hashlib
 import hmac
 import json
 import logging
-from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 
 from azure.eventhub import EventData
-from azure.eventhub.aio import EventHubProducerClient, EventHubConsumerClient
+from azure.eventhub.aio import EventHubConsumerClient, EventHubProducerClient
 from azure.eventhub.extensions.checkpointstoreblobaio import BlobCheckpointStore
 from azure.identity.aio import DefaultAzureCredential
 
@@ -256,7 +256,7 @@ class IdempotencyGuard:
             if not exists:
                 await self._redis.setex(key, ttl, "1")
             return bool(exists)
-        now = datetime.now(timezone.utc).timestamp()
+        now = datetime.now(UTC).timestamp()
         if key in self._local:
             if now - self._local[key] < ttl:
                 return True
@@ -267,4 +267,4 @@ class IdempotencyGuard:
         if self._redis:
             await self._redis.setex(key, ttl, "1")
         else:
-            self._local[key] = datetime.now(timezone.utc).timestamp()
+            self._local[key] = datetime.now(UTC).timestamp()

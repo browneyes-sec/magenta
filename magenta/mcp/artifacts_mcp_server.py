@@ -1,6 +1,5 @@
 """MCP server — Artifact generation for Open WebUI dashboards."""
 
-from typing import Optional
 
 
 class ArtifactsMCPServer:
@@ -19,8 +18,8 @@ class ArtifactsMCPServer:
         Returns:
             HTML artifact string.
         """
-        from magenta.dictator.telemetry import generate_directive_timeline_artifact
         from magenta.dictator.state import dictator_state
+        from magenta.dictator.telemetry import generate_directive_timeline_artifact
 
         directives = dictator_state.directive_log[-limit:]
         html = generate_directive_timeline_artifact(directives)

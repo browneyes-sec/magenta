@@ -1,6 +1,5 @@
 import hashlib
 import json
-from typing import Optional
 
 from magenta.models.base import ModelRequest, ModelResponse
 
@@ -12,7 +11,7 @@ class SemanticCache:
         self.min_similarity = min_similarity
         self._store: dict[str, tuple[ModelResponse, float, dict]] = {}
 
-    async def get(self, request: ModelRequest) -> Optional[ModelResponse]:
+    async def get(self, request: ModelRequest) -> ModelResponse | None:
         if not self.enabled:
             return None
 

@@ -1,6 +1,5 @@
 """MCP server — Data Lake artifact store read/write operations."""
 
-from typing import Any, Optional
 
 
 class DataLakeMCPServer:

@@ -1,11 +1,13 @@
 """Triage Agent — Alert assessment, severity assignment, initial routing."""
 
 from typing import Any
+
 from magenta.agents.base import LLMAgent
 from magenta.core.models import (
-    Mission, AgentConfig, ActionStatus, SeverityLevel,
+    ActionStatus,
+    AgentConfig,
+    Mission,
 )
-from magenta.core.mission import mission_manager
 
 
 class TriageAgent(LLMAgent):

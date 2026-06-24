@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Any
+from datetime import UTC, datetime, timedelta
 
 import httpx
 from azure.identity.aio import DefaultAzureCredential
 
 from magenta.integration.collectors.base import BaseCollector, CollectorConfig
-from magenta.integration.log_normalizer import CloudMapper
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +42,7 @@ class AzureMonitorCollector(BaseCollector):
         if not self._running:
             return []
         token = await self._ensure_token()
-        since = (datetime.now(timezone.utc) - timedelta(hours=self._lookback_hours)).isoformat()
+        since = (datetime.now(UTC) - timedelta(hours=self._lookback_hours)).isoformat()
         events: list[dict] = []
 
         async with httpx.AsyncClient(timeout=60.0) as client:
@@ -125,7 +123,7 @@ class EntraIDLogCollector(BaseCollector):
         if not self._running:
             return []
         token = await self._ensure_token()
-        since = (datetime.now(timezone.utc) - timedelta(hours=self._lookback_hours)).isoformat()
+        since = (datetime.now(UTC) - timedelta(hours=self._lookback_hours)).isoformat()
         events: list[dict] = []
 
         async with httpx.AsyncClient(timeout=60.0) as client:

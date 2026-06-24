@@ -1,15 +1,15 @@
 """Google Gemini model client."""
 
-import httpx
 from datetime import datetime
-from typing import Optional
 
-from magenta.models.base import BaseModelClient, ModelRequest, ModelResponse
+import httpx
+
 from magenta.exceptions import ModelError
+from magenta.models.base import BaseModelClient, ModelRequest, ModelResponse
 
 
 class GeminiClient(BaseModelClient):
-    def __init__(self, model: str = "gemini-2.0-flash", api_key: Optional[str] = None):
+    def __init__(self, model: str = "gemini-2.0-flash", api_key: str | None = None):
         super().__init__(model=model, provider="gemini")
         self.api_key = api_key or ""
 

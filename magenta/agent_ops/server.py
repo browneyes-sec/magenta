@@ -18,8 +18,8 @@ import structlog
 import tomli
 from pydantic import BaseModel, Field
 
-from magenta.agent_ops.config import ConfigAnalyzer
 from magenta.agent_ops.cloud import CloudOrchestrator
+from magenta.agent_ops.config import ConfigAnalyzer
 from magenta.agent_ops.finops import FinOpsEngine
 from magenta.agent_ops.iac import IaCEngine
 

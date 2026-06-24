@@ -1,15 +1,14 @@
 """FastAPI LLM Gateway Service — external proxy endpoint."""
 
-from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from magenta.models.base import ModelRequest, ModelResponse
 from magenta.gateway.engine import LLMGateway
+from magenta.models.base import ModelRequest
 
 app = FastAPI(title="Magenta LLM Gateway", version="0.1.0")
-gateway: Optional[LLMGateway] = None
+gateway: LLMGateway | None = None
 
 
 class GatewayMessage(BaseModel):
@@ -19,7 +18,7 @@ class GatewayMessage(BaseModel):
 
 class GatewayRequest(BaseModel):
     messages: list[GatewayMessage]
-    system: Optional[str] = None
+    system: str | None = None
     temperature: float = 0.2
     max_tokens: int = 2048
     correlation_id: str = ""

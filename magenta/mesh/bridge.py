@@ -23,9 +23,7 @@ Usage in pipelines:
     )
 """
 
-import hashlib
-import time
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 
@@ -36,7 +34,7 @@ class MemoryBridge:
     def __init__(self, api_url: str = "http://magenta-api:8000", timeout: float = 10.0):
         self.api_url = api_url.rstrip("/")
         self.timeout = timeout
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:

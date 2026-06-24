@@ -1,14 +1,10 @@
 """Swarm management: assembly, task decomposition, delegation."""
 
 from __future__ import annotations
-from typing import Any, Optional
 
-from magenta.core.models import (
-    Mission, MissionStatus, AgentConfig, SeverityLevel, BlastRadius
-)
-from magenta.core.agent import agent_registry, BaseAgent
+from magenta.core.agent import agent_registry
 from magenta.core.mission import mission_manager
-from magenta.exceptions import AgentError
+from magenta.core.models import Mission, MissionStatus, SeverityLevel
 
 
 class SwarmManager:

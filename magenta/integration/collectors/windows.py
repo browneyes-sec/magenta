@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 
 from magenta.integration.collectors.base import BaseCollector, CollectorConfig
 
@@ -72,10 +71,10 @@ class WindowsEventCollector(BaseCollector):
                         "_host": self._host,
                         "_log": log_name,
                         "_raw": line,
-                        "_polled_at": datetime.now(timezone.utc).isoformat(),
+                        "_polled_at": datetime.now(UTC).isoformat(),
                     })
 
-            self._last_poll = datetime.now(timezone.utc).isoformat()
+            self._last_poll = datetime.now(UTC).isoformat()
             logger.info("WinRM polled %d events from %s logs=%s", len(events), self._host, self._event_logs)
         except Exception as e:
             logger.exception("WinRM poll failed for %s: %s", self._host, e)

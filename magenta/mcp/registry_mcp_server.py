@@ -1,6 +1,5 @@
 """MCP server — Mission, agent, and directive registry search."""
 
-from typing import Optional
 
 
 class RegistryMCPServer:

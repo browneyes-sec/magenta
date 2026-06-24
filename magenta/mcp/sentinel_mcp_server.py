@@ -1,6 +1,5 @@
 """MCP server — Microsoft Sentinel KQL queries and Log Ingestion API."""
 
-from typing import Any
 
 
 class SentinelMCPServer:

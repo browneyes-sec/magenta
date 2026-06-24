@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import io
 import logging
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 
 from magenta.integration.collectors.base import BaseCollector, CollectorConfig
 
@@ -78,12 +77,12 @@ class LinuxSyslogCollector(BaseCollector):
                         "_collector": self.config.name,
                         "_source": f"sftp://{self._host}/{self._remote_path}/{attr.filename}",
                         "_raw": line,
-                        "_mtime": datetime.fromtimestamp(attr.st_mtime, tz=timezone.utc).isoformat(),
+                        "_mtime": datetime.fromtimestamp(attr.st_mtime, tz=UTC).isoformat(),
                     })
 
             sftp.close()
             ssh.close()
-            self._last_poll = datetime.now(timezone.utc).isoformat()
+            self._last_poll = datetime.now(UTC).isoformat()
             logger.info("SFTP polled %d events from %d files", len(events), len(files))
         except Exception as e:
             logger.exception("SFTP poll failed for %s: %s", self._host, e)

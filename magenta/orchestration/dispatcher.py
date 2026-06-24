@@ -1,16 +1,15 @@
 """Task dispatcher — routes tasks to available agents."""
 
-from typing import Any, Optional
 
-from magenta.core.models import Mission, AgentConfig
 from magenta.core.agent import agent_registry
+from magenta.core.models import Mission
 from magenta.exceptions import AgentError
 
 
 class Dispatcher:
     """Dispatches tasks to agents based on role, load, and availability."""
 
-    async def dispatch(self, task: dict, mission: Mission) -> Optional[str]:
+    async def dispatch(self, task: dict, mission: Mission) -> str | None:
         """Dispatch a task to an available agent. Returns agent_id or None."""
         role = task.get("role")
         if not role:
@@ -42,7 +41,7 @@ class Dispatcher:
                 })
         return results
 
-    async def retry_failed(self, task: dict, mission: Mission) -> Optional[str]:
+    async def retry_failed(self, task: dict, mission: Mission) -> str | None:
         """Retry a failed task with a different agent."""
         return await self.dispatch(task, mission)
 
