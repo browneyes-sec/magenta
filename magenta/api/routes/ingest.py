@@ -40,6 +40,7 @@ def init_ingest(
 
 # ── Schemas ────────────────────────────────────────────────────────────────
 
+
 class LogEvent(BaseModel):
     timestamp: str = Field(..., description="ISO 8601 timestamp")
     source_system: str = Field(
@@ -68,6 +69,7 @@ class IngestResponse(BaseModel):
 
 # ── Dependencies ───────────────────────────────────────────────────────────
 
+
 async def verify_hmac(
     request: Request,
     x_magenta_signature: str = Header("", alias="X-Magenta-Signature"),
@@ -84,6 +86,7 @@ async def verify_hmac(
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────
+
 
 @router.post("/v1/logs", response_model=IngestResponse)
 async def ingest_log(
@@ -158,8 +161,11 @@ async def ingest_raw_event(
         duplicate = await _guard.is_duplicate(idempotency_key, ttl=3600)
         if duplicate:
             return IngestResponse(
-                status="skipped", event_id=raw_id, topic="raw-logs",
-                size_bytes=0, idempotent=True,
+                status="skipped",
+                event_id=raw_id,
+                topic="raw-logs",
+                size_bytes=0,
+                idempotent=True,
             )
 
     try:
@@ -188,6 +194,7 @@ async def ingest_health() -> dict:
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
+
 
 def _make_event_id(event: LogEvent) -> str:
     raw = f"{event.source_system}|{event.source_host}|{event.timestamp}"
@@ -228,6 +235,7 @@ def _build_envelope(event: LogEvent, event_id: str, idempotency_key: str) -> dic
 def _redact_log_payload(payload: dict) -> dict:
     """Apply PII redaction to log payload fields."""
     import copy
+
     redacted = copy.deepcopy(payload)
     sensitive_keys = {"username", "user", "email", "ipaddress", "ip_address", "hostname"}
     for key in redacted:

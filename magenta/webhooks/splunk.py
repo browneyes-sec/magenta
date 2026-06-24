@@ -1,6 +1,5 @@
 """Splunk webhook handler."""
 
-
 from magenta.core.mission import mission_manager
 
 

@@ -1,6 +1,5 @@
 """Magenta CLI — Typer application and command groups."""
 
-
 import typer
 
 from magenta import __about__

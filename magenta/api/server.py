@@ -37,9 +37,7 @@ def generate_metrics() -> str:
 
     # Workflow engine metrics
     active_workflows = len(workflow_engine._running_missions)
-    pending_approvals = sum(
-        len(e.approvals_pending) for e in workflow_engine._executions.values()
-    )
+    pending_approvals = sum(len(e.approvals_pending) for e in workflow_engine._executions.values())
 
     # Count executions by status
     status_counts = {}
@@ -49,40 +47,40 @@ def generate_metrics() -> str:
     for status, count in status_counts.items():
         lines.append(f'magenta_workflow_executions_total{{status="{status}"}} {count}')
 
-    lines.append(f'magenta_workflow_active_total {active_workflows}')
-    lines.append(f'magenta_workflow_pending_approvals {pending_approvals}')
+    lines.append(f"magenta_workflow_active_total {active_workflows}")
+    lines.append(f"magenta_workflow_pending_approvals {pending_approvals}")
 
     # Mission manager metrics
     active_missions = mission_manager.active_count()
     total_missions = len(mission_manager._missions)
 
-    lines.append(f'magenta_mission_active_total {active_missions}')
-    lines.append(f'magenta_mission_total_total {total_missions}')
+    lines.append(f"magenta_mission_active_total {active_missions}")
+    lines.append(f"magenta_mission_total_total {total_missions}")
 
     # Agent metrics
     agents_list = agent_registry.all_agents()
     agent_counts = agent_registry.counts
-    lines.append(f'magenta_agent_total {len(agents_list)}')
+    lines.append(f"magenta_agent_total {len(agents_list)}")
     for role, count in agent_counts.items():
         lines.append(f'magenta_agent_by_role{{role="{role}"}} {count}')
         # Active tasks and max concurrent per agent
         for agent in agents_list:
-            if hasattr(agent, 'role') and agent.role == role:
-                active = getattr(agent, '_active_tasks', 0)
-                max_concurrent = getattr(agent, 'max_concurrent_tasks', 3)
+            if hasattr(agent, "role") and agent.role == role:
+                active = getattr(agent, "_active_tasks", 0)
+                max_concurrent = getattr(agent, "max_concurrent_tasks", 3)
                 aid = agent.agent_id
                 lines.append(
                     f'magenta_agent_active_tasks{{role="{role}",agent_id="{aid}"}} {active}'
                 )
                 lines.append(
                     f'magenta_agent_max_concurrent_tasks{{role="{role}",agent_id="{aid}"}} '
-                    f'{max_concurrent}'
+                    f"{max_concurrent}"
                 )
 
     # Workflow execution duration histogram (simulated from execution data)
     # Note: In production, use prometheus-client Histogram
-    lines.append('# HELP magenta_workflow_execution_duration_seconds Workflow execution duration')
-    lines.append('# TYPE magenta_workflow_execution_duration_seconds histogram')
+    lines.append("# HELP magenta_workflow_execution_duration_seconds Workflow execution duration")
+    lines.append("# TYPE magenta_workflow_execution_duration_seconds histogram")
     for e in workflow_engine._executions.values():
         if e.status in ("completed", "failed") and e.started_at and e.completed_at:
             duration = (e.completed_at - e.started_at).total_seconds()
@@ -92,8 +90,8 @@ def generate_metrics() -> str:
             lines.append('magenta_workflow_execution_duration_seconds_bucket{le="30.0"} 1')
             lines.append('magenta_workflow_execution_duration_seconds_bucket{le="60.0"} 1')
             lines.append('magenta_workflow_execution_duration_seconds_bucket{le="+Inf"} 1')
-            lines.append(f'magenta_workflow_execution_duration_seconds_sum {duration}')
-            lines.append('magenta_workflow_execution_duration_seconds_count 1')
+            lines.append(f"magenta_workflow_execution_duration_seconds_sum {duration}")
+            lines.append("magenta_workflow_execution_duration_seconds_count 1")
 
     # Node execution metrics (from node_results dict: {task_id: result_dict})
     node_type_counts: dict[str, int] = {}
@@ -107,21 +105,18 @@ def generate_metrics() -> str:
             node_type_counts[node_type] = node_type_counts.get(node_type, 0) + 1
             lines.append(f'magenta_workflow_node_total{{node_type="{node_type}"}} 1')
             if node_result.get("status") == "completed":
-                lines.append(
-                    f'magenta_workflow_node_completed_total{{node_type="{node_type}"}} 1'
-                )
+                lines.append(f'magenta_workflow_node_completed_total{{node_type="{node_type}"}} 1')
             started = node_result.get("started_at")
             completed = node_result.get("completed_at")
             if started and completed:
                 from datetime import datetime
+
                 try:
-                    t0 = (
-                        datetime.fromisoformat(started)
-                        if isinstance(started, str) else started
-                    )
+                    t0 = datetime.fromisoformat(started) if isinstance(started, str) else started
                     t1 = (
                         datetime.fromisoformat(completed)
-                        if isinstance(completed, str) else completed
+                        if isinstance(completed, str)
+                        else completed
                     )
                     duration = (t1 - t0).total_seconds()
                     base = f'magenta_workflow_node_duration_seconds_bucket{{node_type="{node_type}"'
@@ -129,7 +124,7 @@ def generate_metrics() -> str:
                         lines.append(f'{base},le="{le}"}} 1')
                     lines.append(
                         f'magenta_workflow_node_duration_seconds_sum{{node_type="{node_type}"}} '
-                        f'{duration}'
+                        f"{duration}"
                     )
                     lines.append(
                         f'magenta_workflow_node_duration_seconds_count{{node_type="{node_type}"}} 1'
@@ -140,22 +135,19 @@ def generate_metrics() -> str:
     # Approval metrics
     for e in workflow_engine._executions.values():
         for approval in e.approvals_pending:
-            lines.append('magenta_approval_pending_total 1')
+            lines.append("magenta_approval_pending_total 1")
         for approval_id, approval_data in e.approvals_completed.items():
             decision = approval_data.get("decision", "unknown")
-            lines.append(f'magenta_approval_{decision}_total 1')
+            lines.append(f"magenta_approval_{decision}_total 1")
             if "latency_seconds" in approval_data:
-                base = (
-                    f'magenta_workflow_approval_latency_seconds_bucket'
-                    f'{{decision="{decision}"'
-                )
+                base = f'magenta_workflow_approval_latency_seconds_bucket{{decision="{decision}"'
                 lines.append(f'{base},le="30.0"}} 1')
                 lines.append(f'{base},le="60.0"}} 1')
                 lines.append(f'{base},le="300.0"}} 1')
                 lines.append(f'{base},le="+Inf"}} 1')
                 lines.append(
                     f'magenta_workflow_approval_latency_seconds_sum{{decision="{decision}"}} '
-                    f'{approval_data["latency_seconds"]}'
+                    f"{approval_data['latency_seconds']}"
                 )
                 lines.append(
                     f'magenta_workflow_approval_latency_seconds_count{{decision="{decision}"}} 1'
@@ -176,7 +168,7 @@ def generate_metrics() -> str:
 
     for (subgraph, status), count in subgraph_calls.items():
         lines.append(
-            f'magenta_workflow_subgraph_invocations_total'
+            f"magenta_workflow_subgraph_invocations_total"
             f'{{subgraph="{subgraph}",status="{status}"}} {count}'
         )
 
@@ -184,22 +176,22 @@ def generate_metrics() -> str:
     max_branches = 0
     for e in workflow_engine._executions.values():
         parallel_count = sum(
-            1 for ne in e.node_results.values()
+            1
+            for ne in e.node_results.values()
             if isinstance(ne, dict) and ne.get("node_type") == "parallel"
         )
         max_branches = max(max_branches, parallel_count)
 
-    lines.append(f'magenta_workflow_parallel_active_branches {max_branches}')
-    lines.append('magenta_workflow_parallel_max_branches 5')  # Default max_concurrency
+    lines.append(f"magenta_workflow_parallel_active_branches {max_branches}")
+    lines.append("magenta_workflow_parallel_max_branches 5")  # Default max_concurrency
 
     # Circuit breaker state
     try:
         from magenta.models.router import model_router
+
         for client_name, cb in model_router._circuit_breakers.items():
             open_val = 1 if cb._is_open else 0
-            lines.append(
-                f'magenta_circuit_breaker_open{{client="{client_name}"}} {open_val}'
-            )
+            lines.append(f'magenta_circuit_breaker_open{{client="{client_name}"}} {open_val}')
             lines.append(
                 f'magenta_circuit_breaker_failures{{client="{client_name}"}} {cb._failure_count}'
             )
@@ -213,10 +205,10 @@ def generate_metrics() -> str:
 
     # Model metrics
     models = model_router.get_available_models()
-    lines.append(f'magenta_model_available_total {len(models)}')
+    lines.append(f"magenta_model_available_total {len(models)}")
 
     # System health
-    lines.append('magenta_system_healthy 1')
+    lines.append("magenta_system_healthy 1")
 
     return "\n".join(lines) + "\n"
 
@@ -247,6 +239,7 @@ async def lifespan(app: FastAPI):
     # Auto-provision Qdrant collections on startup (ADR-018)
     try:
         from magenta.mesh.gateway import mesh_gateway
+
         await mesh_gateway.start()
         logger.info("Mesh gateway started with auto-provisioned collections")
     except Exception as exc:
@@ -255,6 +248,7 @@ async def lifespan(app: FastAPI):
     # Initialize LangGraph subgraphs for workflow engine
     try:
         from magenta.workflows.langgraph.engine import initialize_subgraphs
+
         initialize_subgraphs()
         logger.info("LangGraph subgraphs initialized")
     except Exception as exc:
@@ -280,6 +274,7 @@ async def lifespan(app: FastAPI):
     try:
         from magenta.core.mission import mission_manager
         from magenta.workflows.engine import workflow_engine
+
         await mission_manager._ensure_redis()
         await workflow_engine._load_executions_from_redis()
         logger.info("Persistence initialized for missions and workflows")
@@ -291,6 +286,7 @@ async def lifespan(app: FastAPI):
     # Shutdown — drain running workflows
     try:
         from magenta.workflows.engine import workflow_engine
+
         await workflow_engine.shutdown(timeout_seconds=30.0)
     except Exception as exc:
         logger.warning("Workflow drain failed: %s", exc)
@@ -327,13 +323,16 @@ def create_app() -> FastAPI:
 
     if settings.security_headers.enabled:
         from magenta.api.middleware.security import SecurityHeadersMiddleware
+
         app.add_middleware(SecurityHeadersMiddleware)
 
     if settings.entra_jwt.enabled:
         from magenta.api.middleware.auth import EntraJWTAuthMiddleware
+
         app.add_middleware(EntraJWTAuthMiddleware)
 
     from magenta.api.middleware import CorrelationIDMiddleware, RateLimitMiddleware
+
     app.add_middleware(RateLimitMiddleware)
     app.add_middleware(CorrelationIDMiddleware)
 
@@ -372,7 +371,6 @@ def create_app() -> FastAPI:
             media_type="text/plain; version=0.0.4; charset=utf-8",
         )
 
-
     return app
 
 
@@ -381,4 +379,5 @@ app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("magenta.api.server:app", host="0.0.0.0", port=8000, log_level="info")

@@ -82,7 +82,9 @@ class EventHubClient:
             await producer.send_batch(batch)
         return {"status": "sent", "topic": topic, "count": count}
 
-    async def send_raw(self, topic: str, payload: bytes, content_type: str = "application/json") -> dict:
+    async def send_raw(
+        self, topic: str, payload: bytes, content_type: str = "application/json"
+    ) -> dict:
         """Send a pre-serialized raw payload (for syslog/CEF passthrough)."""
         if not self._connection_string:
             return {"status": "simulated", "topic": topic, "size_bytes": len(payload)}
@@ -97,13 +99,16 @@ class EventHubClient:
         if topic not in self._producers:
             if self._connection_string:
                 self._producers[topic] = EventHubProducerClient.from_connection_string(
-                    self._connection_string, eventhub_name=topic,
+                    self._connection_string,
+                    eventhub_name=topic,
                 )
             else:
                 fqdn = f"{self._namespace}.servicebus.windows.net"
                 cred = self._credential or DefaultAzureCredential()
                 self._producers[topic] = EventHubProducerClient(
-                    fully_qualified_namespace=fqdn, eventhub_name=topic, credential=cred,
+                    fully_qualified_namespace=fqdn,
+                    eventhub_name=topic,
+                    credential=cred,
                 )
         return self._producers[topic]
 
@@ -139,17 +144,18 @@ class EventHubClient:
         checkpoint_store = None
         if self._checkpoint_conn_str:
             checkpoint_store = BlobCheckpointStore.from_connection_string(
-                self._checkpoint_conn_str, container_name=self._checkpoint_container,
+                self._checkpoint_conn_str,
+                container_name=self._checkpoint_container,
             )
 
         consumer = EventHubConsumerClient.from_connection_string(
-            self._connection_string, consumer_group, eventhub_name=topic,
+            self._connection_string,
+            consumer_group,
+            eventhub_name=topic,
             checkpoint_store=checkpoint_store,
         )
         self._consumers[topic] = consumer
-        task = asyncio.create_task(
-            self._consume_loop(consumer, topic, handler, starting_position)
-        )
+        task = asyncio.create_task(self._consume_loop(consumer, topic, handler, starting_position))
         self._consumer_tasks[topic] = task
         logger.info("Consumer started for topic=%s group=%s", topic, consumer_group)
 
@@ -168,8 +174,11 @@ class EventHubClient:
         self._handlers.pop(topic, None)
 
     async def _consume_loop(
-        self, consumer: EventHubConsumerClient, topic: str,
-        handler: Callable[[dict], Awaitable[None]], starting_position: str,
+        self,
+        consumer: EventHubConsumerClient,
+        topic: str,
+        handler: Callable[[dict], Awaitable[None]],
+        starting_position: str,
     ) -> None:
         async def on_event(partition_context, event):
             try:
@@ -187,7 +196,8 @@ class EventHubClient:
         try:
             async with consumer:
                 await consumer.receive(
-                    on_event=on_event, on_error=on_error,
+                    on_event=on_event,
+                    on_error=on_error,
                     starting_position=starting_position,
                 )
         except asyncio.CancelledError:

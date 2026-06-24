@@ -98,6 +98,7 @@ async def respond_to_approval(
         raise HTTPException(status_code=400, detail="Decision must be 'approved' or 'denied'")
 
     from magenta.exceptions import ApprovalError
+
     try:
         if decision == "approved":
             result = await approval_gate.approve(approval_id, approver_id, reason)

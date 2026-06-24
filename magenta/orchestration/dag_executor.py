@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DAGNode:
     """A node in the execution DAG."""
+
     task_id: str
     role: str
     agent_id: str | None = None
@@ -44,26 +45,30 @@ class DAGExecutor:
         nodes = {}
 
         # Use playbook stages if available, fall back to mission tasks
-        stages = mission.playbook_stages if hasattr(mission, 'playbook_stages') else []
+        stages = mission.playbook_stages if hasattr(mission, "playbook_stages") else []
 
         if not stages and mission.tasks:
             # Convert linear tasks to stages
             for i, task in enumerate(mission.tasks):
-                stages.append({
-                    "task_id": task.get("task_id", f"task_{i}"),
-                    "role": task.get("role", "triage"),
-                    "depends_on": task.get("depends_on", []),
-                    "params": task.get("params", {}),
-                })
+                stages.append(
+                    {
+                        "task_id": task.get("task_id", f"task_{i}"),
+                        "role": task.get("role", "triage"),
+                        "depends_on": task.get("depends_on", []),
+                        "params": task.get("params", {}),
+                    }
+                )
 
         if not stages:
             # Default single-stage triage
-            stages = [{
-                "task_id": "triage",
-                "role": "triage",
-                "depends_on": [],
-                "params": {},
-            }]
+            stages = [
+                {
+                    "task_id": "triage",
+                    "role": "triage",
+                    "depends_on": [],
+                    "params": {},
+                }
+            ]
 
         for stage in stages:
             task_id = stage["task_id"]
@@ -160,7 +165,7 @@ class DAGExecutor:
 
             # Launch ready tasks up to concurrency limit
             launch_tasks = []
-            for task_id in ready[:self._max_concurrency]:
+            for task_id in ready[: self._max_concurrency]:
                 node = nodes[task_id]
                 node.status = "running"
                 task = asyncio.create_task(self._execute_task(node, mission, results))
@@ -235,10 +240,12 @@ class DAGExecutor:
                     node.error = str(e)
                     logger.warning("Task %s attempt %d failed: %s", node.task_id, attempt + 1, e)
                     if attempt < node.max_retries:
-                        await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                        await asyncio.sleep(2**attempt)  # Exponential backoff
 
             node.status = "failed"
-            logger.error("Task %s failed after %d attempts: %s", node.task_id, node.attempts, node.error)
+            logger.error(
+                "Task %s failed after %d attempts: %s", node.task_id, node.attempts, node.error
+            )
 
 
 dag_executor = DAGExecutor()

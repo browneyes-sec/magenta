@@ -1,6 +1,5 @@
 """API routes — search across registries."""
 
-
 from fastapi import APIRouter, Query
 
 router = APIRouter()

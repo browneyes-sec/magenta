@@ -11,13 +11,17 @@ from magenta.core.swarm import swarm_manager
 
 class SwarmManagerAgent(LLMAgent):
     """Meta-agent that orchestrates the multi-agent swarm for a mission."""
+
     sensitivity_level = "medium"
     task_type = "orchestrate"
 
     def __init__(self, config: AgentConfig):
-        config.instructions = config.instructions or """You are the Swarm Manager — the orchestrator of the Magenta multi-agent system.
+        config.instructions = (
+            config.instructions
+            or """You are the Swarm Manager — the orchestrator of the Magenta multi-agent system.
 Your job is to decompose security incidents into tasks, assign agents,
 monitor progress, handle failures, and ensure mission completion."""
+        )
         super().__init__(config)
 
     async def _process_impl(self, mission: Mission, context: dict[str, Any]) -> dict[str, Any]:
@@ -51,7 +55,9 @@ monitor progress, handle failures, and ensure mission completion."""
 
         mission_manager.update_status(mission.mission_id, MissionStatus.executing)
         await self.log_activity(
-            mission, "orchestrate", ActionStatus.succeeded,
+            mission,
+            "orchestrate",
+            ActionStatus.succeeded,
             tenant_id=context.get("tenant_id", "default"),
         )
         return result

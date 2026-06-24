@@ -78,6 +78,7 @@ class AuditLogger:
         writers = []
         try:
             from magenta.adapters.elastic import ElasticAdapter  # noqa: F401
+
             writers.append(self._elastic_writer)
         except ImportError:
             pass
@@ -86,9 +87,11 @@ class AuditLogger:
 
     async def _console_writer(self, payload: str, records: list[AuditRecord]) -> None:
         for record in records:
-            print(f"[AUDIT] {record.correlation_id} | {record.provider}/{record.model} | "
-                  f"in={record.tokens_in} out={record.tokens_out} "
-                  f"lat={record.latency_ms:.0f}ms risk={record.risk_score}")
+            print(
+                f"[AUDIT] {record.correlation_id} | {record.provider}/{record.model} | "
+                f"in={record.tokens_in} out={record.tokens_out} "
+                f"lat={record.latency_ms:.0f}ms risk={record.risk_score}"
+            )
 
     async def _elastic_writer(self, payload: str, records: list[AuditRecord]) -> None:
         try:

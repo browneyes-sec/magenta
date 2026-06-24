@@ -73,12 +73,14 @@ def issue_directive(
 
     # Telemetry — best-effort, non-blocking
     from magenta.dictator.telemetry import emit_directive_span
+
     emit_directive_span(directive.dict())
 
     try:
         import asyncio
 
         from magenta.dictator.telemetry import write_directive_to_elastic
+
         asyncio.ensure_future(write_directive_to_elastic(directive.dict()))
     except Exception:
         pass

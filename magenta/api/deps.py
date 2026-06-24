@@ -1,6 +1,5 @@
 """API dependency injection."""
 
-
 from magenta.config import settings
 from magenta.core.agent import agent_registry
 from magenta.core.mission import mission_manager

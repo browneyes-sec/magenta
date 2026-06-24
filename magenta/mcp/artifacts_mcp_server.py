@@ -1,7 +1,6 @@
 """MCP server — Artifact generation for Open WebUI dashboards."""
 
 
-
 class ArtifactsMCPServer:
     """MCP tools for generating Open WebUI artifacts."""
 

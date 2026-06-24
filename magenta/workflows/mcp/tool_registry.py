@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 try:
     from langchain_core.tools import StructuredTool
     from pydantic import BaseModel, Field
+
     HAS_LANGCHAIN = True
 except ImportError:
     HAS_LANGCHAIN = False
@@ -81,10 +82,12 @@ if HAS_LANGCHAIN:
 
 # ── Tool implementations (thin wrappers around existing MCP servers) ───
 
+
 async def _sentinel_query_logs(workspace_id: str, query: str) -> dict:
     """Query Sentinel logs via KQL."""
     try:
         from magenta.mcp.sentinel_mcp_server import SentinelMCPServer
+
         server = SentinelMCPServer()
         return await server.run_kql_query(workspace_id, query)
     except Exception as exc:
@@ -95,6 +98,7 @@ async def _sentinel_get_alert(workspace_id: str, alert_id: str) -> dict:
     """Get a specific Sentinel alert."""
     try:
         from magenta.mcp.sentinel_mcp_server import SentinelMCPServer
+
         server = SentinelMCPServer()
         return await server.get_alert(workspace_id, alert_id)
     except Exception as exc:
@@ -105,6 +109,7 @@ async def _sentinel_list_alerts(workspace_id: str, limit: int = 20) -> dict:
     """List active Sentinel alerts."""
     try:
         from magenta.mcp.sentinel_mcp_server import SentinelMCPServer
+
         server = SentinelMCPServer()
         return await server.list_active_alerts(workspace_id, limit)
     except Exception as exc:
@@ -115,6 +120,7 @@ async def _entra_get_user(user_id: str) -> dict:
     """Get Entra ID user info."""
     try:
         from magenta.mcp.entra_mcp_server import EntraMCPServer
+
         server = EntraMCPServer()
         return await server.get_user(user_id)
     except Exception as exc:
@@ -125,6 +131,7 @@ async def _entra_get_risk(user_id: str) -> dict:
     """Get user risk level from Entra ID."""
     try:
         from magenta.mcp.entra_mcp_server import EntraMCPServer
+
         server = EntraMCPServer()
         return await server.get_user_risk(user_id)
     except Exception as exc:
@@ -135,6 +142,7 @@ async def _defender_get_alert(alert_id: str) -> dict:
     """Get Defender for Endpoint alert."""
     try:
         from magenta.mcp.defender_mcp_server import DefenderMCPServer
+
         server = DefenderMCPServer()
         return await server.get_alert(alert_id)
     except Exception as exc:
@@ -145,6 +153,7 @@ async def _defender_isolate_host(host_id: str) -> dict:
     """Isolate a host in Defender for Endpoint."""
     try:
         from magenta.mcp.defender_mcp_server import DefenderMCPServer
+
         server = DefenderMCPServer()
         return await server.isolate_machine(host_id)
     except Exception as exc:
@@ -155,6 +164,7 @@ async def _defender_get_machine(machine_id: str) -> dict:
     """Get machine details from Defender."""
     try:
         from magenta.mcp.defender_mcp_server import DefenderMCPServer
+
         server = DefenderMCPServer()
         return await server.get_machine(machine_id)
     except Exception as exc:
@@ -165,6 +175,7 @@ async def _datalake_search(query: str, index: str = "default", limit: int = 50) 
     """Search the data lake."""
     try:
         from magenta.mcp.datalake_mcp_server import DataLakeMCPServer
+
         server = DataLakeMCPServer()
         return await server.search(query, index, limit)
     except Exception as exc:
@@ -175,6 +186,7 @@ async def _datalake_mitre_lookup(technique_id: str) -> dict:
     """Lookup MITRE technique in data lake."""
     try:
         from magenta.mcp.datalake_mcp_server import DataLakeMCPServer
+
         server = DataLakeMCPServer()
         return await server.mitre_lookup(technique_id)
     except Exception as exc:
@@ -185,6 +197,7 @@ async def _artifacts_save(mission_id: str, artifact_type: str, content: str) -> 
     """Save an artifact to the artifact store."""
     try:
         from magenta.mcp.artifacts_mcp_server import ArtifactsMCPServer
+
         server = ArtifactsMCPServer()
         return await server.save_artifact(mission_id, artifact_type, content)
     except Exception as exc:
@@ -195,6 +208,7 @@ async def _artifacts_get(mission_id: str, artifact_type: str) -> dict:
     """Retrieve an artifact from the artifact store."""
     try:
         from magenta.mcp.artifacts_mcp_server import ArtifactsMCPServer
+
         server = ArtifactsMCPServer()
         return await server.get_artifact(mission_id, artifact_type)
     except Exception as exc:

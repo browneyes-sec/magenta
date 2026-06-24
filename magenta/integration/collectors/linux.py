@@ -45,14 +45,18 @@ class LinuxSyslogCollector(BaseCollector):
         try:
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(
-                paramiko.AutoAddPolicy if not self._known_hosts
-                else paramiko.RejectPolicy
+                paramiko.AutoAddPolicy if not self._known_hosts else paramiko.RejectPolicy
             )
             if self._key_data:
                 key = paramiko.RSAKey.from_private_key(io.StringIO(self._key_data))
                 ssh.connect(self._host, port=self._port, username=self._username, pkey=key)
             elif self._key_path:
-                ssh.connect(self._host, port=self._port, username=self._username, key_filename=self._key_path)
+                ssh.connect(
+                    self._host,
+                    port=self._port,
+                    username=self._username,
+                    key_filename=self._key_path,
+                )
             else:
                 ssh.connect(self._host, port=self._port, username=self._username)
 
@@ -73,12 +77,14 @@ class LinuxSyslogCollector(BaseCollector):
                     line = line.strip()
                     if not line:
                         continue
-                    events.append({
-                        "_collector": self.config.name,
-                        "_source": f"sftp://{self._host}/{self._remote_path}/{attr.filename}",
-                        "_raw": line,
-                        "_mtime": datetime.fromtimestamp(attr.st_mtime, tz=UTC).isoformat(),
-                    })
+                    events.append(
+                        {
+                            "_collector": self.config.name,
+                            "_source": f"sftp://{self._host}/{self._remote_path}/{attr.filename}",
+                            "_raw": line,
+                            "_mtime": datetime.fromtimestamp(attr.st_mtime, tz=UTC).isoformat(),
+                        }
+                    )
 
             sftp.close()
             ssh.close()

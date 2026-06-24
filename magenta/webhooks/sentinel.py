@@ -1,6 +1,5 @@
 """Microsoft Sentinel webhook handler."""
 
-
 from magenta.core.mission import mission_manager
 from magenta.core.models import MissionStatus
 

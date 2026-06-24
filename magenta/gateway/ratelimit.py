@@ -9,12 +9,15 @@ class TokenBucket:
 
     async def consume(self, provider: str, tokens: int = 1) -> bool:
         now = time.monotonic()
-        bucket = self._buckets.setdefault(provider, {
-            "tokens": 10,
-            "max_tokens": 10,
-            "refill_rate": 1.0,
-            "last_refill": now,
-        })
+        bucket = self._buckets.setdefault(
+            provider,
+            {
+                "tokens": 10,
+                "max_tokens": 10,
+                "refill_rate": 1.0,
+                "last_refill": now,
+            },
+        )
         elapsed = now - bucket["last_refill"]
         bucket["tokens"] = min(
             bucket["max_tokens"],

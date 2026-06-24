@@ -19,6 +19,7 @@ USE_GATEWAY = True
 
 try:
     from magenta.gateway.engine import LLMGateway
+
     _gateway = LLMGateway()
 except ImportError:
     _gateway = None
@@ -27,6 +28,7 @@ except ImportError:
 try:
     from magenta.config import settings
     from magenta.gateway.redact import RedactionLayer
+
     _redact_layer = RedactionLayer(
         enabled=settings.gateway.redaction.enabled,
         default_fields=settings.gateway.redaction.default_fields,
@@ -186,11 +188,15 @@ class LLMAgent(BaseAgent, ABC):
 
         except Exception:
             import logging
+
             logging.getLogger(__name__).exception("Failed to retrieve memory context")
             return ""
 
     async def log_activity(
-        self, mission: Mission, action: str, status: ActionStatus,
+        self,
+        mission: Mission,
+        action: str,
+        status: ActionStatus,
         tenant_id: str = "default",
     ) -> None:
         """Log action to episodic memory and registry."""
@@ -227,6 +233,7 @@ class LLMAgent(BaseAgent, ABC):
             )
         except Exception:
             import logging
+
             logging.getLogger(__name__).exception("Failed to write episodic memory")
 
         return None

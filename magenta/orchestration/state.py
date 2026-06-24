@@ -96,6 +96,7 @@ async def create_state_store(redis_url: str = "") -> Any:
     redis_url = redis_url or "redis://localhost:6379/0"
     try:
         import redis.asyncio as aioredis
+
         client = aioredis.from_url(redis_url, decode_responses=True)
         await client.ping()
         store = RedisStateStore(client)

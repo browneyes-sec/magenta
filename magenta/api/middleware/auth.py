@@ -15,10 +15,7 @@ from magenta.config import settings
 logger = logging.getLogger(__name__)
 
 JWKS_CACHE: dict[str, list[dict]] = {}
-JWKS_URL = (
-    f"https://login.microsoftonline.com/"
-    f"{settings.entra_jwt.tenant_id}/discovery/v2.0/keys"
-)
+JWKS_URL = f"https://login.microsoftonline.com/{settings.entra_jwt.tenant_id}/discovery/v2.0/keys"
 
 # Mock mode - enabled via env var for development
 MOCK_AUTH = os.environ.get("MAGENTA_MOCK_AUTH", "false").lower() == "true"
@@ -60,6 +57,7 @@ def _get_public_key(kid: str, keys: list[dict]) -> str | None:
     for key in keys:
         if key.get("kid") == kid:
             from jwt.algorithms import RSAAlgorithm
+
             return RSAAlgorithm.from_jwk(json.dumps(key))
     return None
 
@@ -146,7 +144,9 @@ class EntraJWTAuthMiddleware(BaseHTTPMiddleware):
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Token has expired"},
-                headers={"WWW-Authenticate": "Bearer error='invalid_token' error_description='token_expired'"},
+                headers={
+                    "WWW-Authenticate": "Bearer error='invalid_token' error_description='token_expired'"
+                },
             )
         except jwt.InvalidTokenError as exc:
             return JSONResponse(

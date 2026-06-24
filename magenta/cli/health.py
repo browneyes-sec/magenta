@@ -34,7 +34,10 @@ def check(
     overall = "healthy" if all_healthy else "degraded"
 
     if format == "json":
-        print_output({"status": overall, "checks": checks, "timestamp": datetime.utcnow().isoformat()}, format="json")
+        print_output(
+            {"status": overall, "checks": checks, "timestamp": datetime.utcnow().isoformat()},
+            format="json",
+        )
     else:
         print_info(f"System Status: {status_badge(overall)}")
         print_table(
@@ -85,11 +88,20 @@ def models(
 ):
     """Check LLM model health."""
     print_info("Model health (stub — model router integration pending)")
-    print_output([
-        {"provider": "ollama", "model": "qwen2.5:7b", "status": "healthy", "latency_ms": 1200},
-        {"provider": "ollama", "model": "mistral:7b", "status": "healthy", "latency_ms": 1100},
-        {"provider": "ollama", "model": "mixtral:8x7b", "status": "degraded", "latency_ms": 4500},
-    ], format=format, columns=["Provider", "Model", "Status", "Latency"])
+    print_output(
+        [
+            {"provider": "ollama", "model": "qwen2.5:7b", "status": "healthy", "latency_ms": 1200},
+            {"provider": "ollama", "model": "mistral:7b", "status": "healthy", "latency_ms": 1100},
+            {
+                "provider": "ollama",
+                "model": "mixtral:8x7b",
+                "status": "degraded",
+                "latency_ms": 4500,
+            },
+        ],
+        format=format,
+        columns=["Provider", "Model", "Status", "Latency"],
+    )
 
 
 @health_app.command()
@@ -99,12 +111,16 @@ def pipeline(
 ):
     """Check Event Hubs pipeline health."""
     print_info("Pipeline health (stub — Event Hubs integration pending)")
-    print_output([
-        {"topic": "raw-alerts", "lag": 12, "throughput": 45, "status": "healthy"},
-        {"topic": "enriched-alerts", "lag": 3, "throughput": 38, "status": "healthy"},
-        {"topic": "actions", "lag": 0, "throughput": 12, "status": "healthy"},
-        {"topic": "audit", "lag": 5, "throughput": 25, "status": "healthy"},
-    ], format=format, columns=["Topic", "Lag", "Throughput/s", "Status"])
+    print_output(
+        [
+            {"topic": "raw-alerts", "lag": 12, "throughput": 45, "status": "healthy"},
+            {"topic": "enriched-alerts", "lag": 3, "throughput": 38, "status": "healthy"},
+            {"topic": "actions", "lag": 0, "throughput": 12, "status": "healthy"},
+            {"topic": "audit", "lag": 5, "throughput": 25, "status": "healthy"},
+        ],
+        format=format,
+        columns=["Topic", "Lag", "Throughput/s", "Status"],
+    )
 
 
 @health_app.command()
@@ -115,8 +131,12 @@ def storage(
     from magenta.config import settings
 
     print_info("Storage health")
-    print_output([
-        {"backend": "SQL", "engine": settings.sql.url.split("://")[0], "status": "healthy"},
-        {"backend": "Elasticsearch", "hosts": settings.elastic.hosts[0], "status": "healthy"},
-        {"backend": "Data Lake", "container": settings.lake.container, "status": "healthy"},
-    ], format=format, columns=["Backend", "Endpoint", "Status"])
+    print_output(
+        [
+            {"backend": "SQL", "engine": settings.sql.url.split("://")[0], "status": "healthy"},
+            {"backend": "Elasticsearch", "hosts": settings.elastic.hosts[0], "status": "healthy"},
+            {"backend": "Data Lake", "container": settings.lake.container, "status": "healthy"},
+        ],
+        format=format,
+        columns=["Backend", "Endpoint", "Status"],
+    )

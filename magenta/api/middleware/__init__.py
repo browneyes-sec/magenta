@@ -54,16 +54,12 @@ class RateLimiter:
     def __init__(self):
         self._requests: dict[str, list[float]] = {}
 
-    async def check(
-        self, key: str, max_requests: int = 100, window_seconds: int = 60
-    ) -> bool:
+    async def check(self, key: str, max_requests: int = 100, window_seconds: int = 60) -> bool:
         now = time.time()
         if key not in self._requests:
             self._requests[key] = []
 
-        self._requests[key] = [
-            t for t in self._requests[key] if now - t < window_seconds
-        ]
+        self._requests[key] = [t for t in self._requests[key] if now - t < window_seconds]
 
         if len(self._requests[key]) >= max_requests:
             return False
@@ -84,12 +80,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     def __init__(self, app, max_requests: int = 0, window_seconds: int = 0):
         super().__init__(app)
-        self.max_requests = max_requests or int(
-            os.getenv("MAGENTA_RATE_LIMIT_MAX", "100")
-        )
-        self.window_seconds = window_seconds or int(
-            os.getenv("MAGENTA_RATE_LIMIT_WINDOW", "60")
-        )
+        self.max_requests = max_requests or int(os.getenv("MAGENTA_RATE_LIMIT_MAX", "100"))
+        self.window_seconds = window_seconds or int(os.getenv("MAGENTA_RATE_LIMIT_WINDOW", "60"))
         self._excluded_paths = {"/", "/docs", "/redoc", "/openapi.json"}
 
     async def dispatch(self, request: Request, call_next):
@@ -121,9 +113,7 @@ class CorrelationIDMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next):
-        correlation_id = request.headers.get(
-            "X-Correlation-ID", f"req-{uuid4().hex[:12]}"
-        )
+        correlation_id = request.headers.get("X-Correlation-ID", f"req-{uuid4().hex[:12]}")
         request.state.correlation_id = correlation_id
 
         response = await call_next(request)

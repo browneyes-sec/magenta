@@ -1,6 +1,5 @@
 """Generic webhook handler for custom integrations."""
 
-
 from magenta.core.mission import mission_manager
 from magenta.core.models import MissionStatus
 

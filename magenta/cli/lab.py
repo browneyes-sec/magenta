@@ -94,15 +94,18 @@ def simulate(
 
     print_success(f"Simulation complete: {mission.mission_id[:8]}")
 
-    print_output({
-        "mission_id": mission.mission_id[:8],
-        "scenario": config["name"],
-        "status": mission.status.value,
-        "severity": mission.severity.value,
-        "tasks": len(mission.tasks),
-        "team_size": len(mission.team),
-        "duration_simulated": f"{speed * 5}s",
-    }, format=format)
+    print_output(
+        {
+            "mission_id": mission.mission_id[:8],
+            "scenario": config["name"],
+            "status": mission.status.value,
+            "severity": mission.severity.value,
+            "tasks": len(mission.tasks),
+            "team_size": len(mission.team),
+            "duration_simulated": f"{speed * 5}s",
+        },
+        format=format,
+    )
 
 
 @lab_app.command()
@@ -120,13 +123,16 @@ def test(
         print_info("Interactive mode (stub — REPL pending)")
         return
 
-    print_output({
-        "agent": agent_role,
-        "status": "completed",
-        "turns": 1,
-        "response": f"[Simulated response from {agent_role} agent]",
-        "latency_ms": 2400,
-    }, format=format)
+    print_output(
+        {
+            "agent": agent_role,
+            "status": "completed",
+            "turns": 1,
+            "response": f"[Simulated response from {agent_role} agent]",
+            "latency_ms": 2400,
+        },
+        format=format,
+    )
 
 
 @lab_app.command()

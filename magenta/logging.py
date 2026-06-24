@@ -36,11 +36,30 @@ class StructuredFormatter(logging.Formatter):
         # Include any extra fields not in REQUIRED_FIELDS
         for key, value in record.__dict__.items():
             if key not in {
-                "name", "msg", "args", "created", "filename", "funcName",
-                "levelname", "levelno", "lineno", "module", "msecs",
-                "message", "msg", "name", "pathname", "process",
-                "processName", "relativeCreated", "thread", "threadName",
-                "exc_info", "exc_text", "stack_info", "getMessage",
+                "name",
+                "msg",
+                "args",
+                "created",
+                "filename",
+                "funcName",
+                "levelname",
+                "levelno",
+                "lineno",
+                "module",
+                "msecs",
+                "message",
+                "msg",
+                "name",
+                "pathname",
+                "process",
+                "processName",
+                "relativeCreated",
+                "thread",
+                "threadName",
+                "exc_info",
+                "exc_text",
+                "stack_info",
+                "getMessage",
             }:
                 if key not in log_entry:
                     log_entry[key] = value
@@ -132,9 +151,7 @@ def setup_structured_logging(level: int = logging.INFO, json_format: bool = True
     if json_format:
         handler.setFormatter(StructuredFormatter())
     else:
-        handler.setFormatter(logging.Formatter(
-            "%(asctime)s %(levelname)s %(name)s %(message)s"
-        ))
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
     root.addHandler(handler)
 
     # Reduce noise from third-party loggers

@@ -1,6 +1,5 @@
 """LLM Gateway — policy evaluation, redaction, routing, audit chain."""
 
-
 from magenta.exceptions import ModelError
 from magenta.gateway.audit import AuditLogger
 from magenta.gateway.cache import SemanticCache

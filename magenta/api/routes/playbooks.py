@@ -1,6 +1,5 @@
 """API routes — playbooks."""
 
-
 from fastapi import APIRouter, HTTPException, Query
 
 from magenta.core.models import Playbook

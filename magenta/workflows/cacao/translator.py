@@ -143,10 +143,12 @@ class CACAOTranslator:
             source_key = step.get("id", f"step--{i}")
             source_id = step_id_map.get(source_key, source_key)
             if next_step and next_step in step_id_map:
-                edges.append({
-                    "source": source_id,
-                    "target": step_id_map[next_step],
-                })
+                edges.append(
+                    {
+                        "source": source_id,
+                        "target": step_id_map[next_step],
+                    }
+                )
 
         for completion in on_completion:
             if isinstance(completion, dict):
@@ -182,9 +184,7 @@ class CACAOTranslator:
 
         return node
 
-    def _map_cacao_type_to_magenta(
-        self, step_type: str, action_type: str
-    ) -> str:
+    def _map_cacao_type_to_magenta(self, step_type: str, action_type: str) -> str:
         mapping = {
             "action": "action",
             "decision": "decision",
@@ -212,9 +212,7 @@ class CACAOTranslator:
 
     # ── Magenta → CACAO ────────────────────────────────────────────────
 
-    def _translate_nodes_to_steps(
-        self, pb: PlaybookV2
-    ) -> tuple[list[dict], dict[str, str]]:
+    def _translate_nodes_to_steps(self, pb: PlaybookV2) -> tuple[list[dict], dict[str, str]]:
         workflow = pb.spec.get("workflow", {})
         nodes = workflow.get("nodes", [])
         steps = []
@@ -231,12 +229,8 @@ class CACAOTranslator:
 
         return steps, step_map
 
-    def _node_to_step(
-        self, node_id: str, node_type: str, config: dict
-    ) -> dict:
-        cacao_type, action_type = self._map_magenta_type_to_cacao(
-            node_type, config
-        )
+    def _node_to_step(self, node_id: str, node_type: str, config: dict) -> dict:
+        cacao_type, action_type = self._map_magenta_type_to_cacao(node_type, config)
 
         clean_id = node_id.removeprefix("step--")
         step = {
@@ -254,9 +248,7 @@ class CACAOTranslator:
 
         return step
 
-    def _map_magenta_type_to_cacao(
-        self, node_type: str, config: dict
-    ) -> tuple[str, str]:
+    def _map_magenta_type_to_cacao(self, node_type: str, config: dict) -> tuple[str, str]:
         mapping = {
             "ingest": ("action", "http-request"),
             "agentic": ("serial", "llm"),

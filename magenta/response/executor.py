@@ -30,6 +30,7 @@ class DurableApprovalStore:
             return self._redis
         try:
             import redis.asyncio as aioredis
+
             client = aioredis.from_url(self._redis_url, decode_responses=True)
             await client.ping()
             self._redis = client
@@ -196,7 +197,10 @@ class ActionExecutor:
 
         base_risk = risk_map.get(action, 30)
         criticality_modifier = {
-            "critical": 20, "high": 10, "medium": 0, "low": -10,
+            "critical": 20,
+            "high": 10,
+            "medium": 0,
+            "low": -10,
         }
         mod = criticality_modifier.get(
             target.asset_criticality.value if target.asset_criticality else "medium", 0

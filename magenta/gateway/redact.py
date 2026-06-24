@@ -27,6 +27,7 @@ class RedactionLayer:
             fields = request.redaction_policy.get("fields", fields)
 
         import copy
+
         redacted = copy.deepcopy(request)
 
         for i, msg in enumerate(redacted.messages):

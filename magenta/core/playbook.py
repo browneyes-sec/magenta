@@ -30,6 +30,7 @@ class PlaybookManager:
             data = json.loads(raw)
         elif path.suffix == ".toml":
             import tomli
+
             data = tomli.loads(raw)
         else:
             raise PlaybookError(f"Unsupported playbook format: {path.suffix}")

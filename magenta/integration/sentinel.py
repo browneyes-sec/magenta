@@ -80,9 +80,12 @@ class SentinelConnector:
             return {"status": "no_records"}
 
         token = await self._get_token()
-        url = f"https://{self.workspace_id}.ods.opinsights.azure.com/api/logs?api-version=2016-04-01"
+        url = (
+            f"https://{self.workspace_id}.ods.opinsights.azure.com/api/logs?api-version=2016-04-01"
+        )
 
         import json
+
         body = json.dumps(records)
 
         async with httpx.AsyncClient(timeout=60.0) as client:

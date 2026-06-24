@@ -107,6 +107,7 @@ def _icon_for_type(dtype: str) -> str:
 def _time_ago(ts_str: str) -> str:
     try:
         from dateutil.parser import isoparse
+
         dt = isoparse(ts_str)
         delta = datetime.utcnow() - dt.replace(tzinfo=None)
         if delta.total_seconds() < 60:

@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from opentelemetry import trace
+
     _tracer = trace.get_tracer("magenta.lineage")
 except Exception:
     _tracer = None
@@ -48,18 +49,22 @@ class LineageEvent:
         self.facets: dict[str, Any] = {}
 
     def add_input(self, name: str, namespace: str = "magenta", **kwargs: Any) -> None:
-        self.inputs.append({
-            "name": name,
-            "namespace": namespace,
-            **kwargs,
-        })
+        self.inputs.append(
+            {
+                "name": name,
+                "namespace": namespace,
+                **kwargs,
+            }
+        )
 
     def add_output(self, name: str, namespace: str = "magenta", **kwargs: Any) -> None:
-        self.outputs.append({
-            "name": name,
-            "namespace": namespace,
-            **kwargs,
-        })
+        self.outputs.append(
+            {
+                "name": name,
+                "namespace": namespace,
+                **kwargs,
+            }
+        )
 
     def add_facet(self, name: str, facet: dict[str, Any]) -> None:
         self.facets[name] = facet

@@ -125,6 +125,7 @@ class ApprovalRequest(BaseModel):
     def model_post_init(self, __context):
         if not self.expires_at:
             from datetime import timedelta
+
             self.expires_at = datetime.utcnow() + timedelta(minutes=15)
 
 
@@ -148,6 +149,7 @@ class Evidence(BaseModel):
 
 class AutomationActivity(BaseModel):
     """Canonical automation.activity event schema."""
+
     schema_version: str = "1.0"
     event_type: EventType = EventType.automation_activity
     event_id: str = Field(default_factory=lambda: str(uuid4()))
@@ -306,7 +308,7 @@ class PlaybookV2(BaseModel):
                 "orchestration": legacy.orchestration,
                 "stages": legacy.stages,
                 "governance": legacy.governance,
-            }
+            },
         )
 
     def to_legacy(self) -> Playbook:
@@ -334,5 +336,3 @@ class ComponentHealth(BaseModel):
     error_rate: float = 0.0
     message: str = ""
     last_check: datetime = Field(default_factory=datetime.utcnow)
-
-

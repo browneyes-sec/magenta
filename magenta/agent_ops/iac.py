@@ -40,13 +40,17 @@ class IaCEngine:
             timeout=300,
         )
 
-    def plan(self, environment: str = "dev", module_path: str = "", variables: dict | None = None) -> dict:
+    def plan(
+        self, environment: str = "dev", module_path: str = "", variables: dict | None = None
+    ) -> dict:
         """Generate a Terraform plan for an environment."""
         env_dir = self.terraform_dir / "environments" / environment
         if not env_dir.exists():
             return {"error": f"Environment not found: {environment}", "plan": ""}
 
-        result = self._tf_cmd("plan", "-input=false", "-detailed-exitcode", "-no-color", cwd=env_dir)
+        result = self._tf_cmd(
+            "plan", "-input=false", "-detailed-exitcode", "-no-color", cwd=env_dir
+        )
         exit_ok = result.returncode in (0, 2)  # 0=no changes, 2=has changes
         return {
             "environment": environment,
@@ -85,16 +89,23 @@ class IaCEngine:
         """
         env_dir = self.terraform_dir / "environments" / environment
         if not env_dir.exists():
-            return {"error": f"Environment not found: {environment}", "drifted_resources": 0, "details": []}
+            return {
+                "error": f"Environment not found: {environment}",
+                "drifted_resources": 0,
+                "details": [],
+            }
 
         # Refresh state then plan to detect drift
         self._tf_cmd("refresh", "-input=false", cwd=env_dir)
-        result = self._tf_cmd("plan", "-input=false", "-detailed-exitcode", "-no-color", cwd=env_dir)
+        result = self._tf_cmd(
+            "plan", "-input=false", "-detailed-exitcode", "-no-color", cwd=env_dir
+        )
 
         drifted = result.returncode == 2
         details = []
         if drifted and result.stdout:
             import re
+
             for line in result.stdout.splitlines():
                 if re.match(r"^\s*[#~+\-]", line) and not re.match(r"^\s*# ", line):
                     details.append(line.strip())

@@ -43,7 +43,9 @@ async def run_collector(collector: BaseCollector, interval: int) -> None:
             try:
                 events = await collector.collect()
                 if events:
-                    logger.info("Collector %s produced %d events", collector.config.name, len(events))
+                    logger.info(
+                        "Collector %s produced %d events", collector.config.name, len(events)
+                    )
                     # TODO: publish to Event Hubs via magenta.integration.eventhub
             except Exception as e:
                 logger.exception("Collector %s error: %s", collector.config.name, e)
@@ -97,8 +99,7 @@ async def main() -> int:
 
     # Run all collectors concurrently
     tasks = [
-        asyncio.create_task(run_collector(c, c.config.poll_interval_seconds))
-        for c in collectors
+        asyncio.create_task(run_collector(c, c.config.poll_interval_seconds)) for c in collectors
     ]
 
     # Graceful shutdown

@@ -63,7 +63,11 @@ def actions_describe(
             "requires_approval": True,
             "parameters": [
                 {"name": "user_principal_name", "type": "string", "required": True},
-                {"name": "reason", "type": "enum", "values": ["compromised", "malicious", "policy"]},
+                {
+                    "name": "reason",
+                    "type": "enum",
+                    "values": ["compromised", "malicious", "policy"],
+                },
             ],
             "auth": "managed_identity",
         },
@@ -101,13 +105,16 @@ def actions_execute(
         print_info("Risk assessment required (stub — approval gate pending)")
     print_success(f"Action '{action_name}' executed (stub)")
 
-    print_output({
-        "action": action_name,
-        "target": target,
-        "status": "queued",
-        "requires_approval": not force,
-        "execution_id": f"exec-{datetime.utcnow().timestamp():.0f}",
-    }, format=format)
+    print_output(
+        {
+            "action": action_name,
+            "target": target,
+            "status": "queued",
+            "requires_approval": not force,
+            "execution_id": f"exec-{datetime.utcnow().timestamp():.0f}",
+        },
+        format=format,
+    )
 
 
 # --- Approval sub-group ---
@@ -123,12 +130,28 @@ def approval_list(
 ):
     """List pending approvals."""
     print_info("Pending approvals (stub — data layer integration pending)")
-    print_output([
-        {"id": "apr-001", "action": "disable_account", "target": "user@fin.com",
-         "risk": 65, "agent": "contain_agent", "status": "pending"},
-        {"id": "apr-002", "action": "isolate_host", "target": "FIN-PROD-347",
-         "risk": 80, "agent": "contain_agent", "status": "pending"},
-    ], format=format, columns=["ID", "Action", "Target", "Risk", "Agent", "Status"])
+    print_output(
+        [
+            {
+                "id": "apr-001",
+                "action": "disable_account",
+                "target": "user@fin.com",
+                "risk": 65,
+                "agent": "contain_agent",
+                "status": "pending",
+            },
+            {
+                "id": "apr-002",
+                "action": "isolate_host",
+                "target": "FIN-PROD-347",
+                "risk": 80,
+                "agent": "contain_agent",
+                "status": "pending",
+            },
+        ],
+        format=format,
+        columns=["ID", "Action", "Target", "Risk", "Agent", "Status"],
+    )
 
 
 @approval_app.command("approve")
@@ -162,12 +185,26 @@ def incidents_list(
 ):
     """List active incidents."""
     print_info("Incidents (stub — Sentinel integration pending)")
-    print_output([
-        {"id": "inc-8932", "severity": "high", "status": "active",
-         "source": "Sentinel", "created": "2026-06-13T18:00:00Z"},
-        {"id": "inc-8933", "severity": "medium", "status": "active",
-         "source": "Splunk", "created": "2026-06-13T18:30:00Z"},
-    ], format=format, columns=["ID", "Severity", "Status", "Source", "Created"])
+    print_output(
+        [
+            {
+                "id": "inc-8932",
+                "severity": "high",
+                "status": "active",
+                "source": "Sentinel",
+                "created": "2026-06-13T18:00:00Z",
+            },
+            {
+                "id": "inc-8933",
+                "severity": "medium",
+                "status": "active",
+                "source": "Splunk",
+                "created": "2026-06-13T18:30:00Z",
+            },
+        ],
+        format=format,
+        columns=["ID", "Severity", "Status", "Source", "Created"],
+    )
 
 
 @incidents_app.command("show")

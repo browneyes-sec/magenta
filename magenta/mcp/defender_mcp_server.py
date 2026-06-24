@@ -1,7 +1,6 @@
 """MCP server — Microsoft Defender for Endpoint machine status and alerts."""
 
 
-
 class DefenderMCPServer:
     """MCP tools for Microsoft Defender for Endpoint."""
 
@@ -20,6 +19,7 @@ class DefenderMCPServer:
         """
         try:
             from magenta.integration.defender import defender_connector
+
             result = await defender_connector.get_machine(machine_id)
             return {"status": "success", "machine": result}
         except Exception as exc:
@@ -37,6 +37,7 @@ class DefenderMCPServer:
         """
         try:
             from magenta.integration.defender import defender_connector
+
             result = await defender_connector.list_alerts(machine_id, limit=limit)
             return {"status": "success", "alerts": result, "count": len(result)}
         except Exception as exc:
@@ -55,6 +56,7 @@ class DefenderMCPServer:
         try:
             from magenta.core.models import ActionType
             from magenta.integration.defender import defender_connector
+
             result = await defender_connector.execute_action(
                 ActionType.isolate_host, machine_id, {"reason": reason}
             )
@@ -73,6 +75,7 @@ class DefenderMCPServer:
         """
         try:
             from magenta.integration.defender import defender_connector
+
             result = await defender_connector.get_machine_health(machine_id)
             return {"status": "success", "health": result}
         except Exception as exc:

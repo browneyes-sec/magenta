@@ -44,6 +44,7 @@ def _discover_probes() -> dict[str, str]:
 def _load_probe(name: str) -> dict:
     """Load and execute a probe module, returning its results."""
     import importlib.util
+
     path = PROBE_REGISTRY.get(name)
     if not path:
         return {"probe": name, "status": "error", "error": f"Probe '{name}' not found"}
@@ -220,8 +221,11 @@ def report(
         print_table(
             ["Probe", "Status", "Details"],
             [
-                [r["probe"], status_badge("completed" if r["status"] == "completed" else "failed"),
-                 str(r.get("result", r.get("error", "")))[:40]]
+                [
+                    r["probe"],
+                    status_badge("completed" if r["status"] == "completed" else "failed"),
+                    str(r.get("result", r.get("error", "")))[:40],
+                ]
                 for r in probe_results
             ],
             title="Probe Results",
@@ -230,7 +234,9 @@ def report(
 
 @state_app.command()
 def attest(
-    mission_id: str | None = typer.Option(None, "--mission", "-m", help="Attest a specific mission"),
+    mission_id: str | None = typer.Option(
+        None, "--mission", "-m", help="Attest a specific mission"
+    ),
     all_missions: bool = typer.Option(False, "--all", help="Attest all completed missions"),
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
@@ -276,7 +282,9 @@ def attest(
         entry = {
             "mission_id": mission.mission_id[:12],
             "alert_id": mission.alert_id[:20],
-            "severity": mission.severity.value if hasattr(mission.severity, "value") else mission.severity,
+            "severity": mission.severity.value
+            if hasattr(mission.severity, "value")
+            else mission.severity,
             "status": mission.status.value if hasattr(mission.status, "value") else mission.status,
             "tasks": task_count,
             "directives": directive_count,

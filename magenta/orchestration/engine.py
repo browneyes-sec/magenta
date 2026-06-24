@@ -49,8 +49,16 @@ class OrchestrationEngine:
         """Get mission execution logs."""
         mission = mission_manager.get(mission_id)
         return [
-            {"timestamp": mission.created_at.isoformat(), "level": "INFO", "message": "Mission created"},
-            {"timestamp": mission.updated_at.isoformat(), "level": "INFO", "message": f"Status: {mission.status.value}"},
+            {
+                "timestamp": mission.created_at.isoformat(),
+                "level": "INFO",
+                "message": "Mission created",
+            },
+            {
+                "timestamp": mission.updated_at.isoformat(),
+                "level": "INFO",
+                "message": f"Status: {mission.status.value}",
+            },
         ]
 
     def is_running(self, mission_id: str) -> bool:

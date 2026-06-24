@@ -28,7 +28,9 @@ orchestrate_app = typer.Typer(
 def start(
     playbook: str = typer.Argument(..., help="Playbook file path or incident ID"),
     params: str | None = typer.Option(None, "--params", help="JSON mission parameters"),
-    from_incident: bool = typer.Option(False, "--from-incident", help="Treat argument as incident ID"),
+    from_incident: bool = typer.Option(
+        False, "--from-incident", help="Treat argument as incident ID"
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Validate without executing"),
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
@@ -62,16 +64,20 @@ def start(
             return
 
         import asyncio
+
         asyncio.run(swarm_manager.execute_mission(mission.mission_id))
 
         print_success(f"Mission started: {mission.mission_id}")
-        print_output({
-            "mission_id": mission.mission_id,
-            "status": mission.status.value,
-            "tasks": len(mission.tasks),
-            "agents": len(mission.team),
-            "created_at": mission.created_at.isoformat(),
-        }, format=format)
+        print_output(
+            {
+                "mission_id": mission.mission_id,
+                "status": mission.status.value,
+                "tasks": len(mission.tasks),
+                "agents": len(mission.team),
+                "created_at": mission.created_at.isoformat(),
+            },
+            format=format,
+        )
 
     except Exception as e:
         print_error(str(e))
@@ -86,6 +92,7 @@ def stop(
     """Stop a running mission."""
     try:
         import asyncio
+
         asyncio.run(swarm_manager.cancel_mission(mission_id))
         print_success(f"Mission {mission_id} stopped")
     except Exception as e:
@@ -123,9 +130,13 @@ def status(
             print_table(
                 ["Task ID", "Type", "Role", "Agent", "Status"],
                 [
-                    [a["task_id"][:16], a["task_type"], a["role"],
-                     a["agent_id"][:16] if a["agent_id"] else "unassigned",
-                     status_badge(a["status"])]
+                    [
+                        a["task_id"][:16],
+                        a["task_type"],
+                        a["role"],
+                        a["agent_id"][:16] if a["agent_id"] else "unassigned",
+                        status_badge(a["status"]),
+                    ]
                     for a in agents
                 ],
                 title="Agent Assignments",
@@ -138,7 +149,9 @@ def status(
 
 @orchestrate_app.command()
 def list_(
-    status_filter: str | None = typer.Option(None, "--status", help="Filter: active/completed/failed/all"),
+    status_filter: str | None = typer.Option(
+        None, "--status", help="Filter: active/completed/failed/all"
+    ),
     limit: int = typer.Option(50, "--limit", help="Max results"),
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
@@ -176,10 +189,22 @@ def logs(
     """View mission execution logs."""
     mission = mission_manager.get(mission_id)
     print_info(f"Logs for mission {mission_id[:8]} (stub — registry integration pending)")
-    print_output([
-        {"timestamp": datetime.utcnow().isoformat(), "level": "INFO", "message": "Mission created"},
-        {"timestamp": mission.created_at.isoformat(), "level": "INFO", "message": f"Status: {mission.status.value}"},
-    ], format=format, columns=["Timestamp", "Level", "Message"])
+    print_output(
+        [
+            {
+                "timestamp": datetime.utcnow().isoformat(),
+                "level": "INFO",
+                "message": "Mission created",
+            },
+            {
+                "timestamp": mission.created_at.isoformat(),
+                "level": "INFO",
+                "message": f"Status: {mission.status.value}",
+            },
+        ],
+        format=format,
+        columns=["Timestamp", "Level", "Message"],
+    )
 
 
 # Alias for list since 'list' is a reserved word

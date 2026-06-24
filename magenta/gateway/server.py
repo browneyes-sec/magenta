@@ -1,6 +1,5 @@
 """FastAPI LLM Gateway Service — external proxy endpoint."""
 
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 

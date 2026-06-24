@@ -26,11 +26,13 @@ class RuleEngine:
         matches = []
         for rule in self._rules:
             if self._match_condition(rule.get("condition", {}), alert):
-                matches.append({
-                    "rule": rule.get("name", "unknown"),
-                    "action": rule.get("action"),
-                    "priority": rule.get("priority", 0),
-                })
+                matches.append(
+                    {
+                        "rule": rule.get("name", "unknown"),
+                        "action": rule.get("action"),
+                        "priority": rule.get("priority", 0),
+                    }
+                )
         return sorted(matches, key=lambda m: m["priority"], reverse=True)
 
     def _match_condition(self, condition: dict, alert: dict) -> bool:

@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from magenta.telemetry import get_tracer
+
     _tracer = get_tracer("cdc.connector")
 except Exception:
     _tracer = None
@@ -182,7 +183,9 @@ class NoSQLCDCConnector(CDCConnector):
         self._stats["started_at"] = time.time()
         logger.info(
             "NoSQL CDC connector started: name=%s db=%s collections=%s",
-            self.name, self.database, self.watched_collections,
+            self.name,
+            self.database,
+            self.watched_collections,
         )
 
     async def stop(self) -> None:
@@ -318,10 +321,7 @@ class CDCManager:
         return all_events
 
     def get_stats(self) -> dict[str, Any]:
-        return {
-            name: connector.get_stats()
-            for name, connector in self._connectors.items()
-        }
+        return {name: connector.get_stats() for name, connector in self._connectors.items()}
 
 
 # Module-level singleton

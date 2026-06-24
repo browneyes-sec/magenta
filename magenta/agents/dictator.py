@@ -41,6 +41,7 @@ class DictatorAgent(LLMAgent):
       - Maintains real-time oversight of all active missions
       - Can override teaming structures, inject probes, halt missions
     """
+
     sensitivity_level = "high"
     task_type = "command"
 
@@ -56,9 +57,17 @@ You have executive access to all agents, probes, data mesh, CLI, API, and core s
 Your role is to command missions, issue directives, enforce policies, and maintain
 oversight of all active operations. You can deploy or recall any agent, override
 teaming structures, inject probes, halt missions, and escalate incidents.""",
-                tools=["deploy_agent", "recall_agent", "issue_directive",
-                       "override_teaming", "inject_probe", "halt_mission",
-                       "escalate", "run_playbook", "query_mesh"],
+                tools=[
+                    "deploy_agent",
+                    "recall_agent",
+                    "issue_directive",
+                    "override_teaming",
+                    "inject_probe",
+                    "halt_mission",
+                    "escalate",
+                    "run_playbook",
+                    "query_mesh",
+                ],
                 max_concurrent_tasks=10,
                 max_turns=50,
                 risk_tolerance=0.9,
@@ -193,6 +202,7 @@ teaming structures, inject probes, halt missions, and escalate incidents.""",
             class _GenericAgent(BaseAgent):
                 async def process(self, mission, context):
                     return {"role": self.role, "status": "deployed"}
+
             agent_cls = _GenericAgent
 
         agent = agent_cls(cfg)
@@ -328,10 +338,10 @@ teaming structures, inject probes, halt missions, and escalate incidents.""",
     async def get_framework_status(self) -> dict[str, Any]:
         """Return comprehensive framework status."""
         return {
-        "dictator": {
-            "status": self.status.value if hasattr(self.status, "value") else str(self.status),
-            "turn_count": self.turn_count,
-        },
+            "dictator": {
+                "status": self.status.value if hasattr(self.status, "value") else str(self.status),
+                "turn_count": self.turn_count,
+            },
             "registry": {
                 "agents_by_role": agent_registry.counts,
                 "total_agents": len(agent_registry.all_agents()),

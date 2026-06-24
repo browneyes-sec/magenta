@@ -43,10 +43,7 @@ class Scheduler:
 
     async def list(self) -> list[dict]:
         """List scheduled tasks."""
-        return [
-            {"name": name, "running": not task.done()}
-            for name, task in self._tasks.items()
-        ]
+        return [{"name": name, "running": not task.done()} for name, task in self._tasks.items()]
 
     async def stop_all(self) -> None:
         """Stop all scheduled tasks."""

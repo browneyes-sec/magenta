@@ -1,6 +1,5 @@
 """API routes — missions."""
 
-
 from fastapi import APIRouter, HTTPException, Query
 
 from magenta.core.mission import mission_manager

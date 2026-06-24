@@ -26,9 +26,14 @@ class WindowsEventCollector(BaseCollector):
         self._password = config.options.get("password", "")
         self._use_ssl = config.options.get("use_ssl", True)
         self._transport = config.options.get("transport", "ssl")  # ssl | kerberos | ntlm
-        self._event_logs = config.options.get("event_logs", [
-            "Security", "System", "Application",
-        ])
+        self._event_logs = config.options.get(
+            "event_logs",
+            [
+                "Security",
+                "System",
+                "Application",
+            ],
+        )
         self._max_events = config.options.get("max_events_per_log", 500)
         self._lookback_hours = config.options.get("lookback_hours", 24)
         self._last_poll: str | None = None
@@ -66,16 +71,20 @@ class WindowsEventCollector(BaseCollector):
                     line = line.strip()
                     if not line:
                         continue
-                    events.append({
-                        "_collector": self.config.name,
-                        "_host": self._host,
-                        "_log": log_name,
-                        "_raw": line,
-                        "_polled_at": datetime.now(UTC).isoformat(),
-                    })
+                    events.append(
+                        {
+                            "_collector": self.config.name,
+                            "_host": self._host,
+                            "_log": log_name,
+                            "_raw": line,
+                            "_polled_at": datetime.now(UTC).isoformat(),
+                        }
+                    )
 
             self._last_poll = datetime.now(UTC).isoformat()
-            logger.info("WinRM polled %d events from %s logs=%s", len(events), self._host, self._event_logs)
+            logger.info(
+                "WinRM polled %d events from %s logs=%s", len(events), self._host, self._event_logs
+            )
         except Exception as e:
             logger.exception("WinRM poll failed for %s: %s", self._host, e)
 

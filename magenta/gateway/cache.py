@@ -48,12 +48,15 @@ class SemanticCache:
         self._store[key] = (response, self._now(), data)
 
     def _make_key(self, request: ModelRequest) -> str:
-        content = json.dumps({
-            "system": request.system,
-            "messages": request.messages,
-            "temperature": request.temperature,
-            "max_tokens": request.max_tokens,
-        }, sort_keys=True)
+        content = json.dumps(
+            {
+                "system": request.system,
+                "messages": request.messages,
+                "temperature": request.temperature,
+                "max_tokens": request.max_tokens,
+            },
+            sort_keys=True,
+        )
         return hashlib.sha256(content.encode()).hexdigest()
 
     def _extract_text(self, request: ModelRequest) -> dict:
@@ -89,4 +92,5 @@ class SemanticCache:
     @staticmethod
     def _now() -> float:
         import time
+
         return time.monotonic()

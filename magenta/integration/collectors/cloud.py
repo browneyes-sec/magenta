@@ -23,9 +23,14 @@ class AzureMonitorCollector(BaseCollector):
     def __init__(self, config: CollectorConfig):
         super().__init__(config)
         self._workspace_id = config.options.get("workspace_id", "")
-        self._tables = config.options.get("tables", [
-            "AzureActivity", "SecurityEvent", "SigninLogs",
-        ])
+        self._tables = config.options.get(
+            "tables",
+            [
+                "AzureActivity",
+                "SecurityEvent",
+                "SigninLogs",
+            ],
+        )
         self._lookback_hours = config.options.get("lookback_hours", 1)
         self._credential: DefaultAzureCredential | None = None
         self._token: str | None = None
@@ -51,7 +56,10 @@ class AzureMonitorCollector(BaseCollector):
                 try:
                     resp = await client.post(
                         f"https://api.loganalytics.io/v1/workspaces/{self._workspace_id}/query",
-                        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                        headers={
+                            "Authorization": f"Bearer {token}",
+                            "Content-Type": "application/json",
+                        },
                         json={"query": query},
                     )
                     resp.raise_for_status()
@@ -133,7 +141,9 @@ class EntraIDLogCollector(BaseCollector):
                     url = f"https://graph.microsoft.com/v1.0/{log_type}"
                     params = {"$filter": f"createdDateTime ge {since}", "$top": 1000}
                     while url:
-                        resp = await client.get(url, headers=headers, params=params if "?" not in url else {})
+                        resp = await client.get(
+                            url, headers=headers, params=params if "?" not in url else {}
+                        )
                         resp.raise_for_status()
                         data = resp.json()
                         for record in data.get("value", []):
@@ -173,6 +183,7 @@ class AWSCloudTrailCollector(BaseCollector):
             return []
         try:
             import aioboto3
+
             session = aioboto3.Session()
             events: list[dict] = []
             async with session.client("s3", region_name=self._region) as s3:
@@ -183,6 +194,7 @@ class AWSCloudTrailCollector(BaseCollector):
                             resp = await s3.get_object(Bucket=self._bucket, Key=obj["Key"])
                             body = await resp["Body"].read()
                             import json
+
                             records = json.loads(body).get("Records", [])
                             for r in records:
                                 r["_s3_key"] = obj["Key"]
@@ -219,9 +231,11 @@ class GCPLoggingCollector(BaseCollector):
         try:
             from google.cloud import pubsub_v1
 
-            subscriber = pubsub_v1.SubscriberClient.from_service_account_json(
-                self._credentials_path
-            ) if self._credentials_path else pubsub_v1.SubscriberClient()
+            subscriber = (
+                pubsub_v1.SubscriberClient.from_service_account_json(self._credentials_path)
+                if self._credentials_path
+                else pubsub_v1.SubscriberClient()
+            )
 
             subscription_path = subscriber.subscription_path(self._project, self._subscription)
             events: list[dict] = []
@@ -235,6 +249,7 @@ class GCPLoggingCollector(BaseCollector):
             )
             for msg in response.received_messages:
                 import json
+
                 events.append(json.loads(msg.message.data))
                 subscriber.acknowledge(
                     request={"subscription": subscription_path, "ack_ids": [msg.ack_id]},

@@ -25,15 +25,23 @@ chaos_app = typer.Typer(
 
 @chaos_app.command()
 def run(
-    scenario: str | None = typer.Argument(None, help="Scenario name or comma-separated list (default: all enabled)"),
+    scenario: str | None = typer.Argument(
+        None, help="Scenario name or comma-separated list (default: all enabled)"
+    ),
     intensity: int = typer.Option(3, "--intensity", "-i", help="Injection intensity 1-5"),
     stealth: bool = typer.Option(False, "--stealth", help="Enable stealth mode (delayed logging)"),
     timeout: int = typer.Option(300, "--timeout", help="Timeout in seconds"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would happen without injecting"),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Show what would happen without injecting"
+    ),
     probes: bool = typer.Option(True, "--probes/--no-probes", help="Run probes after chaos"),
-    regression: bool = typer.Option(True, "--regression/--no-regression", help="Run regression after chaos"),
+    regression: bool = typer.Option(
+        True, "--regression/--no-regression", help="Run regression after chaos"
+    ),
     output: str | None = typer.Option(None, "--output", help="Export report to file"),
-    format: str = typer.Option("markdown", "--format", "-f", help="Export format: markdown (default), json"),
+    format: str = typer.Option(
+        "markdown", "--format", "-f", help="Export format: markdown (default), json"
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
 ):
     """Run chaos scenarios with auto-validation.
@@ -45,7 +53,9 @@ def run(
     from chaos_engineering.chaos import ChaosEngine
 
     print_info("Chaos Engine initializing...")
-    print_info(f"Intensity: {intensity} | Stealth: {'ON' if stealth else 'OFF'} | Timeout: {timeout}s")
+    print_info(
+        f"Intensity: {intensity} | Stealth: {'ON' if stealth else 'OFF'} | Timeout: {timeout}s"
+    )
 
     if dry_run:
         print_warning("DRY RUN — no injection will occur")
@@ -61,19 +71,23 @@ def run(
     )
 
     # Display results
-    print_info(f"\n{'='*60}")
+    print_info(f"\n{'=' * 60}")
     print_info(f"Chaos Run Complete: {result.run_id}")
-    print_info(f"{'='*60}")
+    print_info(f"{'=' * 60}")
 
     verdict_badge = status_badge(result.verdict)
     print_info(f"Verdict: {verdict_badge}")
     print_info(f"Duration: {result.duration_seconds:.1f}s")
-    print_info(f"Scenarios: {result.scenarios_passed} passed, {result.scenarios_failed} failed, {result.scenarios_skipped} skipped")
+    print_info(
+        f"Scenarios: {result.scenarios_passed} passed, {result.scenarios_failed} failed, {result.scenarios_skipped} skipped"
+    )
 
     # Probe snapshot
     pre_passed = sum(1 for p in result.baseline_probes if p.get("healthy"))
     post_passed = sum(1 for p in result.post_probes if p.get("healthy"))
-    print_info(f"Probes: {pre_passed}/{len(result.baseline_probes)} pre → {post_passed}/{len(result.post_probes)} post")
+    print_info(
+        f"Probes: {pre_passed}/{len(result.baseline_probes)} pre → {post_passed}/{len(result.post_probes)} post"
+    )
 
     # Regression
     if result.regression:
@@ -87,10 +101,12 @@ def run(
         print_table(
             ["Scenario", "Status", "Recovery", "Details"],
             [
-                [r.scenario,
-                 status_badge(r.status),
-                 f"{r.recovery_time_seconds:.1f}s" if r.recovery_time_seconds else "—",
-                 str(r.injection_details)[:50]]
+                [
+                    r.scenario,
+                    status_badge(r.status),
+                    f"{r.recovery_time_seconds:.1f}s" if r.recovery_time_seconds else "—",
+                    str(r.injection_details)[:50],
+                ]
                 for r in result.results
             ],
             title="Scenario Results",
@@ -100,6 +116,7 @@ def run(
     if output:
         if format == "json":
             from chaos_engineering.attestation.report_generator import ReportGenerator
+
             gen = ReportGenerator({})
             with open(output, "w") as f:
                 json.dump(gen._to_dict(result), f, indent=2, default=str)
@@ -109,6 +126,7 @@ def run(
             files = list(cert_dir.glob(f"*{result.run_id.split('-', 1)[1]}*"))
             if files:
                 import shutil
+
                 shutil.copy(files[0], output)
                 print_success(f"Markdown report exported to {output}")
 
@@ -156,12 +174,14 @@ def scenarios(
         if enabled_only and not cfg.get("enabled", True):
             continue
         status = "✅ enabled" if cfg.get("enabled", True) else "❌ disabled"
-        rows.append([
-            name,
-            status,
-            cfg.get("severity", "unknown"),
-            cfg.get("description", "")[:40],
-        ])
+        rows.append(
+            [
+                name,
+                status,
+                cfg.get("severity", "unknown"),
+                cfg.get("description", "")[:40],
+            ]
+        )
 
     print_table(
         ["Scenario", "Status", "Severity", "Description"],
@@ -173,9 +193,13 @@ def scenarios(
 @chaos_app.command()
 def report(
     run_id: str | None = typer.Option(None, "--run-id", help="Report run ID (default: latest)"),
-    recommendations: bool = typer.Option(True, "--recommendations/--no-recommendations", help="Include recommendations"),
+    recommendations: bool = typer.Option(
+        True, "--recommendations/--no-recommendations", help="Include recommendations"
+    ),
     output: str | None = typer.Option(None, "--output", help="Export to file"),
-    format: str = typer.Option("markdown", "--format", "-f", help="Export format: markdown (default), json"),
+    format: str = typer.Option(
+        "markdown", "--format", "-f", help="Export format: markdown (default), json"
+    ),
 ):
     """Generate or view chaos report from last run."""
     cert_dir = Path("docs/certifications")

@@ -55,6 +55,7 @@ async def get_agents_by_role(role: str):
 async def register_agent(config: AgentConfig):
     """Register a new agent."""
     from magenta.agents.base import LLMAgent
+
     agent = LLMAgent(config)
     agent_registry.register(agent)
     return {"status": "registered", "agent_id": config.agent_id}

@@ -69,6 +69,7 @@ class Worker:
                     if mission.status == MissionStatus.created:
                         logger.info("Auto-starting mission %s", mission.mission_id)
                         from magenta.orchestration.engine import orchestration_engine
+
                         await orchestration_engine.start_mission(mission.mission_id)
             except Exception as exc:
                 logger.warning("Mission loop error: %s", exc)
@@ -77,11 +78,14 @@ class Worker:
 
 async def main() -> None:
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--concurrency", type=int, default=5)
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    )
 
     worker = Worker(concurrency=args.concurrency)
 

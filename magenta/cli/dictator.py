@@ -27,6 +27,7 @@ dictator_app = typer.Typer(
 def status():
     """Show Dictator oversight board and framework status."""
     import asyncio
+
     board = asyncio.run(dictator.get_oversight_board())
 
     active_count = len(board.get("active_missions", {}))
@@ -79,9 +80,14 @@ def oversight(
         print_table(
             ["Mission ID", "Teaming", "Agents", "Tasks", "Probes", "Directives"],
             [
-                [m["mission_id"][:12], m["teaming_structure"],
-                 str(m["agent_count"]), str(m["task_count"]),
-                 str(m["probe_count"]), str(m["directive_count"])]
+                [
+                    m["mission_id"][:12],
+                    m["teaming_structure"],
+                    str(m["agent_count"]),
+                    str(m["task_count"]),
+                    str(m["probe_count"]),
+                    str(m["directive_count"]),
+                ]
                 for m in missions
             ],
             title="Active Mission Oversight",
@@ -95,6 +101,7 @@ def directives(
 ):
     """View the Dictator directive log."""
     import asyncio
+
     log = asyncio.run(dictator.get_directive_log(limit=limit))
     if not log:
         print_info("No directives issued")
@@ -123,6 +130,7 @@ def halt(
 ):
     """Immediately halt a running mission."""
     import asyncio
+
     try:
         result = asyncio.run(dictator.halt_mission(mission_id, reason))
         print_warning(f"Mission {mission_id[:12]} halted")
@@ -139,6 +147,7 @@ def escalate(
 ):
     """Escalate a mission to human operators."""
     import asyncio
+
     try:
         result = asyncio.run(dictator.escalate_mission(mission_id, reason))
         print_warning(f"Mission {mission_id[:12]} escalated")
@@ -155,6 +164,7 @@ def deploy(
 ):
     """Deploy a new agent into the registry."""
     import asyncio
+
     try:
         kwargs = {}
         if model:
@@ -172,6 +182,7 @@ def recall(
 ):
     """Recall (unregister) an agent."""
     import asyncio
+
     try:
         result = asyncio.run(dictator.recall_agent(agent_id))
         if result:
@@ -187,10 +198,13 @@ def recall(
 @dictator_app.command()
 def override(
     mission_id: str = typer.Argument(..., help="Mission ID"),
-    structure: str = typer.Argument(..., help="Teaming structure: pipeline/supervisor/debate/mesh/referee"),
+    structure: str = typer.Argument(
+        ..., help="Teaming structure: pipeline/supervisor/debate/mesh/referee"
+    ),
 ):
     """Override teaming structure for a mission."""
     import asyncio
+
     try:
         asyncio.run(dictator.override_teaming(mission_id, structure))
         print_success(f"Teaming overridden to {structure} for {mission_id[:12]}")
@@ -210,6 +224,7 @@ def policy(
 
     if action == "list":
         from magenta.dictator.policies import policy_engine
+
         policies = policy_engine._policies
         overrides = policy_engine._overrides
 
@@ -254,6 +269,7 @@ def probe(
 ):
     """Manage probes in the magnet layer."""
     import asyncio
+
     if action == "promote":
         asyncio.run(dictator.promote_probe(name, guard=guard))
         print_success(f"Probe '{name}' promoted" + (" to guard" if guard else ""))
@@ -266,6 +282,7 @@ def probe(
 def framework():
     """Show comprehensive framework status from Dictator."""
     import asyncio
+
     fs = asyncio.run(dictator.get_framework_status())
 
     print_table(

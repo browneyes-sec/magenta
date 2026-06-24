@@ -69,6 +69,7 @@ async def require_read_role(request: Request) -> str:
 
 # ── Playbook management ───────────────────────────────────────────────
 
+
 @router.get("/playbooks")
 async def list_playbooks(
     tag: str | None = Query(None),
@@ -109,8 +110,7 @@ async def validate_playbook(
             "valid": True,
             "node_count": len(nodes),
             "nodes": [
-                {"id": nid, "role": n.role, "depends_on": n.depends_on}
-                for nid, n in nodes.items()
+                {"id": nid, "role": n.role, "depends_on": n.depends_on} for nid, n in nodes.items()
             ],
         }
     except PlaybookError as exc:
@@ -134,6 +134,7 @@ async def register_playbook(
 
 
 # ── Workflow execution ────────────────────────────────────────────────
+
 
 @router.post("/execute")
 async def execute_workflow(
@@ -188,6 +189,7 @@ async def execute_workflow(
                 mission.artifact_bundle.update({"workflow_parameters": parameters})
 
             from magenta.workflows.engine import WorkflowExecution
+
             name = pb.metadata.get("name", "") if isinstance(pb, PlaybookV2) else pb.name
             execution = WorkflowExecution(
                 mission_id=mission.mission_id,
@@ -196,6 +198,7 @@ async def execute_workflow(
             workflow_engine._executions[mission.mission_id] = execution
 
             import asyncio
+
             asyncio.create_task(workflow_engine._run_workflow(mission.mission_id, pb))
 
             mission_id = mission.mission_id
@@ -214,6 +217,7 @@ async def execute_workflow(
 
 
 # ── Execution status ──────────────────────────────────────────────────
+
 
 @router.get("/{mission_id}/status")
 async def get_workflow_status(
@@ -257,6 +261,7 @@ async def get_workflow_nodes(
 
 # ── Approval gate ─────────────────────────────────────────────────────
 
+
 @router.post("/{mission_id}/approve/{approval_id}")
 async def respond_to_approval(
     mission_id: str,
@@ -281,6 +286,7 @@ async def respond_to_approval(
 
     try:
         from magenta.response.executor import approval_gate
+
         if decision == "approved":
             await approval_gate.approve(approval_id, approver_id, reason)
         else:
@@ -298,10 +304,12 @@ async def respond_to_approval(
 
 # ── Subgraph info ─────────────────────────────────────────────────────
 
+
 @router.get("/subgraphs/list")
 async def list_subgraphs(role: str = Depends(require_read_role)):
     """List available LangGraph subgraphs."""
     from magenta.workflows.langgraph.engine import HAS_LANGGRAPH, list_subgraphs
+
     if not HAS_LANGGRAPH:
         return {"subgraphs": [], "note": "LangGraph not available"}
     return {"subgraphs": list_subgraphs()}
@@ -309,10 +317,12 @@ async def list_subgraphs(role: str = Depends(require_read_role)):
 
 # ── MCP tools info ────────────────────────────────────────────────────
 
+
 @router.get("/tools/list")
 async def list_workflow_tools(role: str = Depends(require_read_role)):
     """List MCP tools available to workflow subgraphs."""
     from magenta.workflows.mcp.tool_registry import HAS_LANGCHAIN, list_tools
+
     if not HAS_LANGCHAIN:
         return {"tools": [], "note": "LangChain not available"}
     return {"tools": list_tools()}

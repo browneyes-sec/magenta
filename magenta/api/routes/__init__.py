@@ -15,7 +15,17 @@ from magenta.api.routes import (
 )
 
 __all__ = [
-    "agents", "missions", "playbooks", "health", "search",
-    "dictator", "approvals", "monitoring", "instrumentation",
-    "ingest", "mesh", "mcp", "workflows",
+    "agents",
+    "missions",
+    "playbooks",
+    "health",
+    "search",
+    "dictator",
+    "approvals",
+    "monitoring",
+    "instrumentation",
+    "ingest",
+    "mesh",
+    "mcp",
+    "workflows",
 ]

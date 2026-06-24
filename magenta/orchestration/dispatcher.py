@@ -1,6 +1,5 @@
 """Task dispatcher — routes tasks to available agents."""
 
-
 from magenta.core.agent import agent_registry
 from magenta.core.models import Mission
 from magenta.exceptions import AgentError
@@ -34,11 +33,13 @@ class Dispatcher:
         for task in tasks:
             if task.get("status") == "pending":
                 agent_id = await self.dispatch(task, mission)
-                results.append({
-                    "task_id": task["task_id"],
-                    "agent_id": agent_id or "unassigned",
-                    "status": "assigned" if agent_id else "unassigned",
-                })
+                results.append(
+                    {
+                        "task_id": task["task_id"],
+                        "agent_id": agent_id or "unassigned",
+                        "status": "assigned" if agent_id else "unassigned",
+                    }
+                )
         return results
 
     async def retry_failed(self, task: dict, mission: Mission) -> str | None:

@@ -1,7 +1,6 @@
 """MCP server — Data Lake artifact store read/write operations."""
 
 
-
 class DataLakeMCPServer:
     """MCP tools for Data Lake artifact storage."""
 
@@ -21,6 +20,7 @@ class DataLakeMCPServer:
         """
         try:
             from magenta.data.lake.client import lake_client
+
             result = await lake_client.list_blobs(prefix=prefix, limit=limit)
             return {"status": "success", "artifacts": result, "count": len(result)}
         except Exception as exc:
@@ -37,12 +37,15 @@ class DataLakeMCPServer:
         """
         try:
             from magenta.data.lake.client import lake_client
+
             content = await lake_client.read_blob(path)
             return {"status": "success", "path": path, "content": str(content)[:10000]}
         except Exception as exc:
             return {"status": "error", "error": str(exc)}
 
-    async def save_artifact(self, path: str, content: str, content_type: str = "text/plain") -> dict:
+    async def save_artifact(
+        self, path: str, content: str, content_type: str = "text/plain"
+    ) -> dict:
         """Save an artifact to the data lake.
 
         Args:
@@ -55,6 +58,7 @@ class DataLakeMCPServer:
         """
         try:
             from magenta.data.lake.client import lake_client
+
             await lake_client.write_blob(path, content.encode(), content_type=content_type)
             return {"status": "saved", "path": path, "size_bytes": len(content.encode())}
         except Exception as exc:
@@ -71,6 +75,7 @@ class DataLakeMCPServer:
         """
         try:
             from magenta.data.lake.client import lake_client
+
             await lake_client.delete_blob(path)
             return {"status": "deleted", "path": path}
         except Exception as exc:

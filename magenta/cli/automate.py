@@ -1,6 +1,5 @@
 """Magenta automate CLI — Playbook, rule, and trigger management."""
 
-
 import typer
 
 from magenta.cli.utils import (
@@ -66,17 +65,21 @@ def playbook_apply(
 
         if dry_run:
             from magenta.cli.utils import print_json
+
             print_info("[DRY RUN] Would register playbook:")
             print_json(pb.model_dump())
             return
 
         playbook_manager.register(pb)
         print_success(f"Playbook '{pb.name}' v{pb.version} registered")
-        print_output({
-            "name": pb.name,
-            "version": pb.version,
-            "stages": len(pb.stages),
-        }, format=format)
+        print_output(
+            {
+                "name": pb.name,
+                "version": pb.version,
+                "stages": len(pb.stages),
+            },
+            format=format,
+        )
 
     except Exception as e:
         print_error(str(e))
@@ -108,8 +111,7 @@ def playbook_show(
         print_error(f"Playbook '{name}' not found")
         raise typer.Exit(1)
 
-    print_output(pb.model_dump(), format=format,
-                 columns=["Field", "Value"])
+    print_output(pb.model_dump(), format=format, columns=["Field", "Value"])
 
 
 # --- Rule sub-group ---
@@ -125,10 +127,14 @@ def rule_list(
     """List routing rules."""
     # Stub — rules stored in data layer
     print_info("Rules (stub — data layer integration pending)")
-    print_output([
-        {"id": "rule-001", "name": "phishing-auto-contain", "enabled": True},
-        {"id": "rule-002", "name": "ransomware-escalate", "enabled": True},
-    ], format=format, columns=["ID", "Name", "Enabled"])
+    print_output(
+        [
+            {"id": "rule-001", "name": "phishing-auto-contain", "enabled": True},
+            {"id": "rule-002", "name": "ransomware-escalate", "enabled": True},
+        ],
+        format=format,
+        columns=["ID", "Name", "Enabled"],
+    )
 
 
 @rule_app.command("add")
@@ -158,10 +164,14 @@ def trigger_list(
 ):
     """List configured triggers."""
     print_info("Triggers (stub — integration pending)")
-    print_output([
-        {"name": "sentinel-incident-webhook", "type": "webhook", "enabled": True},
-        {"name": "splunk-alert-poll", "type": "poll", "enabled": True},
-    ], format=format, columns=["Name", "Type", "Enabled"])
+    print_output(
+        [
+            {"name": "sentinel-incident-webhook", "type": "webhook", "enabled": True},
+            {"name": "splunk-alert-poll", "type": "poll", "enabled": True},
+        ],
+        format=format,
+        columns=["Name", "Type", "Enabled"],
+    )
 
 
 @trigger_app.command("enable")
