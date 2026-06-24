@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import ast
 import asyncio
-import json
-import os
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -15,6 +13,7 @@ from typing import Any
 from magenta.core.agent import agent_registry
 from magenta.core.mission import mission_manager
 from magenta.core.models import Mission, MissionStatus
+from magenta.core.redis_manager import redis_manager
 from magenta.logging import get_structured_logger
 from magenta.orchestration.dag_executor import DAGNode, dag_executor
 from magenta.workflows.compiler import workflow_compiler
@@ -153,67 +152,27 @@ class WorkflowEngine:
         self._approval_lock = asyncio.Lock()
         self._running_missions: set[str] = set()
         self._running_lock = asyncio.Lock()
-        self._redis_url = os.getenv(
-            "MAGENTA_REDIS_URL", "redis://localhost:6379/0"
+
+    async def _save_execution(self, execution: WorkflowExecution) -> None:
+        """Persist execution state to Redis via shared manager."""
+        await redis_manager.save_json(
+            f"workflow_execution:{execution.mission_id}",
+            execution.to_dict(),
         )
-        self._redis = None
-        self._persistence_enabled = os.getenv(
-            "MAGENTA_REDIS_PERSISTENCE", "false"
-        ).lower() == "true"
 
-    async def _ensure_redis(self):
-        if self._redis is not None:
-            return self._redis
-        if not self._persistence_enabled:
-            return False
-        try:
-            import redis.asyncio as aioredis
-            client = aioredis.from_url(self._redis_url, decode_responses=True)
-            await client.ping()
-            self._redis = client
-            await self._load_executions_from_redis()
-        except Exception as exc:
-            _logger.debug("Redis unavailable for WorkflowEngine, using in-memory: %s", exc)
-            self._redis = False
-        return self._redis
+    async def _remove_execution(self, mission_id: str) -> None:
+        """Remove execution from Redis via shared manager."""
+        await redis_manager.remove(f"workflow_execution:{mission_id}")
 
-    async def _load_executions_from_redis(self):
-        if not self._redis:
-            return
-        try:
-            keys = await self._redis.keys("workflow_execution:*")
-            for key in keys:
-                data = await self._redis.get(key)
-                if data:
-                    execution_data = json.loads(data)
-                    # Only load non-terminal executions or recent ones
-                    if execution_data.get("status") in ("running", "waiting_approval"):
-                        execution = WorkflowExecution.from_dict(execution_data)
-                        self._executions[execution.mission_id] = execution
-            _logger.info("Loaded %d active workflow executions from Redis", len(keys))
-        except Exception as exc:
-            _logger.warning("Failed to load workflow executions from Redis: %s", exc)
-
-    async def _save_execution(self, execution: WorkflowExecution):
-        if not self._persistence_enabled or not self._redis:
-            return
-        try:
-            key = f"workflow_execution:{execution.mission_id}"
-            await self._redis.set(key, json.dumps(execution.to_dict()))
-        except Exception as exc:
-            _logger.debug(
-                "Redis save failed for workflow execution %s: %s",
-                execution.mission_id,
-                exc,
-            )
-
-    async def _remove_execution(self, mission_id: str):
-        if not self._persistence_enabled or not self._redis:
-            return
-        try:
-            await self._redis.delete(f"workflow_execution:{mission_id}")
-        except Exception:
-            pass
+    async def _load_executions_from_redis(self) -> None:
+        """Load active executions from Redis via shared manager."""
+        keys = await redis_manager.keys("workflow_execution:*")
+        for key in keys:
+            data = await redis_manager.load_json(key)
+            if data and data.get("status") in ("running", "waiting_approval"):
+                execution = WorkflowExecution.from_dict(data)
+                self._executions[execution.mission_id] = execution
+        _logger.info("Loaded %d active workflow executions from Redis", len(keys))
 
     async def execute_playbook(
         self,

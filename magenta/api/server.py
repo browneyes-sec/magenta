@@ -1,7 +1,6 @@
 """FastAPI server for Magenta REST API."""
 
 import logging
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Response
@@ -26,6 +25,7 @@ from magenta.api.routes import (
 from magenta.config import settings
 from magenta.core.agent import agent_registry
 from magenta.core.mission import mission_manager
+from magenta.core.redis_manager import redis_manager
 from magenta.dictator.state import dictator_state
 from magenta.workflows.engine import workflow_engine
 
@@ -116,8 +116,14 @@ def generate_metrics() -> str:
             if started and completed:
                 from datetime import datetime
                 try:
-                    t0 = datetime.fromisoformat(started) if isinstance(started, str) else started
-                    t1 = datetime.fromisoformat(completed) if isinstance(completed, str) else completed
+                    t0 = (
+                        datetime.fromisoformat(started)
+                        if isinstance(started, str) else started
+                    )
+                    t1 = (
+                        datetime.fromisoformat(completed)
+                        if isinstance(completed, str) else completed
+                    )
                     duration = (t1 - t0).total_seconds()
                     base = f'magenta_workflow_node_duration_seconds_bucket{{node_type="{node_type}"'
                     for le in ("0.5", "1.0", "5.0", "10.0", "+Inf"):
@@ -218,20 +224,24 @@ def generate_metrics() -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup — connect to Redis for policy persistence
-    redis_url = os.environ.get("REDIS_URL", "redis://magenta-redis:6379/0")
+    # Startup — initialize shared Redis connection pool
     try:
-        import redis.asyncio as aioredis
-        redis_client = aioredis.from_url(redis_url, decode_responses=True)
-        await redis_client.ping()
-        object.__setattr__(dictator_state, "_redis_client", redis_client)
-        await dictator_state.load_from_redis()
-        logger.info("Connected to Redis at %s and loaded policy overrides", redis_url)
+        await redis_manager.initialize()
+        health = await redis_manager.health()
+        logger.info("Redis manager initialized: %s", health)
     except Exception as exc:
-        logger.warning(
-            "Redis unavailable at %s, continuing without persistence: %s",
-            redis_url, exc,
-        )
+        logger.warning("Redis manager initialization failed: %s", exc)
+
+    # Load dictator policy overrides from Redis
+    if redis_manager.is_available:
+        try:
+            overrides = await redis_manager.load_json("dictator:overrides")
+            if overrides:
+                for key, value in overrides.items():
+                    object.__setattr__(dictator_state, key, value)
+                logger.info("Loaded dictator overrides from Redis")
+        except Exception as exc:
+            logger.warning("Failed to load dictator overrides: %s", exc)
 
     # Auto-provision Qdrant collections on startup (ADR-018)
     try:
@@ -265,15 +275,15 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("DLQ consumer not started: %s", exc)
 
-    # Initialize Redis persistence for MissionManager and WorkflowEngine
+    # Initialize persistence for MissionManager and WorkflowEngine
     try:
         from magenta.core.mission import mission_manager
         from magenta.workflows.engine import workflow_engine
         await mission_manager._ensure_redis()
-        await workflow_engine._ensure_redis()
-        logger.info("Redis persistence initialized for missions and workflows")
+        await workflow_engine._load_executions_from_redis()
+        logger.info("Persistence initialized for missions and workflows")
     except Exception as exc:
-        logger.warning("Redis persistence initialization failed: %s", exc)
+        logger.warning("Persistence initialization failed: %s", exc)
 
     yield
 
@@ -292,10 +302,8 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
 
-    # Shutdown Redis
-    if dictator_state._redis_client is not None:
-        await dictator_state._redis_client.close()
-        logger.info("Redis connection closed")
+    # Shutdown shared Redis connection pool
+    await redis_manager.close()
 
 
 def create_app() -> FastAPI:
