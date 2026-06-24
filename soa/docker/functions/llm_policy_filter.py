@@ -9,10 +9,8 @@ Functions:
 Deployed as a serverless function alongside Open WebUI pipelines.
 """
 
-import re
-import json
 import logging
-from typing import Optional
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +31,7 @@ class SensitivityLevel:
     CRITICAL = "critical"
 
 
-def redact_content(text: str, patterns: Optional[list[str]] = None) -> str:
+def redact_content(text: str, patterns: list[str] | None = None) -> str:
     """Redact sensitive information from text.
 
     Args:
@@ -107,10 +105,7 @@ def filter_prompt(prompt: str) -> dict:
     """
     redacted = redact_content(prompt)
     sensitivity = assess_sensitivity(prompt)
-    redacted_count = sum(
-        1 for p in SENSITIVE_PATTERNS.values()
-        if p.search(prompt)
-    )
+    redacted_count = sum(1 for p in SENSITIVE_PATTERNS.values() if p.search(prompt))
 
     return {
         "filtered_prompt": redacted,

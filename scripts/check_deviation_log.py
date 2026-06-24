@@ -13,7 +13,9 @@ def check_deviations(max_open: int) -> int:
     if not DEVIATION_LOG.exists():
         print(f"WARNING: Deviation log not found at {DEVIATION_LOG}")
         print("Creating empty deviation log...")
-        DEVIATION_LOG.write_text("# Deviation Log\n\n| ID | Date | Description | Status | Owner |\n|----|------|-------------|--------|-------|\n")
+        DEVIATION_LOG.write_text(
+            "# Deviation Log\n\n| ID | Date | Description | Status | Owner |\n|----|------|-------------|--------|-------|\n"
+        )
         return 0
 
     content = DEVIATION_LOG.read_text()

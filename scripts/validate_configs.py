@@ -9,14 +9,14 @@ from pathlib import Path
 
 def validate_toml():
     """Validate all TOML config files."""
-    config_dir = Path('soa/config')
+    config_dir = Path("soa/config")
     if not config_dir.exists():
         print("Config directory not found")
         return True
-    
-    for f in config_dir.rglob('*.toml'):
+
+    for f in config_dir.rglob("*.toml"):
         try:
-            with open(f, 'rb') as fp:
+            with open(f, "rb") as fp:
                 tomllib.load(fp)
             print(f"OK {f}")
         except Exception as e:
@@ -27,12 +27,12 @@ def validate_toml():
 
 def validate_json_schemas():
     """Validate all JSON schema files."""
-    schema_dir = Path('soa/config')
+    schema_dir = Path("soa/config")
     if not schema_dir.exists():
         print("Schema directory not found")
         return True
-    
-    for f in schema_dir.rglob('*.schema.json'):
+
+    for f in schema_dir.rglob("*.schema.json"):
         try:
             with open(f) as fp:
                 json.load(fp)

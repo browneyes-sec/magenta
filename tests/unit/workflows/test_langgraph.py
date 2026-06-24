@@ -1,4 +1,5 @@
 """Tests for LangGraph subgraph registry and pre-built SOC subgraphs."""
+
 from __future__ import annotations
 
 import pytest
@@ -6,13 +7,13 @@ import pytest
 from magenta.workflows.langgraph.engine import (
     HAS_LANGGRAPH,
     WorkflowState,
+    build_compliance_subgraph,
+    build_containment_subgraph,
+    build_investigation_subgraph,
+    build_triage_subgraph,
     get_subgraph,
     initialize_subgraphs,
     list_subgraphs,
-    build_triage_subgraph,
-    build_investigation_subgraph,
-    build_containment_subgraph,
-    build_compliance_subgraph,
 )
 
 

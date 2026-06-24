@@ -4,7 +4,6 @@ import os
 import time
 from uuid import uuid4
 
-import jwt
 from fastapi import HTTPException, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -31,19 +30,6 @@ async def get_tenant_id(request: Request) -> str:
         tid = payload.get("tid")
         if tid:
             return tid
-
-    # Fallback: decode JWT without verification (for dev mode or when middleware disabled)
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.removeprefix("Bearer ").strip()
-        try:
-            # Decode without verification for tenant extraction
-            payload = jwt.decode(token, options={"verify_signature": False})
-            tid = payload.get("tid")
-            if tid:
-                return tid
-        except Exception:
-            pass
 
     return "default"
 

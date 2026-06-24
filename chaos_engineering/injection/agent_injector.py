@@ -51,10 +51,12 @@ class AgentInjector:
         for agent in targets:
             original_status = str(agent.status)
             agent.status = "CHAOS_INVALID_STATUS"
-            corrupted.append({
-                "agent_id": agent.agent_id,
-                "original_status": original_status,
-            })
+            corrupted.append(
+                {
+                    "agent_id": agent.agent_id,
+                    "original_status": original_status,
+                }
+            )
             logger.info("Corrupted agent status: %s", agent.agent_id)
 
         return {

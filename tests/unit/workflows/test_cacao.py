@@ -1,4 +1,5 @@
 """Tests for CACAO v2 ↔ Magenta PlaybookV2 translator."""
+
 from __future__ import annotations
 
 import pytest

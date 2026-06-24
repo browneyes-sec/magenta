@@ -13,7 +13,7 @@ from magenta.api.middleware import get_tenant_id
 router = APIRouter(prefix="/api/v1/mesh", tags=["mesh"])
 
 # API key for pipeline-to-API auth (set via MAGENTA_API_KEY env var)
-_API_KEY = os.environ.get("MAGENTA_API_KEY", "magenta-dev-key")
+_API_KEY = os.environ.get("MAGENTA_API_KEY", "")
 
 
 async def validate_api_key(x_api_key: str = Header(default="")) -> str:

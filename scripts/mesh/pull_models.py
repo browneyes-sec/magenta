@@ -14,10 +14,8 @@ Usage:
 
 import argparse
 import sys
-import time
 
 import httpx
-
 
 MODELS = {
     "bge-m3": {
@@ -129,10 +127,10 @@ def main():
     config = ENVIRONMENTS.get(args.env, ENVIRONMENTS["dev"])
     ollama_url = args.ollama_url or config["ollama"]
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  OLLAMA Model Pull — {args.env.upper()}")
     print(f"  URL: {ollama_url}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # Check OLLAMA
     if not args.dry_run and not check_ollama(ollama_url):
@@ -141,7 +139,9 @@ def main():
 
     # Determine models to pull
     if args.model:
-        models_to_pull = {args.model: MODELS.get(args.model, {"description": "Custom model", "required": True})}
+        models_to_pull = {
+            args.model: MODELS.get(args.model, {"description": "Custom model", "required": True})
+        }
     elif args.all:
         models_to_pull = MODELS
     else:
@@ -176,9 +176,9 @@ def main():
             if "embed" in name.lower() or name == "bge-m3":
                 verify_embedding(ollama_url, name)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  Result: {success}/{len(models_to_pull)} models ready")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     sys.exit(0 if success == len(models_to_pull) else 1)
 

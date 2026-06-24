@@ -1,4 +1,5 @@
 """Tests for PaperPublisher — LaTeX and Markdown report generation."""
+
 from __future__ import annotations
 
 import asyncio
@@ -150,9 +151,7 @@ class TestPaperPublisher:
 
     def test_empty_artifacts(self, publisher, sample_mission):
         config = PaperConfig()
-        result = asyncio.run(
-            publisher.publish_from_mission(sample_mission, {}, config)
-        )
+        result = asyncio.run(publisher.publish_from_mission(sample_mission, {}, config))
         assert len(result.markdown) > 0
         assert "No timeline data" in result.markdown
 

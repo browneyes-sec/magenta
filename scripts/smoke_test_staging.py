@@ -151,9 +151,9 @@ def main():
     parser.add_argument("--api-key", required=True, help="API key for authentication")
     args = parser.parse_args()
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("MAGENTA STAGING SMOKE TESTS")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Target: {args.url}\n")
 
     tests = [
@@ -178,9 +178,9 @@ def main():
             print(f"  ERROR - {name}: {e}")
             failed += 1
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"RESULTS: {passed} passed, {failed} failed")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     return 0 if failed == 0 else 1
 

@@ -157,6 +157,8 @@ metadata:
     app.kubernetes.io/name: agent-ops
     app.kubernetes.io/component: core
 type: Opaque
+# SECURITY: Use ExternalSecrets or SealedSecrets for production.
+# Do not commit real credential values in stringData.
 stringData:
   MAGENTA_SQL__URL: "sqlite+aiosqlite:///data/magenta.db"
   MAGENTA_REDIS_URL: "redis://magenta-redis:6379/0"

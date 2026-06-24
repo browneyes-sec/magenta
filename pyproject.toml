@@ -100,6 +100,23 @@ select = ["E", "F", "I", "N", "W", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "magenta/workflows/langgraph/engine.py" = ["E501"]  # LLM prompt templates
+"magenta/mcp/artifacts_mcp_server.py" = ["E501"]  # HTML templates
+"magenta/dictator/telemetry.py" = ["E501"]  # HTML templates
+"magenta/agents/dictator.py" = ["E501"]  # long strings
+"magenta/agents/triage.py" = ["E501"]  # long strings
+"magenta/api/middleware/auth.py" = ["E501"]  # long strings
+"magenta/cli/chaos.py" = ["E501"]  # long strings
+"magenta/core/models.py" = ["E501"]  # long strings
+"magenta/integration/collectors/cloud.py" = ["E501"]  # long strings
+"magenta/integration/collectors/windows.py" = ["E501"]  # long strings
+"soa/docker/pipelines/*.py" = ["E501"]  # HTML/card templates
+"soa/docker/functions/*.py" = ["E501"]  # long strings
+"chaos_engineering/**/*.py" = ["E501"]  # long test strings
+"scripts/mesh/*.py" = ["E501"]  # long CLI strings
+"scripts/check_deviation_log.py" = ["E501"]  # long table strings
+"magnet/probes/*.py" = ["E501"]  # long expressions
+"magnet/test_*/**/*.py" = ["E501"]  # long test strings
+"tests/**/*.py" = ["E501"]  # long test strings
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -110,4 +127,6 @@ markers = [
     "cli: tests for CLI commands",
     "core: tests for framework core logic",
     "agents: tests for agent implementations",
+    "integration: tests requiring external services (Qdrant, OLLAMA, Redis)",
+    "reliability: tests for outbox relay and message delivery guarantees",
 ]

@@ -14,9 +14,8 @@ import tomllib
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
 
-from chaos_engineering.attestation.preparing import PreparingStage, ComponentMap
+from chaos_engineering.attestation.preparing import ComponentMap, PreparingStage
 from chaos_engineering.attestation.probe_runner import ProbeRunner
 from chaos_engineering.attestation.regression_runner import RegressionRunner
 from chaos_engineering.attestation.report_generator import ReportGenerator
@@ -29,6 +28,7 @@ CONFIG_PATH = Path(__file__).parent / "chaos.toml"
 @dataclass
 class ScenarioResult:
     """Result of a single chaos scenario execution."""
+
     scenario: str
     status: str  # passed | failed | skipped | error
     reason: str = ""
@@ -41,9 +41,10 @@ class ScenarioResult:
 @dataclass
 class ChaosRunResult:
     """Complete result of a chaos engineering run."""
+
     run_id: str
     started_at: datetime
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
     duration_seconds: float = 0.0
     intensity: int = 3
     stealth: bool = False
@@ -54,8 +55,8 @@ class ChaosRunResult:
     results: list[ScenarioResult] = field(default_factory=list)
     baseline_probes: list = field(default_factory=list)
     post_probes: list = field(default_factory=list)
-    regression: Optional[dict] = None
-    preparing: Optional[dict] = None
+    regression: dict | None = None
+    preparing: dict | None = None
     verdict: str = "pending"
 
 
@@ -65,11 +66,15 @@ class ChaosEngine:
     1-click entry: engine.run() loads config, injects faults, validates, reports.
     """
 
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: str | None = None):
         self.config_path = Path(config_path) if config_path else CONFIG_PATH
         self.config = self._load_config()
-        self.reports_dir = Path(self.config.get("logging", {}).get("log_dir", "chaos_engineering/reports"))
-        self.cert_dir = Path(self.config.get("certification", {}).get("output_dir", "docs/certifications"))
+        self.reports_dir = Path(
+            self.config.get("logging", {}).get("log_dir", "chaos_engineering/reports")
+        )
+        self.cert_dir = Path(
+            self.config.get("certification", {}).get("output_dir", "docs/certifications")
+        )
         self.run_id = self._generate_run_id()
         self._setup_logging()
 
@@ -98,25 +103,21 @@ class ChaosEngine:
 
         fh = logging.FileHandler(log_dir / "run.log")
         fh.setLevel(logging.DEBUG)
-        fh.setFormatter(logging.Formatter(
-            "%(asctime)s %(levelname)s %(name)s %(message)s"
-        ))
+        fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
         self._logger.addHandler(fh)
 
         self._stealth_logger = logging.getLogger(f"chaos.stealth.{self.run_id}")
         sh = logging.FileHandler(log_dir / "stealth.log")
         sh.setLevel(logging.DEBUG)
-        sh.setFormatter(logging.Formatter(
-            "%(asctime)s %(levelname)s %(name)s %(message)s"
-        ))
+        sh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
         self._stealth_logger.addHandler(sh)
 
     def run(
         self,
-        scenario: Optional[str] = None,
-        intensity: Optional[int] = None,
-        stealth: Optional[bool] = None,
-        timeout: Optional[int] = None,
+        scenario: str | None = None,
+        intensity: int | None = None,
+        stealth: bool | None = None,
+        timeout: int | None = None,
         dry_run: bool = False,
         validate: bool = True,
     ) -> ChaosRunResult:
@@ -133,7 +134,9 @@ class ChaosEngine:
             stealth=stealth,
         )
 
-        self._logger.info("Chaos run started: %s (intensity=%d, stealth=%s)", self.run_id, intensity, stealth)
+        self._logger.info(
+            "Chaos run started: %s (intensity=%d, stealth=%s)", self.run_id, intensity, stealth
+        )
 
         # 1. Preparing stage
         preparing = PreparingStage()
@@ -151,14 +154,18 @@ class ChaosEngine:
         # 2. Baseline probe snapshot
         probe_runner = ProbeRunner(components)
         result.baseline_probes = probe_runner.run_all()
-        self._logger.info("Baseline probes: %d passed, %d failed",
-                          sum(1 for p in result.baseline_probes if p.get("healthy")),
-                          sum(1 for p in result.baseline_probes if not p.get("healthy")))
+        self._logger.info(
+            "Baseline probes: %d passed, %d failed",
+            sum(1 for p in result.baseline_probes if p.get("healthy")),
+            sum(1 for p in result.baseline_probes if not p.get("healthy")),
+        )
 
         # 3. Load and execute scenarios
         scenarios_to_run = self._resolve_scenarios(scenario, components)
         for scenario_cls in scenarios_to_run:
-            scenario_result = self._execute_scenario(scenario_cls, intensity, stealth, timeout, components)
+            scenario_result = self._execute_scenario(
+                scenario_cls, intensity, stealth, timeout, components
+            )
             result.results.append(scenario_result)
             if scenario_result.status == "passed":
                 result.scenarios_passed += 1
@@ -188,19 +195,26 @@ class ChaosEngine:
         report_gen = ReportGenerator(self.config)
         report_gen.generate(result, self.run_id)
 
-        self._logger.info("Chaos run completed: verdict=%s, duration=%.1fs", result.verdict, result.duration_seconds)
+        self._logger.info(
+            "Chaos run completed: verdict=%s, duration=%.1fs",
+            result.verdict,
+            result.duration_seconds,
+        )
 
         return result
 
-    def _resolve_scenarios(self, scenario: Optional[str], components: ComponentMap) -> list:
+    def _resolve_scenarios(self, scenario: str | None, components: ComponentMap) -> list:
         """Resolve which scenario classes to run."""
         scenarios_config = self.config.get("scenarios", {})
 
         if scenario and scenario != "all":
             names = [s.strip() for s in scenario.split(",")]
         else:
-            names = [name for name, cfg in scenarios_config.items()
-                     if cfg.get("enabled", True) and name != "custom"]
+            names = [
+                name
+                for name, cfg in scenarios_config.items()
+                if cfg.get("enabled", True) and name != "custom"
+            ]
 
         # Load scenario classes
         from chaos_engineering.scenarios import SCENARIO_REGISTRY
@@ -260,8 +274,16 @@ class ChaosEngine:
             if hasattr(instance, "recommend"):
                 inject_result.recommendations = instance.recommend()
 
-            status_icon = "✅" if inject_result.status == "passed" else "❌" if inject_result.status == "failed" else "⏭️"
-            self._logger.info("%s Scenario %s: %s", status_icon, inject_result.scenario, inject_result.status)
+            status_icon = (
+                "✅"
+                if inject_result.status == "passed"
+                else "❌"
+                if inject_result.status == "failed"
+                else "⏭️"
+            )
+            self._logger.info(
+                "%s Scenario %s: %s", status_icon, inject_result.scenario, inject_result.status
+            )
 
             return inject_result
 

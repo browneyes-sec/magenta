@@ -151,6 +151,4 @@ class TestCorrelationIDMiddleware:
         with TestClient(app_with_high_limit, raise_server_exceptions=False) as client:
             resp1 = client.get("/test")
             resp2 = client.get("/test")
-            assert resp1.headers["X-Correlation-ID"] != resp2.headers[
-                "X-Correlation-ID"
-            ]
+            assert resp1.headers["X-Correlation-ID"] != resp2.headers["X-Correlation-ID"]

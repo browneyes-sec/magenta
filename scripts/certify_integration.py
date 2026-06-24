@@ -20,7 +20,7 @@ import json
 import os
 import subprocess
 import sys
-import traceback
+
 import yaml
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -51,6 +51,7 @@ def import_module(module_path: str) -> bool:
     """Try importing a Python module."""
     try:
         import importlib
+
         importlib.import_module(module_path)
         return True
     except Exception:
@@ -241,7 +242,7 @@ def main():
         else:
             # Extract summary line
             lines = result.stdout.strip().split("\n")
-            summary = [l for l in lines if "passed" in l or "failed" in l]
+            summary = [l for l in lines if "passed" in l or "failed" in l]  # noqa: E741
             check("Unit tests pass", False, summary[-1] if summary else result.stderr[:200])
     except subprocess.TimeoutExpired:
         check("Unit tests pass", False, "Timed out after 60s")

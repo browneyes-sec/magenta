@@ -1,8 +1,8 @@
 """Dictator probe — validates Dictator oversight and directive health."""
 
-from magenta.agents.dictator import dictator
-from magenta.dictator.state import dictator_state
 import asyncio
+
+from magenta.agents.dictator import dictator
 
 
 def run() -> dict:

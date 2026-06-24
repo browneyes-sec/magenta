@@ -6,6 +6,7 @@ All tools degrade gracefully if cloud SDKs are not installed.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -386,6 +387,3 @@ class FinOpsEngine:
             logger.warning("AWS tag audit failed", error=str(e))
 
         return results
-
-
-import os

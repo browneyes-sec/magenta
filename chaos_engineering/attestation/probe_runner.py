@@ -51,9 +51,7 @@ class ProbeRunner:
             }
 
         try:
-            spec = importlib.util.spec_from_file_location(
-                f"magnet.probes.{name}_probe", probe_path
-            )
+            spec = importlib.util.spec_from_file_location(f"magnet.probes.{name}_probe", probe_path)
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
 

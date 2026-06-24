@@ -285,7 +285,7 @@ class GovernanceSpec(BaseModel):
 
 
 class PlaybookV2(BaseModel):
-    apiVersion: str = "magenta.soar/v1"
+    apiVersion: str = "magenta.soar/v1"  # noqa: N815
     kind: str = "Playbook"
     metadata: dict = Field(default_factory=dict)
     spec: dict = Field(default_factory=dict)

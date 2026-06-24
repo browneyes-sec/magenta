@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
-from typing import Any
 
 from chaos_engineering.attestation.preparing import ComponentMap
 from chaos_engineering.chaos import ScenarioResult
@@ -31,7 +29,7 @@ class AgentFailureScenario:
         return True, ""
 
     def run(self, components: ComponentMap, stealth: bool) -> ScenarioResult:
-        start = time.monotonic()
+        start = time.monotonic()  # noqa: F841
 
         inject_result = self.injector.remove_agents(components, count=self.intensity)
 
@@ -49,6 +47,7 @@ class AgentFailureScenario:
 
     def validate(self, components: ComponentMap) -> list[dict]:
         from chaos_engineering.attestation.probe_runner import ProbeRunner
+
         runner = ProbeRunner(components)
         return runner.run_all()
 

@@ -13,11 +13,9 @@ Usage:
 """
 
 import argparse
-import json
 import sys
 
 import httpx
-
 
 COLLECTIONS = {
     "mem_episodic": {
@@ -140,9 +138,9 @@ def main():
     parser.add_argument("--indexes", action="store_true", help="Create payload indexes")
     args = parser.parse_args()
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  Qdrant Collections Setup — {args.env.upper()}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # Check Qdrant
     if not args.dry_run and not check_qdrant(args.qdrant_url):
@@ -176,9 +174,9 @@ def main():
         for collection, field, schema in indexes:
             create_payload_index(args.qdrant_url, collection, field, schema)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  Result: {success}/{len(COLLECTIONS)} collections ready")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     sys.exit(0 if success == len(COLLECTIONS) else 1)
 

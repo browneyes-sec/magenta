@@ -31,7 +31,9 @@ def _get_test_app():
         _test_app.include_router(workflows.router, prefix="/api/v1/workflows")
     return _test_app
 
+
 # ── Mock Agent for Testing ──────────────────────────────────────────────
+
 
 class MockSOCAgent(BaseAgent):
     """Mock agent that returns predictable results for testing."""
@@ -93,6 +95,7 @@ def cleanup_executions():
 
 # ── API Contract Tests ─────────────────────────────────────────────────
 
+
 class TestAPIContracts:
     """Test API endpoints return correct schemas."""
 
@@ -115,6 +118,7 @@ class TestAPIContracts:
 
 
 # ── Role-Based Access Control ──────────────────────────────────────────
+
 
 class TestRoleBasedAccess:
     """Test RBAC enforcement on workflow endpoints."""
@@ -148,6 +152,7 @@ class TestRoleBasedAccess:
 
 
 # ── Workflow Execution (Fire-and-Forget) ───────────────────────────────
+
 
 class TestWorkflowExecution:
     """Test workflow execution via API."""
@@ -233,6 +238,7 @@ class TestWorkflowExecution:
 
 # ── Approval Gate Flow ─────────────────────────────────────────────────
 
+
 class TestApprovalGate:
     """Test human approval gate integration."""
 
@@ -252,6 +258,7 @@ class TestApprovalGate:
 
 # ── Playbook Validation ────────────────────────────────────────────────
 
+
 class TestPlaybookValidation:
     """Test playbook validation endpoint."""
 
@@ -264,9 +271,7 @@ class TestPlaybookValidation:
                 "metadata": {"name": "test-playbook", "version": "1.0.0"},
                 "spec": {
                     "workflow": {
-                        "nodes": [
-                            {"id": "node-1", "type": "ingest", "label": "Ingest"}
-                        ],
+                        "nodes": [{"id": "node-1", "type": "ingest", "label": "Ingest"}],
                         "edges": [],
                     }
                 },
@@ -288,6 +293,7 @@ class TestPlaybookValidation:
 
 
 # ── Integration: Full DAG Execution ────────────────────────────────────
+
 
 class TestFullDAGExecution:
     """Integration tests for workflow compilation and DAG structure."""
@@ -435,6 +441,7 @@ playbook_v2_approval = PlaybookV2(
 
 # ── Integration: Concurrency Limits ────────────────────────────────────
 
+
 class TestConcurrencyLimits:
     """Test agent concurrency enforcement."""
 
@@ -457,12 +464,8 @@ class TestConcurrencyLimits:
     def test_registry_get_available_for_role(self):
         from magenta.core.agent import AgentRegistry
 
-        agent1 = MockSOCAgent(
-            AgentConfig(agent_id="a1", role="analyst", max_concurrent_tasks=1)
-        )
-        agent2 = MockSOCAgent(
-            AgentConfig(agent_id="a2", role="analyst", max_concurrent_tasks=2)
-        )
+        agent1 = MockSOCAgent(AgentConfig(agent_id="a1", role="analyst", max_concurrent_tasks=1))
+        agent2 = MockSOCAgent(AgentConfig(agent_id="a2", role="analyst", max_concurrent_tasks=2))
 
         registry = AgentRegistry()
         registry.register(agent1)

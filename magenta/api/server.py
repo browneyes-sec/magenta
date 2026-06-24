@@ -3,8 +3,9 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from magenta import __about__
 from magenta.api.routes import (
@@ -335,6 +336,15 @@ def create_app() -> FastAPI:
 
     app.add_middleware(RateLimitMiddleware)
     app.add_middleware(CorrelationIDMiddleware)
+
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        cid = getattr(request.state, "correlation_id", "unknown")
+        logger.exception("Unhandled exception: %s", exc)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error", "correlation_id": cid},
+        )
 
     app.include_router(agents.router, prefix="/api/v1/agents", tags=["Agents"])
     app.include_router(missions.router, prefix="/api/v1/missions", tags=["Missions"])

@@ -5,7 +5,6 @@ from __future__ import annotations
 import importlib.util
 import logging
 from pathlib import Path
-from typing import Any, Optional
 
 from chaos_engineering.attestation.preparing import ComponentMap
 from chaos_engineering.chaos import ScenarioResult
@@ -13,7 +12,7 @@ from chaos_engineering.chaos import ScenarioResult
 logger = logging.getLogger(__name__)
 
 
-def load_custom_scenario(config: dict) -> Optional[type]:
+def load_custom_scenario(config: dict) -> type | None:
     """Load a custom scenario class from TOML config.
 
     Config should specify:

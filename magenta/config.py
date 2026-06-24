@@ -76,7 +76,7 @@ class AzureAuthSettings(BaseSettings):
 
 class EntraJWTSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="MAGENTA_ENTRA_JWT_")
-    enabled: bool = False
+    enabled: bool = True
     tenant_id: str = "common"
     audience: str = "api://magenta-asoar"
     issuer: str = "https://login.microsoftonline.com/common/v2.0"

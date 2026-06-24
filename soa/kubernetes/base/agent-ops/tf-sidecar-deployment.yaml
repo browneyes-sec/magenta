@@ -166,6 +166,8 @@ metadata:
     app.kubernetes.io/name: agent-ops
     app.kubernetes.io/component: tf-sidecar
 type: Opaque
+# SECURITY: Use ExternalSecrets or SealedSecrets for production.
+# Do not commit real credential values in stringData.
 stringData:
   ARM_CLIENT_ID: ""
   ARM_CLIENT_SECRET: ""

@@ -1,6 +1,5 @@
 """Pipeline probe — validates orchestration pipeline health."""
 
-from magenta.core.mission import mission_manager
 from magenta.dictator.state import dictator_state
 
 

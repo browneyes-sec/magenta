@@ -6,7 +6,6 @@ ComponentMap of what's testable.
 
 from __future__ import annotations
 
-import importlib
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ComponentMap:
     """Map of available components in the current environment."""
+
     agents: bool = False
     agent_count: int = 0
     agent_roles: list[str] = field(default_factory=list)
@@ -74,6 +74,7 @@ class PreparingStage:
     def _check_agents(self, components: ComponentMap) -> bool:
         try:
             from magenta.core.agent import agent_registry
+
             agents = agent_registry.all_agents()
             components.agent_count = len(agents)
             components.agent_roles = list(set(a.role for a in agents))
@@ -100,16 +101,16 @@ class PreparingStage:
 
     def _check_dictator(self) -> bool:
         try:
-            from magenta.agents.dictator import DictatorAgent
             return True
         except Exception:
             return False
 
     def _check_registry_writable(self) -> bool:
         try:
-            from magenta.core.agent import agent_registry, BaseAgent, AgentConfig
+            from magenta.core.agent import AgentConfig, agent_registry
+
             test_id = "__chaos_test__"
-            config = AgentConfig(agent_id=test_id, role="__test__")
+            config = AgentConfig(agent_id=test_id, role="__test__")  # noqa: F841
             # Don't actually register, just verify writable
             return hasattr(agent_registry, "register")
         except Exception:
@@ -117,49 +118,42 @@ class PreparingStage:
 
     def _check_pipeline(self) -> bool:
         try:
-            from magenta.orchestration.engine import orchestration_engine
             return True
         except Exception:
             return False
 
     def _check_outbox(self) -> bool:
         try:
-            from magenta.data.sql.outbox import OutboxPublisher
             return True
         except Exception:
             return False
 
     def _check_eventhub(self) -> bool:
         try:
-            from magenta.integration.eventhub import EventHubClient
             return True
         except Exception:
             return False
 
     def _check_mission_manager(self) -> bool:
         try:
-            from magenta.core.mission import mission_manager
             return True
         except Exception:
             return False
 
     def _check_swarm_manager(self) -> bool:
         try:
-            from magenta.core.swarm import swarm_manager
             return True
         except Exception:
             return False
 
     def _check_model_router(self) -> bool:
         try:
-            from magenta.models.router import model_router
             return True
         except Exception:
             return False
 
     def _check_telemetry(self) -> bool:
         try:
-            from magenta.telemetry import get_tracer
             return True
         except Exception:
             return False

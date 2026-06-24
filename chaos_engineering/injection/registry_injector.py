@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import logging
-from uuid import uuid4
 from typing import Any
+from uuid import uuid4
 
 from chaos_engineering.attestation.preparing import ComponentMap
 
@@ -20,9 +20,10 @@ class RegistryInjector:
         "null_config": lambda: _make_config(instructions=None),
     }
 
-    def inject_poison(self, components: ComponentMap, count: int = 3, poison_types: list[str] = None) -> dict[str, Any]:
+    def inject_poison(
+        self, components: ComponentMap, count: int = 3, poison_types: list[str] = None
+    ) -> dict[str, Any]:
         """Inject malformed agent configs into the registry."""
-        from magenta.core.agent import agent_registry
 
         if poison_types is None:
             poison_types = list(self.POISON_TYPES.keys())
@@ -35,19 +36,23 @@ class RegistryInjector:
                 config = factory()
                 # We don't actually register poisoned configs (would break tests)
                 # Instead, verify registry rejects them
-                injected.append({
-                    "type": ptype,
-                    "config": str(config),
-                    "rejected": True,
-                })
+                injected.append(
+                    {
+                        "type": ptype,
+                        "config": str(config),
+                        "rejected": True,
+                    }
+                )
                 logger.info("Registry poison test: type=%s, rejected=True", ptype)
             except Exception as exc:
-                injected.append({
-                    "type": ptype,
-                    "config": "N/A",
-                    "rejected": True,
-                    "error": str(exc),
-                })
+                injected.append(
+                    {
+                        "type": ptype,
+                        "config": "N/A",
+                        "rejected": True,
+                        "error": str(exc),
+                    }
+                )
 
         return {"injected": injected, "count": len(injected)}
 
@@ -55,6 +60,7 @@ class RegistryInjector:
 def _make_config(**kwargs) -> Any:
     """Create a potentially invalid AgentConfig for testing."""
     from magenta.core.models import AgentConfig
+
     defaults = {
         "agent_id": f"chaos-poison-{uuid4().hex[:6]}",
         "role": "test",

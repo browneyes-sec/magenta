@@ -19,6 +19,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /app/.venv /app/.venv
 COPY magenta/ /app/magenta/
 
+RUN groupadd -r magenta -g 10001 && useradd -r -g magenta -u 10001 magenta \
+    && chown -R magenta:magenta /app
+
+USER 10001:10001
+
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 

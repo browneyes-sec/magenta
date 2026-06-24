@@ -22,7 +22,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import httpx
 
-
 TEST_QUERIES = [
     "ransomware alert on endpoint",
     "phishing email detected",
@@ -55,19 +54,26 @@ def generate_test_point(index: int) -> dict:
 
 def embed_text(ollama_url: str, text: str) -> list[float]:
     """Generate embedding."""
-    r = httpx.post(f"{ollama_url}/api/embed", json={
-        "model": "nomic-embed-text",
-        "input": text,
-    }, timeout=30.0)
+    r = httpx.post(
+        f"{ollama_url}/api/embed",
+        json={
+            "model": "nomic-embed-text",
+            "input": text,
+        },
+        timeout=30.0,
+    )
     return r.json()["embeddings"][0]
 
 
 def write_point(qdrant_url: str, collection: str, point: dict, vector: list[float]) -> bool:
     """Write a single point to Qdrant."""
     import uuid
+
     r = httpx.put(
         f"{qdrant_url}/collections/{collection}/points",
-        json={"points": [{"id": str(uuid.uuid4()), "vector": vector, "payload": point["metadata"]}]},
+        json={
+            "points": [{"id": str(uuid.uuid4()), "vector": vector, "payload": point["metadata"]}]
+        },
         timeout=10.0,
     )
     return r.status_code == 200
@@ -83,8 +89,9 @@ def search_point(qdrant_url: str, collection: str, vector: list[float]) -> bool:
     return r.status_code == 200
 
 
-def test_write_throughput(qdrant_url: str, ollama_url: str, collection: str,
-                          duration: int, concurrency: int) -> dict:
+def test_write_throughput(
+    qdrant_url: str, ollama_url: str, collection: str, duration: int, concurrency: int
+) -> dict:
     """Test write throughput."""
     print(f"  Write test: {duration}s, {concurrency} concurrent writers")
 
@@ -100,18 +107,30 @@ def test_write_throughput(qdrant_url: str, ollama_url: str, collection: str,
             try:
                 point = generate_test_point(worker_id * 1000 + len(worker_latencies))
                 embed_start = time.time()
-                r = client.post(f"{ollama_url}/api/embed", json={
-                    "model": "nomic-embed-text",
-                    "input": point["text"],
-                })
+                r = client.post(
+                    f"{ollama_url}/api/embed",
+                    json={
+                        "model": "nomic-embed-text",
+                        "input": point["text"],
+                    },
+                )
                 vector = r.json()["embeddings"][0]
                 embed_latency = (time.time() - embed_start) * 1000
 
                 write_start = time.time()
                 import uuid
+
                 r = client.put(
                     f"{qdrant_url}/collections/{collection}/points",
-                    json={"points": [{"id": str(uuid.uuid4()), "vector": vector, "payload": point["metadata"]}]},
+                    json={
+                        "points": [
+                            {
+                                "id": str(uuid.uuid4()),
+                                "vector": vector,
+                                "payload": point["metadata"],
+                            }
+                        ]
+                    },
                 )
                 write_latency = (time.time() - write_start) * 1000
 
@@ -137,13 +156,18 @@ def test_write_throughput(qdrant_url: str, ollama_url: str, collection: str,
         "duration_s": round(elapsed, 1),
         "throughput_qps": round(throughput, 1),
         "latency_p50_ms": round(statistics.median(latencies), 1) if latencies else 0,
-        "latency_p95_ms": round(sorted(latencies)[int(len(latencies) * 0.95)], 1) if latencies else 0,
-        "latency_p99_ms": round(sorted(latencies)[int(len(latencies) * 0.99)], 1) if latencies else 0,
+        "latency_p95_ms": round(sorted(latencies)[int(len(latencies) * 0.95)], 1)
+        if latencies
+        else 0,
+        "latency_p99_ms": round(sorted(latencies)[int(len(latencies) * 0.99)], 1)
+        if latencies
+        else 0,
     }
 
 
-def test_search_throughput(qdrant_url: str, ollama_url: str, collection: str,
-                           duration: int, concurrency: int) -> dict:
+def test_search_throughput(
+    qdrant_url: str, ollama_url: str, collection: str, duration: int, concurrency: int
+) -> dict:
     """Test search throughput."""
     print(f"  Search test: {duration}s, {concurrency} concurrent searchers")
 
@@ -159,10 +183,13 @@ def test_search_throughput(qdrant_url: str, ollama_url: str, collection: str,
             try:
                 query = random.choice(TEST_QUERIES)
                 embed_start = time.time()
-                r = client.post(f"{ollama_url}/api/embed", json={
-                    "model": "nomic-embed-text",
-                    "input": query,
-                })
+                r = client.post(
+                    f"{ollama_url}/api/embed",
+                    json={
+                        "model": "nomic-embed-text",
+                        "input": query,
+                    },
+                )
                 vector = r.json()["embeddings"][0]
                 embed_latency = (time.time() - embed_start) * 1000
 
@@ -195,8 +222,12 @@ def test_search_throughput(qdrant_url: str, ollama_url: str, collection: str,
         "duration_s": round(elapsed, 1),
         "throughput_qps": round(throughput, 1),
         "latency_p50_ms": round(statistics.median(latencies), 1) if latencies else 0,
-        "latency_p95_ms": round(sorted(latencies)[int(len(latencies) * 0.95)], 1) if latencies else 0,
-        "latency_p99_ms": round(sorted(latencies)[int(len(latencies) * 0.99)], 1) if latencies else 0,
+        "latency_p95_ms": round(sorted(latencies)[int(len(latencies) * 0.95)], 1)
+        if latencies
+        else 0,
+        "latency_p99_ms": round(sorted(latencies)[int(len(latencies) * 0.99)], 1)
+        if latencies
+        else 0,
     }
 
 
@@ -225,10 +256,10 @@ def main():
     parser.add_argument("--workers", type=int, default=2, help="Number of concurrent workers")
     args = parser.parse_args()
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  Load Test — {args.env.upper()}")
     print(f"  Duration: {args.duration}s | Workers: {args.workers}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # Check services
     try:
@@ -248,46 +279,54 @@ def main():
     # Write test
     print("[1/2] Write throughput test...")
     write_results = test_write_throughput(
-        args.qdrant_url, args.ollama_url, args.collection,
-        args.duration, args.workers,
+        args.qdrant_url,
+        args.ollama_url,
+        args.collection,
+        args.duration,
+        args.workers,
     )
 
     # Search test
     print("[2/2] Search throughput test...")
     search_results = test_search_throughput(
-        args.qdrant_url, args.ollama_url, args.collection,
-        args.duration, args.workers,
+        args.qdrant_url,
+        args.ollama_url,
+        args.collection,
+        args.duration,
+        args.workers,
     )
 
     # Final size
     print("\nFinal collection size:")
     final_size = check_collection_size(args.qdrant_url, args.collection)
-    print(f"  Points: {final_size['points_count']} (+{final_size['points_count'] - initial_size['points_count']})")
+    print(
+        f"  Points: {final_size['points_count']} (+{final_size['points_count'] - initial_size['points_count']})"
+    )
 
     # Summary
-    print(f"\n{'='*60}")
-    print(f"  Load Test Results")
-    print(f"{'='*60}")
-    print(f"\n  Write:")
+    print(f"\n{'=' * 60}")
+    print("  Load Test Results")
+    print(f"{'=' * 60}")
+    print("\n  Write:")
     print(f"    Throughput: {write_results['throughput_qps']} writes/s")
     print(f"    Latency p50: {write_results['latency_p50_ms']}ms")
     print(f"    Latency p95: {write_results['latency_p95_ms']}ms")
     print(f"    Latency p99: {write_results['latency_p99_ms']}ms")
     print(f"    Errors: {write_results['errors']}")
-    print(f"\n  Search:")
+    print("\n  Search:")
     print(f"    Throughput: {search_results['throughput_qps']} searches/s")
     print(f"    Latency p50: {search_results['latency_p50_ms']}ms")
     print(f"    Latency p95: {search_results['latency_p95_ms']}ms")
     print(f"    Latency p99: {search_results['latency_p99_ms']}ms")
     print(f"    Errors: {search_results['errors']}")
-    print(f"\n  {'='*60}")
+    print(f"\n  {'=' * 60}")
 
     # Pass/Fail
-    write_ok = write_results['latency_p99_ms'] < 1000 and write_results['errors'] == 0
-    search_ok = search_results['latency_p99_ms'] < 500 and search_results['errors'] == 0
+    write_ok = write_results["latency_p99_ms"] < 1000 and write_results["errors"] == 0
+    search_ok = search_results["latency_p99_ms"] < 500 and search_results["errors"] == 0
     status = "PASS" if (write_ok and search_ok) else "FAIL"
     print(f"  Result: {status}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     sys.exit(0 if status == "PASS" else 1)
 

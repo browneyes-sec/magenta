@@ -8,7 +8,9 @@ def run() -> dict:
     all_agents = agent_registry.all_agents()
     by_role = agent_registry.counts
 
-    available = sum(1 for a in all_agents if hasattr(a, "status") and str(a.status) in ("idle", "ready"))
+    available = sum(
+        1 for a in all_agents if hasattr(a, "status") and str(a.status) in ("idle", "ready")
+    )
 
     return {
         "total_agents": len(all_agents),

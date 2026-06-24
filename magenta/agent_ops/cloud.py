@@ -6,6 +6,7 @@ Reads provider configuration from providers.toml.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import structlog
@@ -187,6 +188,3 @@ class CloudOrchestrator:
             },
             "feasible": True,
         }
-
-
-import os

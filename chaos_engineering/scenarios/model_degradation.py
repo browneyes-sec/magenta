@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import time
-from typing import Any
-
 from chaos_engineering.attestation.preparing import ComponentMap
 from chaos_engineering.chaos import ScenarioResult
 
@@ -26,8 +23,8 @@ class ModelDegradationScenario:
         return True, ""
 
     def run(self, components: ComponentMap, stealth: bool) -> ScenarioResult:
+
         from magenta.models.router import model_router
-        import asyncio
 
         # Store original state
         original_route = getattr(model_router, "route", None)
@@ -63,6 +60,7 @@ class ModelDegradationScenario:
 
     def validate(self, components: ComponentMap) -> list[dict]:
         from chaos_engineering.attestation.probe_runner import ProbeRunner
+
         runner = ProbeRunner(components)
         return runner.run_all()
 

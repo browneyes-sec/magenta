@@ -1,4 +1,5 @@
 """Tests for WorkflowCompiler — YAML/Graph → DAG compilation."""
+
 from __future__ import annotations
 
 import tempfile

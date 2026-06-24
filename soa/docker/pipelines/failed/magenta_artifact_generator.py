@@ -7,10 +7,7 @@ for display in Open WebUI chat.
 Installation: place in Open WebUI pipelines directory, enable in Valves.
 """
 
-import json
 import logging
-from datetime import datetime
-from typing import Optional
 
 import httpx
 from pydantic import BaseModel

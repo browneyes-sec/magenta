@@ -28,17 +28,17 @@ dev-logs: ## Tail logs from all services
 
 # ── Testing ─────────────────────────────────────────────────────────────────
 
-test: ## Run all tests
-	python -m pytest magnet/ -v --tb=short
+test: ## Run all tests (unit + integration)
+	python -m pytest tests/ magnet/ -v --tb=short
 
 test-unit: ## Run unit tests only
-	python -m pytest magnet/ -v --tb=short -m "not integration"
+	python -m pytest tests/ magnet/ -v --tb=short -m "not integration"
 
 test-integration: ## Run integration tests only
-	python -m pytest magnet/ -v --tb=short -m integration
+	python -m pytest tests/ magnet/ -v --tb=short -m integration
 
 test-coverage: ## Run tests with coverage report
-	python -m pytest magnet/ -v --tb=short --cov=magenta --cov-report=term --cov-report=html
+	python -m pytest tests/ magnet/ -v --tb=short --cov=magenta --cov-report=term --cov-report=html
 
 # ── Linting ─────────────────────────────────────────────────────────────────
 
