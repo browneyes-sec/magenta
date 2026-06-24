@@ -5,7 +5,6 @@ from __future__ import annotations
 import ast
 import asyncio
 import json
-import logging
 import os
 import time
 from dataclasses import dataclass, field
@@ -16,10 +15,11 @@ from typing import Any
 from magenta.core.agent import agent_registry
 from magenta.core.mission import mission_manager
 from magenta.core.models import Mission, MissionStatus
+from magenta.logging import get_structured_logger
 from magenta.orchestration.dag_executor import DAGNode, dag_executor
 from magenta.workflows.compiler import workflow_compiler
 
-logger = logging.getLogger(__name__)
+_logger = get_structured_logger(__name__)
 
 
 def _safe_eval(expression: str, context: dict[str, Any]) -> bool:
@@ -100,6 +100,7 @@ class WorkflowExecution:
     node_errors: dict = field(default_factory=dict)
     approvals_pending: dict = field(default_factory=dict)
     current_node: str | None = None
+    correlation_id: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -112,6 +113,7 @@ class WorkflowExecution:
             "node_errors": self.node_errors,
             "approvals_pending": self.approvals_pending,
             "current_node": self.current_node,
+            "correlation_id": self.correlation_id,
         }
 
     @classmethod
@@ -136,6 +138,7 @@ class WorkflowExecution:
             node_errors=data.get("node_errors", {}),
             approvals_pending=data.get("approvals_pending", {}),
             current_node=data.get("current_node"),
+            correlation_id=data.get("correlation_id", ""),
         )
 
 
@@ -170,7 +173,7 @@ class WorkflowEngine:
             self._redis = client
             await self._load_executions_from_redis()
         except Exception as exc:
-            logger.debug("Redis unavailable for WorkflowEngine, using in-memory: %s", exc)
+            _logger.debug("Redis unavailable for WorkflowEngine, using in-memory: %s", exc)
             self._redis = False
         return self._redis
 
@@ -187,9 +190,9 @@ class WorkflowEngine:
                     if execution_data.get("status") in ("running", "waiting_approval"):
                         execution = WorkflowExecution.from_dict(execution_data)
                         self._executions[execution.mission_id] = execution
-            logger.info("Loaded %d active workflow executions from Redis", len(keys))
+            _logger.info("Loaded %d active workflow executions from Redis", len(keys))
         except Exception as exc:
-            logger.warning("Failed to load workflow executions from Redis: %s", exc)
+            _logger.warning("Failed to load workflow executions from Redis: %s", exc)
 
     async def _save_execution(self, execution: WorkflowExecution):
         if not self._persistence_enabled or not self._redis:
@@ -198,7 +201,7 @@ class WorkflowEngine:
             key = f"workflow_execution:{execution.mission_id}"
             await self._redis.set(key, json.dumps(execution.to_dict()))
         except Exception as exc:
-            logger.debug(
+            _logger.debug(
                 "Redis save failed for workflow execution %s: %s",
                 execution.mission_id,
                 exc,
@@ -221,6 +224,9 @@ class WorkflowEngine:
         parameters: dict | None = None,
     ) -> str:
         """Execute a playbook from file, returning mission_id."""
+        from uuid import uuid4
+
+        correlation_id = f"wf-{uuid4().hex[:12]}"
         pb = workflow_compiler.load_playbook(playbook)
 
         legacy_pb = pb.to_legacy() if isinstance(pb, type(pb)) and hasattr(pb, 'to_legacy') else pb
@@ -238,10 +244,23 @@ class WorkflowEngine:
         execution = WorkflowExecution(
             mission_id=mission.mission_id,
             playbook_name=legacy_pb.name,
+            correlation_id=correlation_id,
         )
         self._executions[mission.mission_id] = execution
         self._evict_old_executions()
         await self._save_execution(execution)
+
+        _logger.info(
+            "Workflow execution started",
+            extra={
+                "mission_id": mission.mission_id,
+                "correlation_id": correlation_id,
+                "playbook": legacy_pb.name,
+                "alert_id": alert_id,
+                "source_system": source_system,
+                "action": "execute_playbook",
+            },
+        )
 
         asyncio.create_task(self._run_workflow(mission.mission_id, pb))
 
@@ -263,14 +282,32 @@ class WorkflowEngine:
     async def _run_workflow(self, mission_id: str, playbook: Any) -> None:
         async with self._running_lock:
             if mission_id in self._running_missions:
-                logger.warning("Mission %s already running, skipping duplicate", mission_id)
+                _logger.warning(
+                    "Mission already running, skipping duplicate",
+                    extra={
+                        "mission_id": mission_id,
+                        "correlation_id": self._executions.get(
+                            mission_id, WorkflowExecution("", "")
+                        ).correlation_id,
+                    },
+                )
                 return
             self._running_missions.add(mission_id)
 
         execution = self._executions[mission_id]
+        cid = execution.correlation_id
 
         try:
             mission_manager.update_status(mission_id, MissionStatus.executing)
+            _logger.info(
+                "Workflow DAG compilation started",
+                extra={
+                    "mission_id": mission_id,
+                    "correlation_id": cid,
+                    "playbook": execution.playbook_name,
+                    "action": "compile",
+                },
+            )
 
             nodes = workflow_compiler.compile(playbook)
 
@@ -285,8 +322,29 @@ class WorkflowEngine:
             final_status = MissionStatus.completed if not has_errors else MissionStatus.failed
             mission_manager.update_status(mission_id, final_status)
 
+            _logger.info(
+                "Workflow execution completed",
+                extra={
+                    "mission_id": mission_id,
+                    "correlation_id": cid,
+                    "status": execution.status,
+                    "tasks_completed": result.get("tasks_completed", 0),
+                    "tasks_failed": result.get("tasks_failed", 0),
+                    "tasks_skipped": result.get("tasks_skipped", 0),
+                    "action": "workflow_complete",
+                },
+            )
+
         except Exception as e:
-            logger.exception(f"Workflow execution failed for mission {mission_id}")
+            _logger.error(
+                f"Workflow execution failed: {e}",
+                extra={
+                    "mission_id": mission_id,
+                    "correlation_id": cid,
+                    "error": str(e),
+                    "action": "workflow_error",
+                },
+            )
             execution.status = "failed"
             execution.completed_at = datetime.utcnow()
             execution.node_errors["workflow"] = str(e)
@@ -567,7 +625,7 @@ class WorkflowEngine:
             shared_results[node.task_id] = result
 
         except Exception as e:
-            logger.exception(f"Subgraph {subgraph_name} execution failed")
+            _logger.exception(f"Subgraph {subgraph_name} execution failed")
             node.status = "failed"
             node.error = str(e)
 
@@ -627,7 +685,7 @@ class WorkflowEngine:
         """Gracefully drain running workflows before shutdown."""
         if not self._running_missions:
             return
-        logger.info(
+        _logger.info(
             "Draining %d running workflow(s) with timeout %.1fs",
             len(self._running_missions),
             timeout_seconds,
@@ -636,13 +694,13 @@ class WorkflowEngine:
         while self._running_missions and time.monotonic() < deadline:
             await asyncio.sleep(0.5)
         if self._running_missions:
-            logger.warning(
+            _logger.warning(
                 "Timed out waiting for %d workflow(s): %s",
                 len(self._running_missions),
                 list(self._running_missions),
             )
         else:
-            logger.info("All running workflows drained successfully")
+            _logger.info("All running workflows drained successfully")
 
 
 workflow_engine = WorkflowEngine()
