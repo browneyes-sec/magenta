@@ -225,6 +225,8 @@ services:
       MAGENTA_LOG_LEVEL: "INFO"
       MAGENTA_CORS__ORIGINS: '["http://localhost:3000","http://localhost:8000"]'
       MAGENTA_ENTRA_JWT__ENABLED: "false"
+      MAGENTA_MOCK_AUTH: "true"
+      MAGENTA_API_KEY: "${MAGENTA_API_KEY:-magenta-dev-api-key}"
     volumes:
       - magenta-sqlite-data:/app/data
     mem_limit: 512m
