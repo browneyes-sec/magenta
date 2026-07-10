@@ -35,6 +35,51 @@ class NoSQLSettings(BaseSettings):
     database_name: str = "magenta"
 
 
+class SOARSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="MAGENTA_SOAR_")
+    host: str = "localhost"
+    port: int = 443
+    username: str = ""
+    password: str = ""
+    verify_ssl: bool = True
+    ca_bundle_path: str = ""
+    failure_threshold: int = 5
+    reset_timeout: float = 30.0
+
+
+class IdempotencySettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="MAGENTA_IDEMPOTENCY_")
+    storage_connection_string: Optional[str] = None
+    table_name: str = "IdempotencyKeys"
+    ttl_hours: int = 24
+
+
+class DeltaLakeSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="MAGENTA_DELTA_")
+    uri: str = "/data/magenta/delta"
+    mode: str = "append"
+    partition_by: list[str] = ["source_system"]
+
+
+class SentinelSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="MAGENTA_SENTINEL_")
+    tenant_id: str = ""
+    client_id: str = ""
+    client_secret: str = ""
+    workspace_id: str = ""
+
+
+class SplunkSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="MAGENTA_SPLUNK_")
+    host: str = "localhost"
+    port: int = 8089
+    username: str = ""
+    password: str = ""
+    use_ssl: bool = True
+    verify_ssl: bool = True
+    ca_bundle_path: str = ""
+
+
 class EventHubSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="MAGENTA_EVENTHUB_")
     connection_string: Optional[str] = None
@@ -77,6 +122,11 @@ class Settings(BaseSettings):
     elastic: ElasticSettings = Field(default_factory=ElasticSettings)
     lake: LakeSettings = Field(default_factory=LakeSettings)
     nosql: NoSQLSettings = Field(default_factory=NoSQLSettings)
+    soar: SOARSettings = Field(default_factory=SOARSettings)
+    sentinel: SentinelSettings = Field(default_factory=SentinelSettings)
+    splunk: SplunkSettings = Field(default_factory=SplunkSettings)
+    idempotency: IdempotencySettings = Field(default_factory=IdempotencySettings)
+    delta_lake: DeltaLakeSettings = Field(default_factory=DeltaLakeSettings)
     eventhub: EventHubSettings = Field(default_factory=EventHubSettings)
     models: ModelSettings = Field(default_factory=ModelSettings)
 

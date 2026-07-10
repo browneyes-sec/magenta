@@ -76,7 +76,43 @@ class ModelRouter:
         tier: str = "speed",
         max_attempts: int = 3,
     ) -> ModelResponse:
-        """Route a request through the model tier with fallback."""
+        """Route a request through the model tier with fallback.
+
+        Policy enforcement (llm-policy.md):
+            - HIGH sensitivity → Ollama-only (no external egress)
+            - MEDIUM sensitivity → local preferred, hosted allowed with policy override
+            - LOW sensitivity → normal routing by tier
+        """
+        # ─── POLICY: HIGH-sensitivity → Ollama-only ──────────────────────
+        if request.sensitivity_level == "HIGH":
+            ollama_clients = {
+                name: client
+                for name, client in self._clients.items()
+                if client.provider == "ollama"
+            }
+            if not ollama_clients:
+                raise ModelError(
+                    "HIGH-sensitivity request blocked: "
+                    "no local Ollama models available. "
+                    "Check Ollama configuration."
+                )
+            client_names = list(ollama_clients.keys())
+            random.shuffle(client_names)
+            for name in client_names:
+                client = ollama_clients[name]
+                try:
+                    start = datetime.utcnow()
+                    response = await client.generate(request)
+                    elapsed = (datetime.utcnow() - start).total_seconds() * 1000
+                    response.latency_ms = elapsed
+                    return response
+                except (ModelError, ModelTimeout, Exception):
+                    continue
+            raise ModelError(
+                "HIGH-sensitivity request failed: "
+                f"all {len(ollama_clients)} local Ollama models exhausted"
+            )
+
         tier_config = self.TIERS.get(tier, self.TIERS["speed"])
         client_names = tier_config["clients"]
         random.shuffle(client_names)  # load balance

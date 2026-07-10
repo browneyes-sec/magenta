@@ -6,7 +6,7 @@ schema defined in the DTP (§2.3).
 """
 
 from __future__ import annotations
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import Optional
 from uuid import uuid4
@@ -119,13 +119,14 @@ class ApprovalRequest(BaseModel):
     reasoning: str
     alternatives: list[dict] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
-    expires_at: datetime
+    state: ApprovalState = ApprovalState.pending
+    approval: Optional[dict] = None
+    expires_at: datetime = Field(
+        default_factory=lambda: datetime.utcnow() + timedelta(minutes=15)
+    )
     model: str = ""
-
-    def model_post_init(self, __context):
-        if not self.expires_at:
-            from datetime import timedelta
-            self.expires_at = datetime.utcnow() + timedelta(minutes=15)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = None
 
 
 class Target(BaseModel):

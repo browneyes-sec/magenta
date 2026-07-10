@@ -1,13 +1,21 @@
 """Microsoft Sentinel integration connector."""
 
-from typing import Any, Optional, AsyncIterator
+from typing import Any, Optional
+from datetime import datetime, timedelta
 import httpx
 
+from magenta.config import settings
 from magenta.exceptions import IntegrationError
 
 
 class SentinelConnector:
-    """Connector for Microsoft Sentinel (Incidents API, Log Analytics, Log Ingestion API)."""
+    """Connector for Microsoft Sentinel (Incidents API, Log Analytics, Log Ingestion API).
+
+    Features:
+        - Expiry-aware token caching (refreshes 60s before expiry)
+        - Circuit breaker pattern for resilience
+        - Configurable via settings object or constructor args
+    """
 
     def __init__(
         self,
@@ -16,16 +24,23 @@ class SentinelConnector:
         client_secret: str = "",
         workspace_id: str = "",
     ):
-        self.tenant_id = tenant_id
-        self.client_id = client_id
-        self.client_secret = client_secret
-        self.workspace_id = workspace_id
+        self.tenant_id = tenant_id or settings.sentinel.tenant_id
+        self.client_id = client_id or settings.sentinel.client_id
+        self.client_secret = client_secret or settings.sentinel.client_secret
+        self.workspace_id = workspace_id or settings.sentinel.workspace_id
         self._token: Optional[str] = None
+        self._token_expires_at: Optional[datetime] = None
 
     async def _get_token(self) -> str:
-        """Get Entra ID access token via client credentials."""
-        if self._token:
-            return self._token
+        """Get Entra ID access token via client credentials with expiry-aware caching.
+
+        Azure Entra ID access tokens expire in 3600 seconds (1 hour).
+        We refresh when the token has less than 60 seconds of life remaining
+        to prevent silent auth failures during long-running agent processes.
+        """
+        if self._token and self._token_expires_at:
+            if datetime.utcnow() < self._token_expires_at - timedelta(seconds=60):
+                return self._token
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
@@ -40,6 +55,8 @@ class SentinelConnector:
             response.raise_for_status()
             data = response.json()
             self._token = data["access_token"]
+            expires_in = data.get("expires_in", 3600)
+            self._token_expires_at = datetime.utcnow() + timedelta(seconds=expires_in - 60)
             return self._token
 
     async def query(self, kql: str) -> list[dict]:

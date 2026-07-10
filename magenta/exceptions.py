@@ -49,5 +49,13 @@ class IntegrationError(MagentaError):
     """Raised when an external integration fails."""
 
 
+class RegistryError(MagentaError):
+    """Raised when a registry write operation fails."""
+
+
+class DuplicateActionError(MagentaError):
+    """Raised when an idempotent action is re-executed for the same alert+action+target."""
+
+
 class WebhookError(MagentaError):
     """Raised when a webhook handler fails."""

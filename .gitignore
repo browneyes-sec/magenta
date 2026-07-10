@@ -19,6 +19,7 @@ venv/
 
 # Data
 data/
+!context/data/
 *.db
 
 # IDE

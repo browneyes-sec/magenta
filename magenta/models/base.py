@@ -23,6 +23,8 @@ class ModelRequest:
     temperature: float = 0.2
     max_tokens: int = 2048
     tools: Optional[list[dict]] = None
+    sensitivity_level: str = "LOW"  # "HIGH" | "MEDIUM" | "LOW"
+    priority: str = "interactive"    # "interactive" | "batch"
 
 
 class BaseModelClient(ABC):
