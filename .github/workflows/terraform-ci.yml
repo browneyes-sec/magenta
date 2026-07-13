@@ -113,7 +113,7 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
 
       - name: Post Infracost Comment
-        uses: infracost/actions/comment@v3
+        uses: infracost/actions/comment@v4
         with:
           path: /tmp/infracost.json
           behaviors: update
