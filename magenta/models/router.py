@@ -108,12 +108,42 @@ class ModelRouter:
     ) -> ModelResponse:
         """Route a request through the model tier with fallback.
 
-        Respects sensitivity_level from request:
-          - HIGH  -> Ollama only (no external egress)
-          - MEDIUM -> Ollama preferred, fallback to gated providers
-          - LOW   -> any provider allowed
+        Policy enforcement:
+            - high sensitivity -> Ollama-only (no external egress)
+            - medium sensitivity -> local preferred, hosted allowed with policy override
+            - low sensitivity -> normal routing by tier
         """
-        sensitivity = getattr(request, "sensitivity_level", "low")
+        sensitivity = getattr(request, "sensitivity_level", "low").lower()
+
+        # ─── POLICY: HIGH-sensitivity -> Ollama-only ─────────────────────
+        if sensitivity == "high":
+            ollama_clients = {
+                name: client
+                for name, client in self._clients.items()
+                if client.provider == "ollama"
+            }
+            if not ollama_clients:
+                raise ModelError(
+                    "HIGH-sensitivity request blocked: "
+                    "no local Ollama models available. "
+                    "Check Ollama configuration."
+                )
+            client_names = list(ollama_clients.keys())
+            random.shuffle(client_names)
+            for name in client_names:
+                client = ollama_clients[name]
+                try:
+                    start = datetime.utcnow()
+                    response = await client.generate(request)
+                    elapsed = (datetime.utcnow() - start).total_seconds() * 1000
+                    response.latency_ms = elapsed
+                    return response
+                except (ModelError, ModelTimeout, Exception):
+                    continue
+            raise ModelError(
+                "HIGH-sensitivity request failed: "
+                f"all {len(ollama_clients)} local Ollama models exhausted"
+            )
         tier_config = self.TIERS.get(tier, self.TIERS["speed"])
         client_names = list(tier_config["clients"])  # copy to avoid mutating tier config
 

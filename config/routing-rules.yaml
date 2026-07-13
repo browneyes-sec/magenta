@@ -1,0 +1,88 @@
+# Magenta SOAR Routing Rules — v1
+# Maps alert characteristics to SOAR playbooks and risk thresholds
+#
+# Versioning: increment version on any structural change.
+# Playbook names must match Splunk SOAR playbook names exactly.
+
+version: "1.0"
+updated_at: "2026-07-15"
+
+rules:
+  - alert_type: "IdentityCompromise"
+    description: "Suspicious login, credential theft, or account takeover"
+    severity_min: 4  # High+
+    playbook: "Identity_Compromise_Containment"
+    risk_score_threshold: 70
+    auto_approve_under: 40
+    requires_approval: true
+    tags: ["identity", "critical"]
+
+  - alert_type: "Phishing"
+    description: "Phishing email reported or detected"
+    severity_min: 3  # Medium+
+    playbook: "Phishing_Email_Containment"
+    risk_score_threshold: 70
+    auto_approve_under: 40
+    requires_approval: false
+    tags: ["phishing", "email"]
+
+  - alert_type: "Malware"
+    description: "Malware detected on endpoint or server"
+    severity_min: 4  # High+
+    playbook: "Malware_Isolation"
+    risk_score_threshold: 60
+    auto_approve_under: 30
+    requires_approval: true
+    tags: ["malware", "endpoint"]
+
+  - alert_type: "DataExfiltration"
+    description: "Suspicious data transfer or DLP alert"
+    severity_min: 5  # Critical only
+    playbook: "Data_Exfiltration_Response"
+    risk_score_threshold: 50
+    auto_approve_under: 20
+    requires_approval: true
+    tags: ["dlp", "exfiltration", "critical"]
+
+  - alert_type: "Ransomware"
+    description: "Ransomware detonation or encryption detected"
+    severity_min: 5
+    playbook: "Ransomware_Containment"
+    risk_score_threshold: 40
+    auto_approve_under: 10
+    requires_approval: true
+    tags: ["ransomware", "critical"]
+
+  - alert_type: "BruteForce"
+    description: "Multiple failed authentication attempts"
+    severity_min: 3
+    playbook: "BruteForce_Mitigation"
+    risk_score_threshold: 70
+    auto_approve_under: 40
+    requires_approval: false
+    tags: ["auth", "bruteforce"]
+
+  - alert_type: "DefenderAlert"
+    description: "Microsoft Defender for Cloud/Endpoint alert"
+    severity_min: 3
+    playbook: "Defender_Alert_Response"
+    risk_score_threshold: 70
+    auto_approve_under: 40
+    requires_approval: false
+    tags: ["defender", "microsoft"]
+
+  - alert_type: "SplunkESAlert"
+    description: "Splunk Enterprise Security notable event"
+    severity_min: 3
+    playbook: "SplunkES_Notable_Response"
+    risk_score_threshold: 70
+    auto_approve_under: 40
+    requires_approval: false
+    tags: ["splunk", "es"]
+
+default:
+  playbook: "Default_Investigation"
+  risk_score_threshold: 70
+  auto_approve_under: 40
+  requires_approval: false
+  tags: ["default"]

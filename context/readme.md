@@ -17,7 +17,8 @@ The context engineering layer ensures:
 |---|---|---|
 | `backend/` | Backend Agents | Azure Functions, Logic Apps, API integrations, Event Hubs producers/consumers |
 | `frontend/` | Frontend Agents | Automation Registry Portal, dashboards, Kibana/Grafana configurations |
-| `data/` | Data Agents | Data Lake schemas, Delta/Parquet pipelines, Sentinel custom tables, Elasticsearch mappings |
+| `data/` | Data Agents | Schema registry, Delta/Parquet pipelines, Sentinel custom tables, Elasticsearch mappings, ILM policies |
+| `soar/` | SOAR Agents | Splunk SOAR REST API integration, playbook dispatch, container lifecycle, audit collection, outreach gate |
 | `qa/` | QA Agents | Test strategies, integration test frameworks, chaos engineering, acceptance criteria validation |
 | `ops/` | Ops Agents | CI/CD pipelines, IaC (Bicep/Terraform), monitoring, incident response, RBAC compliance |
 
@@ -31,6 +32,14 @@ Each `CLAUDE.md` file contains:
 4. **Feedback loops** — review triggers, test requirements, deployment gates
 5. **Cross-domain interfaces** — how this domain interacts with others
 
+## Mandatory Pre-Task Reading
+
+Before generating code or making changes, the relevant agent MUST read:
+
+- `/architecture/readme.md` — canonical schema, agent catalogue, WAF assessment, DTP
+- `/context/llm-policy.md` — sensitivity routing, redaction rules, budget enforcement
+- The domain-specific `CLAUDE.md` for the area being modified
+
 When starting work on a task, the relevant agent reads its domain's `CLAUDE.md` and the shared architecture reference in `/architecture/readme.md` before generating code or making changes.
 
 ## Cross-Domain Communication
@@ -39,6 +48,7 @@ Events flow between domains via the canonical `automation.activity` schema defin
 
 - **Backend** produces and consumes Event Hubs messages
 - **Data** owns the schema registry and storage layer
+- **SOAR** owns the Splunk SOAR outreach gate and playbook dispatch
 - **Frontend** consumes from Elasticsearch/Sentinel for visualization
 - **QA** validates end-to-end flows across all domains
 - **Ops** deploys and monitors all components

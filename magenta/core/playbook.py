@@ -11,10 +11,72 @@ from magenta.exceptions import PlaybookError
 
 
 class PlaybookManager:
-    """Manage playbook lifecycle: validate, register, list, remove."""
+    """Manage playbook lifecycle: validate, register, list, remove, resolve."""
 
     def __init__(self):
         self._playbooks: dict[str, Playbook] = {}
+        self._routing_rules: list[dict] = []
+        self._default_rule: dict = {}
+
+    async def load_routing_rules(
+        self, path: str | Path = "config/routing-rules.yaml"
+    ) -> None:
+        """Load SOAR routing rules from a YAML file.
+
+        Rules map alert types → playbook names with risk thresholds.
+        """
+        path = Path(path)
+        if not path.exists():
+            self._routing_rules = []
+            self._default_rule = {"playbook": "Default_Investigation"}
+            return
+
+        raw = path.read_text()
+        data = yaml.safe_load(raw)
+        self._routing_rules = data.get("rules", [])
+        self._default_rule = data.get("default", {"playbook": "Default_Investigation"})
+
+    async def resolve(
+        self,
+        alert_type: str = "",
+        severity: int = 0,
+        risk_score: int = 0,
+    ) -> dict:
+        """Resolve the best routing rule for a given alert.
+
+        Returns a dict with playbook_name, risk_score_threshold, etc.
+        Falls through to default if no rule matches.
+        """
+        best_match = None
+        best_severity_overlap = -1
+
+        for rule in self._routing_rules:
+            rule_severity = rule.get("severity_min", 1)
+            # Match if alert type matches and severity >= threshold
+            if rule.get("alert_type", "").lower() == alert_type.lower():
+                if severity >= rule_severity:
+                    overlap = len(set(rule.get("tags", [])))
+                    if overlap > best_severity_overlap:
+                        best_severity_overlap = overlap
+                        best_match = rule
+
+        if best_match:
+            return {
+                "playbook_name": best_match["playbook"],
+                "risk_score_threshold": best_match.get("risk_score_threshold", 70),
+                "auto_approve_under": best_match.get("auto_approve_under", 40),
+                "requires_approval": best_match.get("requires_approval", False),
+                "tags": best_match.get("tags", []),
+            }
+
+        # Fallback to default
+        return {
+            "playbook_name": self._default_rule.get("playbook", "Default_Investigation"),
+            "risk_score_threshold": self._default_rule.get("risk_score_threshold", 70),
+            "auto_approve_under": self._default_rule.get("auto_approve_under", 40),
+            "requires_approval": self._default_rule.get("requires_approval", False),
+            "tags": self._default_rule.get("tags", ["default"]),
+        }
 
     def load(self, path: str | Path) -> Playbook:
         """Load a playbook from a YAML or JSON file."""
