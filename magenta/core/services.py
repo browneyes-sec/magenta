@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from magenta.telemetry import get_tracer
+
     _tracer = get_tracer("service.registry")
 except Exception:
     _tracer = None
@@ -57,10 +58,7 @@ class Service(ABC):
             "name": self.name,
             "version": self.version,
             "status": "running" if self._started else "stopped",
-            "uptime_seconds": (
-                round(time.time() - self._start_time, 2)
-                if self._start_time else 0
-            ),
+            "uptime_seconds": (round(time.time() - self._start_time, 2) if self._start_time else 0),
         }
 
 

@@ -4,29 +4,29 @@ Provides mock agents, missions, and framework state that can be
 used across all test modules without external dependencies.
 """
 
-import pytest
-from datetime import datetime, timedelta
+from typing import Any
 from uuid import uuid4
-from typing import Any, Optional
 
-from magenta.core.models import (
-    Mission, MissionStatus, AgentConfig, SeverityLevel, Target, TargetType,
-)
-from magenta.core.agent import agent_registry, BaseAgent
-from magenta.core.mission import mission_manager
-from magenta.core.swarm import swarm_manager
-from magenta.dictator.state import dictator_state, DictatorStatus
-from magenta.dictator.policies import policy_engine
-from magenta.dictator.directives import Directive, DirectiveType, DirectivePriority
+import pytest
+
 from magenta.agents.dictator import DictatorAgent
-
+from magenta.core.agent import BaseAgent, agent_registry
+from magenta.core.mission import mission_manager
+from magenta.core.models import (
+    AgentConfig,
+    Mission,
+    SeverityLevel,
+)
+from magenta.dictator.policies import policy_engine
+from magenta.dictator.state import DictatorStatus, dictator_state
 
 # ── Mock Agent ────────────────────────────────────────────────────
+
 
 class MockAgent(BaseAgent):
     """A minimal agent that returns canned responses for testing."""
 
-    def __init__(self, role: str, agent_id: Optional[str] = None):
+    def __init__(self, role: str, agent_id: str | None = None):
         config = AgentConfig(
             agent_id=agent_id or f"mock-{role}-{uuid4().hex[:6]}",
             role=role,
@@ -44,6 +44,7 @@ class MockAgent(BaseAgent):
 
 
 # ── Fixtures ──────────────────────────────────────────────────────
+
 
 @pytest.fixture(autouse=True)
 async def reset_state():
@@ -142,4 +143,5 @@ def dictator_with_agents() -> DictatorAgent:
     agent_registry.register(MockAgent(role="triage"))
     agent_registry.register(MockAgent(role="swarm_manager"))
     from magenta.agents.dictator import dictator as d
+
     return d

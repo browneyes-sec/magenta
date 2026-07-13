@@ -13,11 +13,14 @@ logger = logging.getLogger(__name__)
 class DirectiveInjector:
     """Injects faults into the Dictator directive system."""
 
-    def flood_directives(self, components: ComponentMap, count: int = 100, interval_ms: int = 100) -> dict[str, Any]:
+    def flood_directives(
+        self, components: ComponentMap, count: int = 100, interval_ms: int = 100
+    ) -> dict[str, Any]:
         """Issue rapid-fire directives to overwhelm the Dictator."""
-        from magenta.dictator.directives import issue_directive, DirectiveType, DirectivePriority
-        from magenta.dictator.state import dictator_state
         import time
+
+        from magenta.dictator.directives import DirectivePriority, DirectiveType, issue_directive
+        from magenta.dictator.state import dictator_state
 
         issued = 0
         errors = 0
@@ -55,13 +58,15 @@ class DirectiveInjector:
 
         injected = 0
         for i in range(count):
-            dictator_state.log_directive({
-                "type": None,
-                "target": "",
-                "mission_id": None,
-                "payload": {"malformed": True, "chaos_index": i},
-                "reason": "",
-            })
+            dictator_state.log_directive(
+                {
+                    "type": None,
+                    "target": "",
+                    "mission_id": None,
+                    "payload": {"malformed": True, "chaos_index": i},
+                    "reason": "",
+                }
+            )
             injected += 1
 
         return {"injected": injected}

@@ -10,23 +10,19 @@ subsequent cycles.
 
 from __future__ import annotations
 
-from typing import Any, Optional
-from datetime import datetime, timedelta
 import asyncio
 import logging
+from datetime import datetime, timedelta
 
-from magenta.agents.base import LLMAgent
 from magenta.core.models import (
-    AgentConfig,
-    Mission,
-    AutomationActivity,
     ActionStatus,
-    Target,
+    AutomationActivity,
     Executor,
+    Target,
 )
 from magenta.core.registry import registry_writer
-from magenta.integration.soar import SOARConnector
 from magenta.exceptions import IntegrationError
+from magenta.integration.soar import SOARConnector
 
 logger = logging.getLogger(__name__)
 
@@ -48,14 +44,14 @@ class SOARAuditAgent:
 
     def __init__(
         self,
-        soar_connector: Optional[SOARConnector] = None,
+        soar_connector: SOARConnector | None = None,
         interval_seconds: int = 300,  # 5 minutes
         window_overlap_seconds: int = 60,  # 1-minute overlap to prevent gaps
     ):
         self.soar = soar_connector or SOARConnector()
         self.interval = interval_seconds
         self.overlap = window_overlap_seconds
-        self._last_poll_end: Optional[datetime] = None
+        self._last_poll_end: datetime | None = None
         self._cycle_count: int = 0
         self._running = False
 
@@ -196,7 +192,7 @@ class SOARAuditAgent:
 
 # Convenience singleton
 def create_audit_agent(
-    soar_connector: Optional[SOARConnector] = None,
+    soar_connector: SOARConnector | None = None,
 ) -> SOARAuditAgent:
     """Create a configured SOAR Audit Agent singleton."""
     return SOARAuditAgent(soar_connector=soar_connector)

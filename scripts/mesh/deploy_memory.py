@@ -23,7 +23,6 @@ from pathlib import Path
 
 import httpx
 
-
 ENVIRONMENTS = {
     "dev": {
         "qdrant": "http://localhost:6333",
@@ -74,9 +73,9 @@ def main():
     qdrant_url = args.qdrant_url or config["qdrant"]
     ollama_url = args.ollama_url or config["ollama"]
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  Magenta Memory Deployment — {args.env.upper()}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     steps = []
     start_time = time.time()
@@ -108,9 +107,9 @@ def main():
         print("[4/6] Seeding eval data...")
         seed_ok = run_script("seed_eval_data.py", ["--env", args.env, "--clear-first"])
         steps.append(("Seed eval data", seed_ok))
-        print(f"\n{'='*60}")
-        print(f"  Seed-only complete")
-        print(f"{'='*60}\n")
+        print(f"\n{'=' * 60}")
+        print("  Seed-only complete")
+        print(f"{'=' * 60}\n")
         sys.exit(0 if seed_ok else 1)
 
     # Step 2: Create collections
@@ -170,16 +169,16 @@ def main():
     passed = sum(1 for _, ok in steps if ok)
     total = len(steps)
 
-    print(f"{'='*60}")
-    print(f"  Deployment Summary")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
+    print("  Deployment Summary")
+    print(f"{'=' * 60}")
     for name, ok in steps:
         status = "PASS" if ok else "FAIL"
         icon = "\033[92m\u2714\033[0m" if ok else "\033[91m\u2718\033[0m"
         print(f"  {icon} {name}: {status}")
     print(f"\n  Elapsed: {elapsed:.1f}s")
     print(f"  Result: {passed}/{total} steps passed")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     sys.exit(0 if passed == total else 1)
 

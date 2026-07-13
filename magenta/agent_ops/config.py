@@ -10,8 +10,6 @@ from __future__ import annotations
 import difflib
 import json
 import re
-import fnmatch
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +22,10 @@ logger = structlog.get_logger(__name__)
 # Patterns flagged by --checks security
 SECRET_PATTERNS: list[tuple[str, str]] = [
     ("aws_access_key", r"(?i)aws_access_key_id\s*[=:]\s*['\"]?AKIA[0-9A-Z]{16}"),
-    ("azure_connection_string", r"(?i)(connection_string|conn_string)\s*[=:]\s*['\"]?DefaultEndpointsProtocol="),
+    (
+        "azure_connection_string",
+        r"(?i)(connection_string|conn_string)\s*[=:]\s*['\"]?DefaultEndpointsProtocol=",
+    ),
     ("private_key", r"-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----"),
     ("api_token", r"(?i)(api[_-]?key|api[_-]?token|secret|password)\s*[=:]\s*['\"].{8,}['\"]"),
     ("generic_token", r"(?i)(token|secret)\s*[=:]\s*['\"][A-Za-z0-9_\-\.]{20,}['\"]"),
@@ -61,7 +62,12 @@ class ConfigAnalyzer:
         checks = checks or ["syntax", "schema"]
         base = Path(path)
         if not base.exists():
-            return {"files_analyzed": 0, "errors": [f"Path not found: {path}"], "warnings": [], "summary": {}}
+            return {
+                "files_analyzed": 0,
+                "errors": [f"Path not found: {path}"],
+                "warnings": [],
+                "summary": {},
+            }
 
         pattern = f"*.{fmt}" if base.is_dir() else base.name
         search_dir = base if base.is_dir() else base.parent
@@ -88,7 +94,10 @@ class ConfigAnalyzer:
         try:
             data = self._parse_file(file)
         except Exception as e:
-            return {"errors": [{"file": str(file), "check": "syntax", "message": str(e)}], "warnings": []}
+            return {
+                "errors": [{"file": str(file), "check": "syntax", "message": str(e)}],
+                "warnings": [],
+            }
 
         if "syntax" in checks:
             pass  # success if _parse_file didn't raise
@@ -98,30 +107,64 @@ class ConfigAnalyzer:
             if schema_key in self.schemas:
                 try:
                     import jsonschema
+
                     jsonschema.validate(instance=data, schema=self.schemas[schema_key])
                 except ImportError:
-                    warnings.append({"file": str(file), "check": "schema", "message": "jsonschema not installed"})
+                    warnings.append(
+                        {
+                            "file": str(file),
+                            "check": "schema",
+                            "message": "jsonschema not installed",
+                        }
+                    )
                 except jsonschema.ValidationError as e:
-                    errors.append({"file": str(file), "check": "schema", "message": e.message, "path": list(e.path)})
+                    errors.append(
+                        {
+                            "file": str(file),
+                            "check": "schema",
+                            "message": e.message,
+                            "path": list(e.path),
+                        }
+                    )
 
         if "security" in checks:
             text = file.read_text()
             for name, pattern in SECRET_PATTERNS:
                 if re.search(pattern, text):
-                    warnings.append({"file": str(file), "check": "security", "message": f"Possible {name} detected"})
+                    warnings.append(
+                        {
+                            "file": str(file),
+                            "check": "security",
+                            "message": f"Possible {name} detected",
+                        }
+                    )
 
         if "deprecation" in checks:
             for config_name, keys in DEPRECATED_KEYS.items():
                 if config_name in file.name:
                     for key in keys:
                         if self._key_exists(data, key):
-                            warnings.append({"file": str(file), "check": "deprecation", "message": f"Deprecated key: {key}"})
+                            warnings.append(
+                                {
+                                    "file": str(file),
+                                    "check": "deprecation",
+                                    "message": f"Deprecated key: {key}",
+                                }
+                            )
 
         if "best_practice" in checks:
             if isinstance(data, dict) and "version" not in data:
-                warnings.append({"file": str(file), "check": "best_practice", "message": "Missing version field"})
+                warnings.append(
+                    {
+                        "file": str(file),
+                        "check": "best_practice",
+                        "message": "Missing version field",
+                    }
+                )
             if isinstance(data, dict) and "name" not in data:
-                warnings.append({"file": str(file), "check": "best_practice", "message": "Missing name field"})
+                warnings.append(
+                    {"file": str(file), "check": "best_practice", "message": "Missing name field"}
+                )
 
         return {"errors": errors, "warnings": warnings}
 
@@ -142,6 +185,7 @@ class ConfigAnalyzer:
 
         try:
             import jsonschema
+
             jsonschema.validate(instance=data, schema=schema)
             return {"valid": True, "errors": []}
         except ImportError:
@@ -160,12 +204,14 @@ class ConfigAnalyzer:
         cur_text = cur_path.read_text()
         tgt_text = tgt_path.read_text()
 
-        diff_lines = list(difflib.unified_diff(
-            cur_text.splitlines(keepends=True),
-            tgt_text.splitlines(keepends=True),
-            fromfile=str(cur_path),
-            tofile=str(tgt_path),
-        ))
+        diff_lines = list(
+            difflib.unified_diff(
+                cur_text.splitlines(keepends=True),
+                tgt_text.splitlines(keepends=True),
+                fromfile=str(cur_path),
+                tofile=str(tgt_path),
+            )
+        )
 
         return {
             "files": {"current": str(cur_path), "target": str(tgt_path)},

@@ -40,9 +40,12 @@ class RegressionRunner:
     def _run_full(self) -> dict[str, Any]:
         """Run the full magnet/ test suite."""
         cmd = [
-            sys.executable, "-m", "pytest",
+            sys.executable,
+            "-m",
+            "pytest",
             "magnet/",
-            "-q", "--tb=short",
+            "-q",
+            "--tb=short",
             "--no-header",
         ]
         return self._execute(cmd, mode="full")
@@ -50,10 +53,13 @@ class RegressionRunner:
     def _run_lightweight(self) -> dict[str, Any]:
         """Run core + agent tests only (no external deps)."""
         cmd = [
-            sys.executable, "-m", "pytest",
+            sys.executable,
+            "-m",
+            "pytest",
             "magnet/test_core/",
             "magnet/test_agents/",
-            "-q", "--tb=short",
+            "-q",
+            "--tb=short",
             "--no-header",
         ]
         return self._execute(cmd, mode="lightweight")

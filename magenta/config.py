@@ -1,7 +1,8 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettingsSource
-from pydantic import Field, SecretStr, model_validator
-from typing import Literal, Optional
 from pathlib import Path
+from typing import Literal
+
+from pydantic import Field, SecretStr, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettingsSource
 
 
 class SQLSettings(BaseSettings):
@@ -15,15 +16,15 @@ class SQLSettings(BaseSettings):
 class ElasticSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="MAGENTA_ELASTIC_")
     hosts: list[str] = ["http://localhost:9200"]
-    username: Optional[str] = None
-    password: Optional[str] = None
+    username: str | None = None
+    password: str | None = None
     index_prefix: str = "magenta"
     ilm_policy: str = "magenta-hot-warm-cold"
 
 
 class LakeSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="MAGENTA_LAKE_")
-    connection_string: Optional[str] = None
+    connection_string: str | None = None
     container: str = "magenta-lake"
     root: str = "/data/magenta/lake"
     parquet_compression: str = "snappy"
@@ -31,7 +32,7 @@ class LakeSettings(BaseSettings):
 
 class NoSQLSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="MAGENTA_NOSQL_")
-    connection_string: Optional[str] = None
+    connection_string: str | None = None
     database_name: str = "magenta"
 
 
@@ -49,7 +50,7 @@ class SOARSettings(BaseSettings):
 
 class IdempotencySettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="MAGENTA_IDEMPOTENCY_")
-    storage_connection_string: Optional[str] = None
+    storage_connection_string: str | None = None
     table_name: str = "IdempotencyKeys"
     ttl_hours: int = 24
 
@@ -82,7 +83,7 @@ class SplunkSettings(BaseSettings):
 
 class EventHubSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="MAGENTA_EVENTHUB_")
-    connection_string: Optional[str] = None
+    connection_string: str | None = None
     namespace: str = "magenta-agent-bus"
     topics: dict[str, str] = {
         "raw_alerts": "raw-alerts",
@@ -97,9 +98,9 @@ class ModelSettings(BaseSettings):
     default_provider: str = "ollama"
     default_model: str = "qwen2.5:7b"
     ollama_host: str = "http://localhost:11434"
-    openrouter_key: Optional[str] = None
-    gemini_key: Optional[str] = None
-    groq_key: Optional[str] = None
+    openrouter_key: str | None = None
+    gemini_key: str | None = None
+    groq_key: str | None = None
 
 
 class CorsSettings(BaseSettings):
@@ -162,7 +163,7 @@ class AuditSettings(BaseSettings):
 
 class TelemetrySettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="MAGENTA_TELEMETRY_")
-    connection_string: Optional[str] = None
+    connection_string: str | None = None
     otlp_endpoint: str = "http://tempo.magenta-observability:4317"
     sampling_rate: float = Field(default=1.0, ge=0.0, le=1.0)
     enabled: bool = True

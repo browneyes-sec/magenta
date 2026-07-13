@@ -8,13 +8,16 @@ Verifies:
 - Zero agent-block on memory failure
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from magenta.core.models import ActionStatus, AgentConfig, AutomationActivity, Mission
+
+import pytest
+
+from magenta.core.models import ActionStatus, AgentConfig
 
 
 class MockMission:
     """Test mission fixture."""
+
     mission_id = "test-mission-001"
     source_system = MagicMock()
     source_system.value = "sentinel"
@@ -25,6 +28,7 @@ class MockMission:
 
 class MockAgentConfig:
     """Test agent config fixture."""
+
     agent_id = "triage-test-001"
     role = "triage"
     model_provider = "ollama"
@@ -37,15 +41,17 @@ class MockAgentConfig:
 def mock_memory_mcp():
     """Mock MemoryMCPServer for testing."""
     with patch("magenta.agents.base.memory_mcp") as mock:
-        mock.write_episode = AsyncMock(return_value={
-            "status": "success",
-            "memory_type": "episodic",
-            "mission_id": "test-mission-001",
-            "agent_role": "triage",
-            "turn_number": 1,
-            "chunks_ingested": 1,
-            "errors": [],
-        })
+        mock.write_episode = AsyncMock(
+            return_value={
+                "status": "success",
+                "memory_type": "episodic",
+                "mission_id": "test-mission-001",
+                "agent_role": "triage",
+                "turn_number": 1,
+                "chunks_ingested": 1,
+                "errors": [],
+            }
+        )
         yield mock
 
 
@@ -53,14 +59,16 @@ def mock_memory_mcp():
 def mock_search_episodes():
     """Mock search_episodes for testing."""
     with patch("magenta.agents.base.memory_mcp") as mock:
-        mock.search_episodes = AsyncMock(return_value={
-            "status": "success",
-            "memory_type": "episodic",
-            "results": [
-                {"text": "Past decision: blocked IP 10.0.0.1", "score": 0.85},
-            ],
-            "count": 1,
-        })
+        mock.search_episodes = AsyncMock(
+            return_value={
+                "status": "success",
+                "memory_type": "episodic",
+                "results": [
+                    {"text": "Past decision: blocked IP 10.0.0.1", "score": 0.85},
+                ],
+                "count": 1,
+            }
+        )
         yield mock
 
 

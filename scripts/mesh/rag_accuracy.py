@@ -18,11 +18,10 @@ Usage:
 import argparse
 import json
 import math
-import time
 import sys
-from dataclasses import dataclass, field, asdict
+import time
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 import httpx
 
@@ -79,17 +78,12 @@ class AccuracyReport:
 
 def dcg(relevances: list[int], k: int = 5) -> float:
     """Discounted Cumulative Gain at k."""
-    return sum(
-        rel / math.log2(i + 2) for i, rel in enumerate(relevances[:k])
-    )
+    return sum(rel / math.log2(i + 2) for i, rel in enumerate(relevances[:k]))
 
 
 def ndcg_at_k(retrieved_ids: list[str], relevant_ids: list[str], k: int = 5) -> float:
     """Normalized DCG at k."""
-    relevances = [
-        1 if rid in relevant_ids else 0
-        for rid in retrieved_ids[:k]
-    ]
+    relevances = [1 if rid in relevant_ids else 0 for rid in retrieved_ids[:k]]
     actual_dcg = dcg(relevances, k)
 
     # Ideal: all relevant items at top
@@ -126,7 +120,7 @@ def run_eval(
     qdrant_url: str,
     ollama_url: str,
     golden_path: str,
-    mesh_api_url: Optional[str] = None,
+    mesh_api_url: str | None = None,
 ) -> AccuracyReport:
     import datetime
 
@@ -157,10 +151,14 @@ def run_eval(
         # Generate embedding
         embed_start = time.time()
         try:
-            r = httpx.post(f"{ollama_url}/api/embed", json={
-                "model": "nomic-embed-text",
-                "input": query,
-            }, timeout=15.0)
+            r = httpx.post(
+                f"{ollama_url}/api/embed",
+                json={
+                    "model": "nomic-embed-text",
+                    "input": query,
+                },
+                timeout=15.0,
+            )
             embedding = r.json()["embeddings"][0]
         except Exception as e:
             print(f"  [SKIP] Embedding failed for: {query[:50]}... ({e})")
@@ -232,7 +230,13 @@ def run_eval(
 
         # Aggregate by tier
         if tier not in tier_data:
-            tier_data[tier] = {"results": [], "ndcg": [], "precision": [], "recall": [], "latency": []}
+            tier_data[tier] = {
+                "results": [],
+                "ndcg": [],
+                "precision": [],
+                "recall": [],
+                "latency": [],
+            }
         tier_data[tier]["results"].append(result)
         tier_data[tier]["ndcg"].append(n5)
         tier_data[tier]["precision"].append(p1)
@@ -293,10 +297,10 @@ def main():
         print(f"Golden file not found: {args.golden}")
         sys.exit(1)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  RAG Accuracy Evaluation — {args.env.upper()}")
     print(f"  Golden: {args.golden}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     report = run_eval(args.qdrant_url, args.ollama_url, args.golden)
 
@@ -323,9 +327,9 @@ def main():
                 print()
 
         status = "\033[92mPASS\033[0m" if report.passed else "\033[91mFAIL\033[0m"
-        print(f"  {'='*60}")
+        print(f"  {'=' * 60}")
         print(f"  Result: {status} (NDCG@5 = {report.overall_ndcg:.4f})")
-        print(f"  {'='*60}\n")
+        print(f"  {'=' * 60}\n")
 
     sys.exit(0 if report.passed else 1)
 

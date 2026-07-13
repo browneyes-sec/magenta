@@ -6,12 +6,12 @@ schema defined in the DTP (§2.3).
 """
 
 from __future__ import annotations
+
+import hashlib
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Optional, Any, Literal
+from typing import Literal
 from uuid import uuid4
-import hashlib
-import json
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -114,41 +114,40 @@ class ApprovalRequest(BaseModel):
     correlation_id: str = Field(default_factory=lambda: str(uuid4()))
     agent_id: str
     action: ActionType
-    target: "Target"
+    target: Target
     risk_score: int = Field(ge=0, le=100)
     reasoning: str
     alternatives: list[dict] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
     state: ApprovalState = ApprovalState.pending
-    approval: Optional[dict] = None
-    expires_at: datetime = Field(
-        default_factory=lambda: datetime.utcnow() + timedelta(minutes=15)
-    )
+    approval: dict | None = None
+    expires_at: datetime = Field(default_factory=lambda: datetime.utcnow() + timedelta(minutes=15))
     model: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
 
 class Target(BaseModel):
     type: TargetType
     id: str
-    asset_criticality: Optional[AssetCriticality] = None
+    asset_criticality: AssetCriticality | None = None
 
 
 class Executor(BaseModel):
     type: Literal["agent", "logic_app", "function"] = "agent"
     id: str
-    managed_identity: Optional[str] = None
+    managed_identity: str | None = None
 
 
 class Evidence(BaseModel):
-    input_hash: Optional[str] = None
-    raw_alert_ref: Optional[str] = None
-    output_ref: Optional[str] = None
+    input_hash: str | None = None
+    raw_alert_ref: str | None = None
+    output_ref: str | None = None
 
 
 class AutomationActivity(BaseModel):
     """Canonical automation.activity event schema."""
+
     schema_version: str = "1.0"
     event_type: EventType = EventType.automation_activity
     event_id: str = Field(default_factory=lambda: str(uuid4()))
@@ -163,12 +162,12 @@ class AutomationActivity(BaseModel):
     action: ActionType
     target: Target
     status: ActionStatus = ActionStatus.queued
-    approval: Optional[dict] = None
+    approval: dict | None = None
     risk_score: int = 0
     blast_radius: BlastRadius = BlastRadius.single_user
     mitre_tactics: list[str] = Field(default_factory=list)
     started_at: datetime = Field(default_factory=datetime.utcnow)
-    ended_at: Optional[datetime] = None
+    ended_at: datetime | None = None
     executor: Executor
     evidence: Evidence = Field(default_factory=Evidence)
     tags: list[str] = Field(default_factory=list)
@@ -213,7 +212,7 @@ class Mission(BaseModel):
     artifact_bundle: dict = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
     correlation_id: str = Field(default_factory=lambda: str(uuid4()))
 
 
@@ -245,18 +244,18 @@ class WorkflowNode(BaseModel):
     id: str
     type: WorkflowNodeType
     label: str = ""
-    agent: Optional[str] = None
-    subgraph: Optional[str] = None
+    agent: str | None = None
+    subgraph: str | None = None
     depends_on: list[str] = Field(default_factory=list)
     config: dict = Field(default_factory=dict)
-    condition: Optional[str] = None
+    condition: str | None = None
     position: dict = Field(default_factory=dict)
 
 
 class WorkflowEdge(BaseModel):
     source: str
     target: str
-    condition: Optional[str] = None
+    condition: str | None = None
     label: str = ""
 
 
@@ -288,9 +287,9 @@ class PlaybookV2(BaseModel):
     kind: str = "Playbook"
     metadata: dict = Field(default_factory=dict)
     spec: dict = Field(default_factory=dict)
-    
+
     @classmethod
-    def from_legacy(cls, legacy: Playbook) -> "PlaybookV2":
+    def from_legacy(cls, legacy: Playbook) -> PlaybookV2:
         return cls(
             apiVersion="magenta.soar/v1",
             kind="Playbook",
@@ -307,9 +306,9 @@ class PlaybookV2(BaseModel):
                 "orchestration": legacy.orchestration,
                 "stages": legacy.stages,
                 "governance": legacy.governance,
-            }
+            },
         )
-    
+
     def to_legacy(self) -> Playbook:
         return Playbook(
             name=self.metadata.get("name", ""),
@@ -325,7 +324,7 @@ class PlaybookV2(BaseModel):
 
 class HealthStatus(BaseModel):
     status: Literal["healthy", "degraded", "down"] = "healthy"
-    checks: dict[str, "ComponentHealth"] = Field(default_factory=dict)
+    checks: dict[str, ComponentHealth] = Field(default_factory=dict)
     uptime_seconds: float = 0.0
 
 
@@ -335,6 +334,3 @@ class ComponentHealth(BaseModel):
     error_rate: float = 0.0
     message: str = ""
     last_check: datetime = Field(default_factory=datetime.utcnow)
-
-
-from typing import Literal

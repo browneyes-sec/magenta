@@ -13,7 +13,6 @@ Usage:
 """
 
 import argparse
-import json
 import sys
 import time
 
@@ -75,7 +74,9 @@ def test_snapshot_delete(url: str, collection: str, snapshot_name: str) -> bool:
         return False
 
 
-def test_point_export(url: str, collection: str, limit: int = 10, include_vectors: bool = False) -> list:
+def test_point_export(
+    url: str, collection: str, limit: int = 10, include_vectors: bool = False
+) -> list:
     """Export points from a collection."""
     try:
         r = httpx.post(
@@ -171,9 +172,9 @@ def main():
     parser.add_argument("--collection", default="mem_episodic", help="Collection to test with")
     args = parser.parse_args()
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  Backup/Restore Test — {args.env.upper()}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     if not check_qdrant(args.qdrant_url):
         print("ERROR: Qdrant not reachable")
@@ -201,7 +202,9 @@ def main():
     print("[4/5] Import to test collection...")
     if points:
         create_ok = test_collection_create(args.qdrant_url, test_collection)
-        import_ok = test_point_import(args.qdrant_url, test_collection, points) if create_ok else False
+        import_ok = (
+            test_point_import(args.qdrant_url, test_collection, points) if create_ok else False
+        )
         results.append(("Point import", import_ok))
     else:
         results.append(("Point import", False))
@@ -223,13 +226,13 @@ def main():
         test_collection_delete(args.qdrant_url, test_collection)
 
     # Summary
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     passed = sum(1 for _, ok in results if ok)
     for name, ok in results:
         icon = "\033[92m\u2714\033[0m" if ok else "\033[91m\u2718\033[0m"
         print(f"  {icon} {name}: {'PASS' if ok else 'FAIL'}")
     print(f"\n  Result: {passed}/{len(results)} passed")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     sys.exit(0 if passed == len(results) else 1)
 

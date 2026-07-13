@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
 
 import structlog
 import tomli
@@ -38,7 +37,12 @@ class FinOpsEngine:
         start = (now - timedelta(days=days)).isoformat()
         end = now.isoformat()
 
-        results = {"period": {"start": start, "end": end}, "group_by": group_by, "breakdown": [], "total_cost": 0.0}
+        results = {
+            "period": {"start": start, "end": end},
+            "group_by": group_by,
+            "breakdown": [],
+            "total_cost": 0.0,
+        }
 
         # Azure Cost Management
         try:
@@ -61,6 +65,7 @@ class FinOpsEngine:
     def _azure_cost_analysis(self, start: str, end: str, group_by: list[str]) -> list[dict]:
         from azure.identity import DefaultAzureCredential
         from azure.mgmt.costmanagement import CostManagementClient
+
         credential = DefaultAzureCredential()
         scope = f"/subscriptions/{os.environ.get('AZURE_SUBSCRIPTION_ID', '')}"
         client = CostManagementClient(credential)
@@ -80,10 +85,18 @@ class FinOpsEngine:
         }
         response = client.query.usage(scope=scope, parameters=body)
         rows = getattr(response, "rows", []) or []
-        return [{"provider": "azure", "service": r[0] if len(r) > 1 else "unknown", "cost": float(r[-1])} for r in rows[:100]]
+        return [
+            {
+                "provider": "azure",
+                "service": r[0] if len(r) > 1 else "unknown",
+                "cost": float(r[-1]),
+            }
+            for r in rows[:100]
+        ]
 
     def _aws_cost_analysis(self, start: str, end: str, group_by: list[str]) -> list[dict]:
         import boto3
+
         client = boto3.client("ce", region_name="us-east-1")
         response = client.get_cost_and_usage(
             TimePeriod={"Start": start[:10], "End": end[:10]},
@@ -97,7 +110,9 @@ class FinOpsEngine:
             for group in entry.get("Groups", []):
                 keys = group.get("Keys", [])
                 amount = float(group["Metrics"]["UnblendedCost"]["Amount"])
-                items.append({"provider": "aws", "service": keys[0] if keys else "unknown", "cost": amount})
+                items.append(
+                    {"provider": "aws", "service": keys[0] if keys else "unknown", "cost": amount}
+                )
         return items
 
     def _compute_trends(self, breakdown: list[dict]) -> dict:
@@ -106,9 +121,14 @@ class FinOpsEngine:
         sorted_items = sorted(breakdown, key=lambda x: x.get("cost", 0), reverse=True)
         top_services = [s["service"] for s in sorted_items[:3] if s.get("service")]
         total = sum(s.get("cost", 0) for s in breakdown)
-        return {"direction": "increasing" if total > 1000 else "stable", "top_services": top_services}
+        return {
+            "direction": "increasing" if total > 1000 else "stable",
+            "top_services": top_services,
+        }
 
-    def recommend_rightsize(self, providers: list[str] | None = None, threshold: float = 0.2) -> dict:
+    def recommend_rightsize(
+        self, providers: list[str] | None = None, threshold: float = 0.2
+    ) -> dict:
         """Generate right-sizing recommendations for over-provisioned resources.
 
         threshold: minimum utilization below which a downsize is recommended.
@@ -121,6 +141,7 @@ class FinOpsEngine:
                 from azure.identity import DefaultAzureCredential
                 from azure.mgmt.compute import ComputeManagementClient
                 from azure.mgmt.monitor import MonitorManagementClient
+
                 credential = DefaultAzureCredential()
                 sub_id = os.environ.get("AZURE_SUBSCRIPTION_ID", "")
                 compute_client = ComputeManagementClient(credential, sub_id)
@@ -144,23 +165,28 @@ class FinOpsEngine:
                                     avg_cpu = max(avg_cpu, data.average)
 
                     if avg_cpu < threshold * 100:
-                        recommendations.append({
-                            "provider": "azure",
-                            "resource": vm_name,
-                            "current_sku": vm.hardware_profile.vm_size,
-                            "avg_cpu_pct": round(avg_cpu, 1),
-                            "recommended_action": "downsize",
-                            "estimated_savings_monthly": 50.0,
-                        })
+                        recommendations.append(
+                            {
+                                "provider": "azure",
+                                "resource": vm_name,
+                                "current_sku": vm.hardware_profile.vm_size,
+                                "avg_cpu_pct": round(avg_cpu, 1),
+                                "recommended_action": "downsize",
+                                "estimated_savings_monthly": 50.0,
+                            }
+                        )
             except Exception as e:
                 logger.warning("Azure right-size analysis failed", error=str(e))
 
         if "aws" in providers:
             try:
                 import boto3
+
                 cloudwatch = boto3.client("cloudwatch", region_name="us-east-1")
                 ec2 = boto3.client("ec2", region_name="us-east-1")
-                instances = ec2.describe_instances(Filters=[{"Name": "instance-state-name", "Values": ["running"]}])
+                instances = ec2.describe_instances(
+                    Filters=[{"Name": "instance-state-name", "Values": ["running"]}]
+                )
                 for reservation in instances.get("Reservations", []):
                     for inst in reservation.get("Instances", []):
                         inst_id = inst["InstanceId"]
@@ -176,25 +202,30 @@ class FinOpsEngine:
                         datapoints = response.get("Datapoints", [])
                         avg_cpu = max((dp["Average"] for dp in datapoints), default=0)
                         if avg_cpu < threshold * 100:
-                            recommendations.append({
-                                "provider": "aws",
-                                "resource": inst_id,
-                                "current_type": inst.get("InstanceType", "unknown"),
-                                "avg_cpu_pct": round(avg_cpu, 1),
-                                "recommended_action": "downsize",
-                                "estimated_savings_monthly": 30.0,
-                            })
+                            recommendations.append(
+                                {
+                                    "provider": "aws",
+                                    "resource": inst_id,
+                                    "current_type": inst.get("InstanceType", "unknown"),
+                                    "avg_cpu_pct": round(avg_cpu, 1),
+                                    "recommended_action": "downsize",
+                                    "estimated_savings_monthly": 30.0,
+                                }
+                            )
             except Exception as e:
                 logger.warning("AWS right-size analysis failed", error=str(e))
 
         total_savings = sum(r.get("estimated_savings_monthly", 0) for r in recommendations)
-        return {"recommendations": recommendations, "estimated_savings_monthly": round(total_savings, 2)}
+        return {
+            "recommendations": recommendations,
+            "estimated_savings_monthly": round(total_savings, 2),
+        }
 
     def forecast(self, horizon_days: int = 90, model: str = "prophet") -> dict:
         """Forecast future costs using Prophet time series model."""
         try:
-            from prophet import Prophet
             import pandas as pd
+            from prophet import Prophet
         except ImportError:
             return {
                 "error": "prophet not installed. Install with: pip install 'magenta-soa[finops]'",
@@ -226,12 +257,19 @@ class FinOpsEngine:
 
         future = m.make_future_dataframe(periods=horizon_days)
         forecast = m.predict(future)
-        forecast_dict = forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail(horizon_days).to_dict(orient="records")
+        forecast_dict = (
+            forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]]
+            .tail(horizon_days)
+            .to_dict(orient="records")
+        )
 
         return {
             "model": model,
             "horizon_days": horizon_days,
-            "forecast": [{k: (str(v) if hasattr(v, "isoformat") else v) for k, v in row.items()} for row in forecast_dict],
+            "forecast": [
+                {k: (str(v) if hasattr(v, "isoformat") else v) for k, v in row.items()}
+                for row in forecast_dict
+            ],
             "estimated_total_next_90d": round(forecast["yhat"].tail(horizon_days).sum(), 2),
         }
 
@@ -240,7 +278,10 @@ class FinOpsEngine:
         budgets = self.finops_config.get("budgets", [])
         target = next((b for b in budgets if b.get("id") == budget_id), None)
         if not target:
-            return {"error": f"Budget not found: {budget_id}", "budgets_available": [b.get("id") for b in budgets]}
+            return {
+                "error": f"Budget not found: {budget_id}",
+                "budgets_available": [b.get("id") for b in budgets],
+            }
 
         monthly_limit = target.get("monthly_limit", 1000)
         current_spend = self.analyze_costs(period="30d", group_by=["provider"]).get("total_cost", 0)
@@ -255,7 +296,9 @@ class FinOpsEngine:
         }
 
         if action == "alert" and utilization > 0.8:
-            results["alert"] = f"Budget utilization at {results['utilization_pct']}% — exceeds 80% threshold"
+            results["alert"] = (
+                f"Budget utilization at {results['utilization_pct']}% — exceeds 80% threshold"
+            )
         elif action == "block" and utilization >= 1.0:
             results["blocked"] = True
             results["message"] = "Budget exhausted — provisioning blocked"
@@ -264,6 +307,7 @@ class FinOpsEngine:
         try:
             from azure.identity import DefaultAzureCredential
             from azure.mgmt.costmanagement import CostManagementClient
+
             credential = DefaultAzureCredential()
             scope = f"/subscriptions/{os.environ.get('AZURE_SUBSCRIPTION_ID', '')}"
             client = CostManagementClient(credential)
@@ -277,28 +321,41 @@ class FinOpsEngine:
     def audit_tags(self, required_tags: list[str] | None = None) -> dict:
         """Audit resource tagging compliance across all configured cloud providers."""
         required_tags = required_tags or ["environment", "cost-center", "owner", "project"]
-        results = {"required_tags": required_tags, "compliant": 0, "non_compliant": 0, "details": []}
+        results = {
+            "required_tags": required_tags,
+            "compliant": 0,
+            "non_compliant": 0,
+            "details": [],
+        }
 
         # Azure Resource Graph
         try:
             from azure.identity import DefaultAzureCredential
             from azure.mgmt.resourcegraph import ResourceGraphClient
+
             credential = DefaultAzureCredential()
             client = ResourceGraphClient(credential)
 
             query = "resources | project id, name, type, tags, location"
-            response = client.resources(query={"query": query, "subscriptions": [os.environ.get("AZURE_SUBSCRIPTION_ID", "")]})
+            response = client.resources(
+                query={
+                    "query": query,
+                    "subscriptions": [os.environ.get("AZURE_SUBSCRIPTION_ID", "")],
+                }
+            )
             for resource in response.data:
                 tags = resource.get("tags", {}) or {}
                 missing = [t for t in required_tags if t not in tags]
                 if missing:
                     results["non_compliant"] += 1
-                    results["details"].append({
-                        "provider": "azure",
-                        "resource": resource.get("name"),
-                        "type": resource.get("type"),
-                        "missing_tags": missing,
-                    })
+                    results["details"].append(
+                        {
+                            "provider": "azure",
+                            "resource": resource.get("name"),
+                            "type": resource.get("type"),
+                            "missing_tags": missing,
+                        }
+                    )
                 else:
                     results["compliant"] += 1
         except Exception as e:
@@ -307,6 +364,7 @@ class FinOpsEngine:
         # AWS Resource Groups Tagging
         try:
             import boto3
+
             client = boto3.client("resourcegroupstaggingapi", region_name="us-east-1")
             paginator = client.get_paginator("get_resources")
             for page in paginator.paginate(ResourcesPerPage=100):
@@ -315,11 +373,13 @@ class FinOpsEngine:
                     missing = [t for t in required_tags if t not in tags]
                     if missing:
                         results["non_compliant"] += 1
-                        results["details"].append({
-                            "provider": "aws",
-                            "resource": resource.get("ResourceARN"),
-                            "missing_tags": missing,
-                        })
+                        results["details"].append(
+                            {
+                                "provider": "aws",
+                                "resource": resource.get("ResourceARN"),
+                                "missing_tags": missing,
+                            }
+                        )
                     else:
                         results["compliant"] += 1
         except Exception as e:

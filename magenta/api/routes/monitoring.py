@@ -1,6 +1,5 @@
 """API routes — monitoring and telemetry."""
 
-from typing import Optional
 from fastapi import APIRouter, Query
 
 router = APIRouter()
@@ -9,8 +8,8 @@ router = APIRouter()
 @router.get("/probes")
 async def run_probes():
     """Run magnet probes and return structured results."""
-    import importlib
     import asyncio
+    import importlib
 
     probes = ["dictator_probe"]
     results = {}
@@ -29,14 +28,13 @@ async def run_probes():
 @router.get("/directives/rate")
 async def directive_rate(minutes: int = Query(60, ge=1, le=1440)):
     """Get directive issuance rate over the given window."""
-    from magenta.dictator.state import dictator_state
-
     from datetime import datetime, timedelta
+
+    from magenta.dictator.state import dictator_state
 
     cutoff = datetime.utcnow() - timedelta(minutes=minutes)
     recent = [
-        d for d in dictator_state.directive_log
-        if d.get("timestamp", "") >= cutoff.isoformat()
+        d for d in dictator_state.directive_log if d.get("timestamp", "") >= cutoff.isoformat()
     ]
     return {
         "window_minutes": minutes,
@@ -61,10 +59,13 @@ async def telemetry_directives(limit: int = Query(50, ge=1, le=500)):
     try:
         from magenta.data.elastic.client import elastic_client
 
-        results = await elastic_client.search("directives", {
-            "size": limit,
-            "sort": [{"logged_at": {"order": "desc"}}],
-        })
+        results = await elastic_client.search(
+            "directives",
+            {
+                "size": limit,
+                "sort": [{"logged_at": {"order": "desc"}}],
+            },
+        )
         return {"source": "elasticsearch", "count": len(results), "directives": results}
     except Exception:
         from magenta.dictator.state import dictator_state

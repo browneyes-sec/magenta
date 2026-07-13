@@ -7,21 +7,20 @@ import logging
 import signal
 import sys
 from pathlib import Path
-from typing import Any
 
 import tomli
 
 from magenta.config import settings
 from magenta.integration.collectors.base import BaseCollector, CollectorConfig
 from magenta.integration.collectors.cloud import (
+    AWSCloudTrailCollector,
     AzureMonitorCollector,
     EntraIDLogCollector,
-    AWSCloudTrailCollector,
     GCPLoggingCollector,
 )
+from magenta.integration.collectors.customer import CustomerSFTPCollector
 from magenta.integration.collectors.linux import LinuxSyslogCollector
 from magenta.integration.collectors.windows import WindowsEventCollector
-from magenta.integration.collectors.customer import CustomerSFTPCollector
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +43,9 @@ async def run_collector(collector: BaseCollector, interval: int) -> None:
             try:
                 events = await collector.collect()
                 if events:
-                    logger.info("Collector %s produced %d events", collector.config.name, len(events))
+                    logger.info(
+                        "Collector %s produced %d events", collector.config.name, len(events)
+                    )
                     # TODO: publish to Event Hubs via magenta.integration.eventhub
             except Exception as e:
                 logger.exception("Collector %s error: %s", collector.config.name, e)
@@ -98,8 +99,7 @@ async def main() -> int:
 
     # Run all collectors concurrently
     tasks = [
-        asyncio.create_task(run_collector(c, c.config.poll_interval_seconds))
-        for c in collectors
+        asyncio.create_task(run_collector(c, c.config.poll_interval_seconds)) for c in collectors
     ]
 
     # Graceful shutdown

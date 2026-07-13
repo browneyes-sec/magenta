@@ -199,7 +199,8 @@ class ConversationManager:
         """Remove sessions older than max_age_seconds. Returns count removed."""
         now = time.time()
         expired = [
-            key for key, session in self._sessions.items()
+            key
+            for key, session in self._sessions.items()
             if session._last_turn_at and (now - session._last_turn_at) > max_age_seconds
         ]
         for key in expired:

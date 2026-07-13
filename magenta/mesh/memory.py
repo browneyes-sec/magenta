@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from magenta.telemetry import get_tracer
+
     _tracer = get_tracer("mesh.memory")
 except Exception:
     _tracer = None
@@ -68,11 +69,13 @@ class MemoryMCPServer:
 
             result = await self.pipeline.ingest(
                 collection="mem_episodic",
-                documents=[{
-                    "id": f"{mission_id}:{agent_role}:t{turn_number}",
-                    "text": text,
-                    "metadata": payload,
-                }],
+                documents=[
+                    {
+                        "id": f"{mission_id}:{agent_role}:t{turn_number}",
+                        "text": text,
+                        "metadata": payload,
+                    }
+                ],
             )
 
             if span:
@@ -174,11 +177,13 @@ class MemoryMCPServer:
 
             result = await self.pipeline.ingest(
                 collection="mem_semantic",
-                documents=[{
-                    "id": str(uuid4()),
-                    "text": text,
-                    "metadata": payload,
-                }],
+                documents=[
+                    {
+                        "id": str(uuid4()),
+                        "text": text,
+                        "metadata": payload,
+                    }
+                ],
             )
 
             if span:
@@ -283,11 +288,13 @@ class MemoryMCPServer:
 
             result = await self.pipeline.ingest(
                 collection="mem_procedural",
-                documents=[{
-                    "id": f"{tool_name}:{params_hash}:{str(uuid4())[:8]}",
-                    "text": text,
-                    "metadata": payload,
-                }],
+                documents=[
+                    {
+                        "id": f"{tool_name}:{params_hash}:{str(uuid4())[:8]}",
+                        "text": text,
+                        "metadata": payload,
+                    }
+                ],
             )
 
             if span:

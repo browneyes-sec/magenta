@@ -3,7 +3,6 @@
 import json
 import logging
 from datetime import datetime
-from typing import Any, Optional
 
 
 class StructuredFormatter(logging.Formatter):
@@ -37,11 +36,30 @@ class StructuredFormatter(logging.Formatter):
         # Include any extra fields not in REQUIRED_FIELDS
         for key, value in record.__dict__.items():
             if key not in {
-                "name", "msg", "args", "created", "filename", "funcName",
-                "levelname", "levelno", "lineno", "module", "msecs",
-                "message", "msg", "name", "pathname", "process",
-                "processName", "relativeCreated", "thread", "threadName",
-                "exc_info", "exc_text", "stack_info", "getMessage",
+                "name",
+                "msg",
+                "args",
+                "created",
+                "filename",
+                "funcName",
+                "levelname",
+                "levelno",
+                "lineno",
+                "module",
+                "msecs",
+                "message",
+                "msg",
+                "name",
+                "pathname",
+                "process",
+                "processName",
+                "relativeCreated",
+                "thread",
+                "threadName",
+                "exc_info",
+                "exc_text",
+                "stack_info",
+                "getMessage",
             }:
                 if key not in log_entry:
                     log_entry[key] = value
@@ -77,9 +95,9 @@ class StructuredLogger:
     def __init__(
         self,
         logger: logging.Logger,
-        mission_id: Optional[str] = None,
-        agent_id: Optional[str] = None,
-        correlation_id: Optional[str] = None,
+        mission_id: str | None = None,
+        agent_id: str | None = None,
+        correlation_id: str | None = None,
     ):
         self._logger = logger
         self.mission_id = mission_id
@@ -133,9 +151,7 @@ def setup_structured_logging(level: int = logging.INFO, json_format: bool = True
     if json_format:
         handler.setFormatter(StructuredFormatter())
     else:
-        handler.setFormatter(logging.Formatter(
-            "%(asctime)s %(levelname)s %(name)s %(message)s"
-        ))
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
     root.addHandler(handler)
 
     # Reduce noise from third-party loggers

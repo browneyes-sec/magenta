@@ -1,10 +1,6 @@
 """Splunk webhook handler."""
 
-from typing import Any
-from datetime import datetime
-
 from magenta.core.mission import mission_manager
-from magenta.core.models import MissionStatus
 
 
 async def handle_alert(payload: dict) -> dict:

@@ -2,73 +2,84 @@
 
 from __future__ import annotations
 
-import pytest
 import asyncio
 
-from magenta.core.models import MissionStatus, Mission
-from magenta.core.mission import MissionManager, _VALID_TRANSITIONS
+import pytest
+
+from magenta.core.agent import BaseAgent
+from magenta.core.mission import _VALID_TRANSITIONS, MissionManager
+from magenta.core.models import AgentConfig, MissionStatus, Playbook
 from magenta.core.playbook import PlaybookManager
-from magenta.core.models import Playbook
 from magenta.exceptions import MissionError, MissionNotFoundError
-from magenta.core.models import AgentConfig, AgentStatus
-from magenta.core.agent import BaseAgent, agent_registry
 from magenta.models.router import CircuitBreaker
 
 
 class TestSafeEval:
     def test_simple_comparison(self):
         from magenta.workflows.engine import _safe_eval
+
         assert _safe_eval("1 == 1", {}) is True
         assert _safe_eval("1 != 1", {}) is False
 
     def test_variable_lookup(self):
         from magenta.workflows.engine import _safe_eval
+
         assert _safe_eval("x > 5", {"x": 10}) is True
         assert _safe_eval("x > 5", {"x": 3}) is False
 
     def test_boolean_operators(self):
         from magenta.workflows.engine import _safe_eval
+
         assert _safe_eval("a and b", {"a": True, "b": True}) is True
         assert _safe_eval("a and b", {"a": True, "b": False}) is False
         assert _safe_eval("a or b", {"a": False, "b": True}) is True
 
     def test_not_operator(self):
         from magenta.workflows.engine import _safe_eval
+
         assert _safe_eval("not x", {"x": False}) is True
         assert _safe_eval("not x", {"x": True}) is False
 
     def test_string_comparison(self):
         from magenta.workflows.engine import _safe_eval
+
         assert _safe_eval('status == "high"', {"status": "high"}) is True
         assert _safe_eval('status == "high"', {"status": "low"}) is False
 
     def test_in_operator(self):
         from magenta.workflows.engine import _safe_eval
-        assert _safe_eval('x in items', {"x": 1, "items": [1, 2, 3]}) is True
-        assert _safe_eval('x not in items', {"x": 4, "items": [1, 2, 3]}) is True
+
+        assert _safe_eval("x in items", {"x": 1, "items": [1, 2, 3]}) is True
+        assert _safe_eval("x not in items", {"x": 4, "items": [1, 2, 3]}) is True
 
     def test_attribute_access(self):
         from magenta.workflows.engine import _safe_eval
+
         class Obj:
             severity = "high"
+
         assert _safe_eval("obj.severity == 'high'", {"obj": Obj()}) is True
 
     def test_subscript_access(self):
         from magenta.workflows.engine import _safe_eval
+
         assert _safe_eval('data["key"] == 1', {"data": {"key": 1}}) is True
 
     def test_rejects_function_calls(self):
         from magenta.workflows.engine import _safe_eval
+
         with pytest.raises(ValueError, match="Function calls not allowed"):
             _safe_eval("__import__('os').system('ls')", {})
 
     def test_rejects_unknown_variable(self):
         from magenta.workflows.engine import _safe_eval
+
         with pytest.raises(ValueError, match="Unknown variable"):
             _safe_eval("unknown_var", {})
 
     def test_rejects_unsupported_node(self):
         from magenta.workflows.engine import _safe_eval
+
         with pytest.raises(ValueError, match="Unsupported expression"):
             _safe_eval("lambda x: x", {})
 
@@ -203,6 +214,7 @@ class TestMaxConcurrentTasks:
 
         # Create fresh registry to avoid pollution
         from magenta.core.agent import AgentRegistry
+
         test_registry = AgentRegistry()
         test_registry.register(agent1)
         test_registry.register(agent2)
@@ -253,6 +265,7 @@ class TestCircuitBreaker:
         assert cb.is_open("test-client") is True
 
         import time
+
         time.sleep(0.02)
         assert cb.is_open("test-client") is False
 
@@ -260,7 +273,6 @@ class TestCircuitBreaker:
 class TestGracefulShutdown:
     def test_workflow_engine_shutdown_no_running(self):
         from magenta.workflows.engine import WorkflowEngine
-        import asyncio
 
         engine = WorkflowEngine()
         asyncio.run(engine.shutdown(timeout_seconds=1.0))
@@ -268,7 +280,6 @@ class TestGracefulShutdown:
 
     def test_workflow_engine_shutdown_with_running(self):
         from magenta.workflows.engine import WorkflowEngine
-        import asyncio
 
         engine = WorkflowEngine()
         engine._running_missions.add("mission-1")

@@ -1,13 +1,12 @@
 """Entra ID JWT authentication middleware with mock mode for development."""
 
-from typing import Optional
 import json
 import logging
 import os
 
-import jwt
 import httpx
-from fastapi import Request, HTTPException
+import jwt
+from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -16,10 +15,7 @@ from magenta.config import settings
 logger = logging.getLogger(__name__)
 
 JWKS_CACHE: dict[str, list[dict]] = {}
-JWKS_URL = (
-    f"https://login.microsoftonline.com/"
-    f"{settings.entra_jwt.tenant_id}/discovery/v2.0/keys"
-)
+JWKS_URL = f"https://login.microsoftonline.com/{settings.entra_jwt.tenant_id}/discovery/v2.0/keys"
 
 # Mock mode - enabled via env var for development
 MOCK_AUTH = os.environ.get("MAGENTA_MOCK_AUTH", "false").lower() == "true"
@@ -57,16 +53,16 @@ async def _fetch_jwks() -> list[dict]:
     return JWKS_CACHE["keys"]
 
 
-def _get_public_key(kid: str, keys: list[dict]) -> Optional[str]:
+def _get_public_key(kid: str, keys: list[dict]) -> str | None:
     for key in keys:
         if key.get("kid") == kid:
-            from cryptography.hazmat.primitives import serialization
             from jwt.algorithms import RSAAlgorithm
+
             return RSAAlgorithm.from_jwk(json.dumps(key))
     return None
 
 
-def _validate_mock_token(token: str) -> Optional[dict]:
+def _validate_mock_token(token: str) -> dict | None:
     """Validate mock token for development."""
     if token in MOCK_TOKENS:
         return MOCK_TOKENS[token]
@@ -85,7 +81,7 @@ def _validate_mock_token(token: str) -> Optional[dict]:
 
 class EntraJWTAuthMiddleware(BaseHTTPMiddleware):
     """Validates Bearer tokens against Entra ID JWKS endpoint.
-    
+
     Supports mock mode via MAGENTA_MOCK_AUTH=true for development.
     Skips validation for docs, health, and root endpoints.
     """
@@ -103,7 +99,7 @@ class EntraJWTAuthMiddleware(BaseHTTPMiddleware):
             )
 
         token = auth_header.removeprefix("Bearer ").strip()
-        
+
         # Mock mode for development
         if MOCK_AUTH:
             mock_payload = _validate_mock_token(token)
@@ -148,7 +144,9 @@ class EntraJWTAuthMiddleware(BaseHTTPMiddleware):
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Token has expired"},
-                headers={"WWW-Authenticate": "Bearer error='invalid_token' error_description='token_expired'"},
+                headers={
+                    "WWW-Authenticate": "Bearer error='invalid_token' error_description='token_expired'"
+                },
             )
         except jwt.InvalidTokenError as exc:
             return JSONResponse(

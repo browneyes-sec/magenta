@@ -8,8 +8,6 @@ Installation: place in Open WebUI pipelines directory, enable in Valves.
 """
 
 import logging
-from datetime import datetime
-from typing import Optional
 
 import httpx
 from pydantic import BaseModel
@@ -52,6 +50,7 @@ class Pipeline:
 
         if "approval_card" in last_content.lower() or "approval" in last_content.lower():
             import asyncio
+
             return asyncio.run(self._generate_approval_card())
 
         return """Use `approval_card` to generate an interactive approval card.

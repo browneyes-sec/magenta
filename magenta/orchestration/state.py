@@ -1,9 +1,9 @@
 """State management for missions and agents."""
 
-from typing import Any, Optional
-from datetime import datetime, timedelta
 import json
 import logging
+from datetime import datetime, timedelta
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class InMemoryStateStore:
         if ttl_seconds > 0:
             self._ttl[key] = datetime.utcnow() + timedelta(seconds=ttl_seconds)
 
-    async def get(self, key: str) -> Optional[Any]:
+    async def get(self, key: str) -> Any | None:
         if key in self._ttl:
             if datetime.utcnow() > self._ttl[key]:
                 await self.delete(key)
@@ -66,7 +66,7 @@ class RedisStateStore:
             await self._redis.expire(key, ttl_seconds)
         return bool(result)
 
-    async def get(self, key: str) -> Optional[Any]:
+    async def get(self, key: str) -> Any | None:
         data = await self._redis.get(key)
         if data is None:
             return None
@@ -96,6 +96,7 @@ async def create_state_store(redis_url: str = "") -> Any:
     redis_url = redis_url or "redis://localhost:6379/0"
     try:
         import redis.asyncio as aioredis
+
         client = aioredis.from_url(redis_url, decode_responses=True)
         await client.ping()
         store = RedisStateStore(client)

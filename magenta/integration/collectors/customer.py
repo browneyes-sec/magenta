@@ -7,17 +7,14 @@ import io
 import json
 import logging
 import re
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 
 from magenta.integration.collectors.base import BaseCollector, CollectorConfig
 
 logger = logging.getLogger(__name__)
 
 CEF_FIELD_RE = re.compile(r"(\w+)=([^=\s]+(?:\s+\S+)*?)(?=\s+\w+=|\s*$)")
-CEF_HEADER_RE = re.compile(
-    r"CEF:(\d+)\|([^|]+)\|([^|]+)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]+)"
-)
+CEF_HEADER_RE = re.compile(r"CEF:(\d+)\|([^|]+)\|([^|]+)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]+)")
 
 
 class CustomerSFTPCollector(BaseCollector):
@@ -53,15 +50,19 @@ class CustomerSFTPCollector(BaseCollector):
         events: list[dict] = []
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(
-            paramiko.AutoAddPolicy if not self._known_hosts
-            else paramiko.RejectPolicy
+            paramiko.AutoAddPolicy if not self._known_hosts else paramiko.RejectPolicy
         )
         try:
             if self._key_data:
                 key = paramiko.RSAKey.from_private_key(io.StringIO(self._key_data))
                 ssh.connect(self._host, port=self._port, username=self._username, pkey=key)
             elif self._key_path:
-                ssh.connect(self._host, port=self._port, username=self._username, key_filename=self._key_path)
+                ssh.connect(
+                    self._host,
+                    port=self._port,
+                    username=self._username,
+                    key_filename=self._key_path,
+                )
             else:
                 ssh.connect(self._host, port=self._port, username=self._username)
 
@@ -89,7 +90,7 @@ class CustomerSFTPCollector(BaseCollector):
 
             sftp.close()
             ssh.close()
-            self._last_poll = datetime.now(timezone.utc).isoformat()
+            self._last_poll = datetime.now(UTC).isoformat()
         except Exception as e:
             logger.exception("Customer SFTP poll failed for %s: %s", self._host, e)
 

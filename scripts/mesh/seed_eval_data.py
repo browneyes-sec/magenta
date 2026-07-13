@@ -17,7 +17,6 @@ from pathlib import Path
 
 import httpx
 
-
 GOLDEN_FILE = "tests/eval/memory_golden.jsonl"
 
 COLLECTIONS = {
@@ -57,52 +56,60 @@ def generate_test_points(queries):
         for rid in item.get("relevant_ids", []):
             if rid not in id_map:
                 id_map[rid] = str(uuid.uuid5(uuid.NAMESPACE_DNS, rid))
-            points[collection].append({
-                "id": id_map[rid],
-                "original_id": rid,
-                "text": f"Test content for query: {item['query']}. "
-                        f"This is a relevant {tier} memory about: {item['expected_answer'][:100]}",
-                "metadata": {
-                    "agent_role": "validator",
-                    "mission_id": "eval-seed",
-                    "tenant_id": "eval-test",
-                    "memory_type": tier,
-                    "source_tool": "seed_eval_data.py",
-                    "created_at": int(time.time() * 1000),
-                    "relevance": "relevant",
-                    "original_query": item["query"],
-                },
-            })
+            points[collection].append(
+                {
+                    "id": id_map[rid],
+                    "original_id": rid,
+                    "text": f"Test content for query: {item['query']}. "
+                    f"This is a relevant {tier} memory about: {item['expected_answer'][:100]}",
+                    "metadata": {
+                        "agent_role": "validator",
+                        "mission_id": "eval-seed",
+                        "tenant_id": "eval-test",
+                        "memory_type": tier,
+                        "source_tool": "seed_eval_data.py",
+                        "created_at": int(time.time() * 1000),
+                        "relevance": "relevant",
+                        "original_query": item["query"],
+                    },
+                }
+            )
 
         # Create points for irrelevant IDs
         for rid in item.get("irrelevant_ids", []):
             if rid not in id_map:
                 id_map[rid] = str(uuid.uuid5(uuid.NAMESPACE_DNS, rid))
-            points[collection].append({
-                "id": id_map[rid],
-                "original_id": rid,
-                "text": f"Unrelated content about network monitoring, "
-                        f"firewall rules, and endpoint security. Not related to: {item['query'][:50]}",
-                "metadata": {
-                    "agent_role": "validator",
-                    "mission_id": "eval-seed",
-                    "tenant_id": "eval-test",
-                    "memory_type": tier,
-                    "source_tool": "seed_eval_data.py",
-                    "created_at": int(time.time() * 1000),
-                    "relevance": "irrelevant",
-                },
-            })
+            points[collection].append(
+                {
+                    "id": id_map[rid],
+                    "original_id": rid,
+                    "text": f"Unrelated content about network monitoring, "
+                    f"firewall rules, and endpoint security. Not related to: {item['query'][:50]}",
+                    "metadata": {
+                        "agent_role": "validator",
+                        "mission_id": "eval-seed",
+                        "tenant_id": "eval-test",
+                        "memory_type": tier,
+                        "source_tool": "seed_eval_data.py",
+                        "created_at": int(time.time() * 1000),
+                        "relevance": "irrelevant",
+                    },
+                }
+            )
 
     return points, id_map
 
 
 def embed_text(ollama_url: str, text: str) -> list[float]:
     """Generate embedding using OLLAMA."""
-    r = httpx.post(f"{ollama_url}/api/embed", json={
-        "model": "nomic-embed-text",
-        "input": text,
-    }, timeout=30.0)
+    r = httpx.post(
+        f"{ollama_url}/api/embed",
+        json={
+            "model": "nomic-embed-text",
+            "input": text,
+        },
+        timeout=30.0,
+    )
     return r.json()["embeddings"][0]
 
 
@@ -119,12 +126,14 @@ def seed_collection(qdrant_url: str, ollama_url: str, collection: str, points: l
             # Include original_id in payload for accuracy measurement
             payload = pt["metadata"].copy()
             payload["original_id"] = pt["original_id"]
-            embedded_points.append({
-                "id": pt["id"],
-                "vector": embedding,
-                "payload": payload,
-                "payload_text": pt["text"],  # store full text in payload
-            })
+            embedded_points.append(
+                {
+                    "id": pt["id"],
+                    "vector": embedding,
+                    "payload": payload,
+                    "payload_text": pt["text"],  # store full text in payload
+                }
+            )
             if (i + 1) % 10 == 0:
                 print(f"  [{collection}] Embedded {i + 1}/{len(points)}")
         except Exception as e:
@@ -137,19 +146,22 @@ def seed_collection(qdrant_url: str, ollama_url: str, collection: str, points: l
     batch_size = 100
     total_inserted = 0
     for i in range(0, len(embedded_points), batch_size):
-        batch = embedded_points[i:i + batch_size]
+        batch = embedded_points[i : i + batch_size]
         try:
             r = httpx.put(
                 f"{qdrant_url}/collections/{collection}/points",
                 json={
-                    "points": [{
-                        "id": p["id"],
-                        "vector": p["vector"],
-                        "payload": {
-                            **p["payload"],
-                            "text": p["payload_text"],
-                        },
-                    } for p in batch]
+                    "points": [
+                        {
+                            "id": p["id"],
+                            "vector": p["vector"],
+                            "payload": {
+                                **p["payload"],
+                                "text": p["payload_text"],
+                            },
+                        }
+                        for p in batch
+                    ]
                 },
                 timeout=30.0,
             )
@@ -191,9 +203,9 @@ def main():
         print(f"Golden file not found: {GOLDEN_FILE}")
         exit(1)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  Seeding Eval Data — {args.env.upper()}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # Load and categorize
     queries = load_golden_data()
@@ -216,9 +228,9 @@ def main():
         print(f"  [{collection}] Inserted: {inserted}/{len(pts)}")
         total += inserted
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  Total seeded: {total} points")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
 
 if __name__ == "__main__":

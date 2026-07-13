@@ -1,7 +1,5 @@
 """MCP server — Microsoft Sentinel KQL queries and Log Ingestion API."""
 
-from typing import Any
-
 
 class SentinelMCPServer:
     """MCP tools for Microsoft Sentinel operations."""
@@ -22,8 +20,13 @@ class SentinelMCPServer:
         """
         try:
             from magenta.integration.sentinel import sentinel_connector
+
             result = await sentinel_connector.run_kql_query(workspace_id, query)
-            return {"status": "success", "results": result, "row_count": len(result) if result else 0}
+            return {
+                "status": "success",
+                "results": result,
+                "row_count": len(result) if result else 0,
+            }
         except Exception as exc:
             return {"status": "error", "error": str(exc)}
 
@@ -58,7 +61,9 @@ class SentinelMCPServer:
 | take {limit}"""
         return await self.run_kql_query(workspace_id, query)
 
-    async def ingest_to_log_analytics(self, workspace_id: str, table: str, records: list[dict]) -> dict:
+    async def ingest_to_log_analytics(
+        self, workspace_id: str, table: str, records: list[dict]
+    ) -> dict:
         """Ingest data to a Log Analytics table via the Log Ingestion API.
 
         Args:
@@ -71,6 +76,7 @@ class SentinelMCPServer:
         """
         try:
             from magenta.integration.sentinel import sentinel_connector
+
             result = await sentinel_connector.ingest_logs(workspace_id, table, records)
             return {"status": "ingested", "record_count": len(records), "result": str(result)}
         except Exception as exc:

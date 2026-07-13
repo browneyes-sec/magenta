@@ -7,10 +7,8 @@ for display in Open WebUI chat.
 Installation: place in Open WebUI pipelines directory, enable in Valves.
 """
 
-import json
 import logging
 from datetime import datetime
-from typing import Optional
 
 import httpx
 from pydantic import BaseModel
@@ -71,6 +69,7 @@ class Pipeline:
         if cmd == "generate_artifact" or cmd in ARTIFACT_TYPES:
             artifact_type = arg if cmd == "generate_artifact" else cmd
             import asyncio
+
             return asyncio.run(self._generate_artifact(artifact_type))
 
         return self._help()
@@ -118,7 +117,7 @@ directive_timeline
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return f"""<div style="font-family:system-ui,-apple-system,sans-serif;max-width:800px;margin:0 auto">
     <div style="background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.1);padding:24px">
-        <h2 style="margin:0 0 8px 0;font-size:20px;color:#333">{artifact_type.replace('_', ' ').title()}</h2>
+        <h2 style="margin:0 0 8px 0;font-size:20px;color:#333">{artifact_type.replace("_", " ").title()}</h2>
         <p style="margin:0 0 16px 0;font-size:14px;color:#666">{description}</p>
         <div style="background:#f8fafc;border-radius:8px;padding:16px;font-family:monospace;font-size:13px;color:#334155;white-space:pre-wrap;overflow-x:auto">
 [{{ "type": "{artifact_type}", "description": "{description}", "generated": "{now}", "status": "mock" }}]

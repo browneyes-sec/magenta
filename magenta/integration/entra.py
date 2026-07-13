@@ -1,12 +1,11 @@
 """Entra ID (Azure AD) connector via Microsoft Graph API."""
 
-from typing import Any, Optional
 import logging
 
 import httpx
 
-from magenta.exceptions import IntegrationError
 from magenta.config import settings
+from magenta.exceptions import IntegrationError
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +27,10 @@ class EntraIDConnector:
         self.tenant_id = tenant_id or settings.azure_auth.tenant_id
         self.client_id = client_id or settings.azure_auth.client_id
         self.client_secret = client_secret or settings.azure_auth.client_secret
-        self._token: Optional[str] = None
+        self._token: str | None = None
         self._credential = None
-        self._use_default = (
-            settings.azure_auth.use_default_credential
-            and not (self.client_id and self.client_secret)
+        self._use_default = settings.azure_auth.use_default_credential and not (
+            self.client_id and self.client_secret
         )
 
     async def _get_token(self) -> str:
@@ -63,9 +61,7 @@ class EntraIDConnector:
 
             if self._credential is None:
                 self._credential = DefaultAzureCredential()
-            token = await self._credential.get_token(
-                "https://graph.microsoft.com/.default"
-            )
+            token = await self._credential.get_token("https://graph.microsoft.com/.default")
             self._token = token.token
             return self._token
         except Exception as exc:
@@ -135,9 +131,10 @@ class EntraIDConnector:
     async def get_signin_logs(self, user_id: str, hours: int = 24) -> list[dict]:
         """Get sign-in logs for a user."""
         from datetime import datetime, timedelta
+
         since = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
         data = await self._graph_get(
-            f"auditLogs/signIns",
+            "auditLogs/signIns",
             params={"$filter": f"userId eq '{user_id}' and createdDateTime ge {since}"},
         )
         return data.get("value", [])

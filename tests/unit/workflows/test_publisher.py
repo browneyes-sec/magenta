@@ -1,4 +1,5 @@
 """Tests for PaperPublisher — LaTeX and Markdown report generation."""
+
 from __future__ import annotations
 
 import asyncio

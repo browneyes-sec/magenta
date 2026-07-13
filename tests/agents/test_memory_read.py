@@ -8,8 +8,10 @@ Verifies:
 - RAG results injected into system_prompt
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from magenta.core.models import AgentConfig
 
 
@@ -20,13 +22,15 @@ class TestMemoryRead:
     async def test_search_episodes_called(self):
         """Pre-turn RAG should call memory_mcp.search_episodes()."""
         mock_mcp = MagicMock()
-        mock_mcp.search_episodes = AsyncMock(return_value={
-            "status": "success",
-            "results": [
-                {"text": "Past decision: blocked IP", "score": 0.85},
-            ],
-            "count": 1,
-        })
+        mock_mcp.search_episodes = AsyncMock(
+            return_value={
+                "status": "success",
+                "results": [
+                    {"text": "Past decision: blocked IP", "score": 0.85},
+                ],
+                "count": 1,
+            }
+        )
 
         with patch("magenta.mesh.memory.memory_mcp", mock_mcp):
             from magenta.agents.base import LLMAgent
@@ -61,17 +65,19 @@ class TestMemoryRead:
     async def test_token_budget_enforced(self):
         """RAG context should respect tier token budget."""
         mock_mcp = MagicMock()
-        mock_mcp.search_episodes = AsyncMock(return_value={
-            "status": "success",
-            "results": [
-                {"text": "A" * 500, "score": 0.9},
-                {"text": "B" * 500, "score": 0.85},
-                {"text": "C" * 500, "score": 0.8},
-                {"text": "D" * 500, "score": 0.75},
-                {"text": "E" * 500, "score": 0.7},
-            ],
-            "count": 5,
-        })
+        mock_mcp.search_episodes = AsyncMock(
+            return_value={
+                "status": "success",
+                "results": [
+                    {"text": "A" * 500, "score": 0.9},
+                    {"text": "B" * 500, "score": 0.85},
+                    {"text": "C" * 500, "score": 0.8},
+                    {"text": "D" * 500, "score": 0.75},
+                    {"text": "E" * 500, "score": 0.7},
+                ],
+                "count": 5,
+            }
+        )
 
         with patch("magenta.mesh.memory.memory_mcp", mock_mcp):
             from magenta.agents.base import LLMAgent
@@ -105,11 +111,13 @@ class TestMemoryRead:
     async def test_metadata_filters(self):
         """Search should filter by agent_role, mission_id, tenant_id."""
         mock_mcp = MagicMock()
-        mock_mcp.search_episodes = AsyncMock(return_value={
-            "status": "success",
-            "results": [],
-            "count": 0,
-        })
+        mock_mcp.search_episodes = AsyncMock(
+            return_value={
+                "status": "success",
+                "results": [],
+                "count": 0,
+            }
+        )
 
         with patch("magenta.mesh.memory.memory_mcp", mock_mcp):
             from magenta.agents.base import LLMAgent
@@ -178,13 +186,15 @@ class TestMemoryRead:
     async def test_rag_results_injected_into_prompt(self):
         """RAG results should be injected as 'Relevant Past Decisions'."""
         mock_mcp = MagicMock()
-        mock_mcp.search_episodes = AsyncMock(return_value={
-            "status": "success",
-            "results": [
-                {"text": "Blocked IP 10.0.0.1 based on threat intel", "score": 0.9},
-            ],
-            "count": 1,
-        })
+        mock_mcp.search_episodes = AsyncMock(
+            return_value={
+                "status": "success",
+                "results": [
+                    {"text": "Blocked IP 10.0.0.1 based on threat intel", "score": 0.9},
+                ],
+                "count": 1,
+            }
+        )
 
         with patch("magenta.mesh.memory.memory_mcp", mock_mcp):
             from magenta.agents.base import LLMAgent

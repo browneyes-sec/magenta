@@ -1,8 +1,7 @@
-import json
 import asyncio
-from datetime import datetime
-from typing import Optional
-from magenta.models.base import ModelRequest, ModelResponse, AuditRecord, PolicyDecision
+import json
+
+from magenta.models.base import AuditRecord, ModelRequest, ModelResponse, PolicyDecision
 
 
 class AuditLogger:
@@ -16,7 +15,7 @@ class AuditLogger:
         self.batch_size = batch_size
         self.flush_interval = flush_interval
         self._buffer: list[AuditRecord] = []
-        self._flush_task: Optional[asyncio.Task] = None
+        self._flush_task: asyncio.Task | None = None
 
     async def start(self) -> None:
         if self.enabled and not self._flush_task:
@@ -79,6 +78,7 @@ class AuditLogger:
         writers = []
         try:
             from magenta.adapters.elastic import ElasticAdapter
+
             writers.append(self._elastic_writer)
         except ImportError:
             pass
@@ -87,9 +87,11 @@ class AuditLogger:
 
     async def _console_writer(self, payload: str, records: list[AuditRecord]) -> None:
         for record in records:
-            print(f"[AUDIT] {record.correlation_id} | {record.provider}/{record.model} | "
-                  f"in={record.tokens_in} out={record.tokens_out} "
-                  f"lat={record.latency_ms:.0f}ms risk={record.risk_score}")
+            print(
+                f"[AUDIT] {record.correlation_id} | {record.provider}/{record.model} | "
+                f"in={record.tokens_in} out={record.tokens_out} "
+                f"lat={record.latency_ms:.0f}ms risk={record.risk_score}"
+            )
 
     async def _elastic_writer(self, payload: str, records: list[AuditRecord]) -> None:
         adapter = ElasticAdapter()

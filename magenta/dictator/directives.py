@@ -2,8 +2,9 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
+
 from pydantic import BaseModel, Field
 
 
@@ -35,12 +36,12 @@ class Directive(BaseModel):
     type: DirectiveType
     priority: DirectivePriority = DirectivePriority.normal
     target: str
-    mission_id: Optional[str] = None
+    mission_id: str | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
     reason: str = ""
     issued_at: datetime = Field(default_factory=datetime.utcnow)
     executed: bool = False
-    result: Optional[dict] = None
+    result: dict | None = None
 
     def dict(self) -> dict:
         return self.model_dump()
@@ -49,8 +50,8 @@ class Directive(BaseModel):
 def issue_directive(
     dtype: DirectiveType,
     target: str,
-    mission_id: Optional[str] = None,
-    payload: Optional[dict] = None,
+    mission_id: str | None = None,
+    payload: dict | None = None,
     reason: str = "",
     priority: DirectivePriority = DirectivePriority.normal,
 ) -> Directive:
@@ -72,11 +73,14 @@ def issue_directive(
 
     # Telemetry — best-effort, non-blocking
     from magenta.dictator.telemetry import emit_directive_span
+
     emit_directive_span(directive.dict())
 
     try:
-        from magenta.dictator.telemetry import write_directive_to_elastic
         import asyncio
+
+        from magenta.dictator.telemetry import write_directive_to_elastic
+
         asyncio.ensure_future(write_directive_to_elastic(directive.dict()))
     except Exception:
         pass

@@ -11,7 +11,7 @@ Installation: place in Open WebUI pipelines directory, enable in Valves.
 import json
 import logging
 import os
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 from pydantic import BaseModel
@@ -56,6 +56,7 @@ class Pipeline:
         content = last.get("content", "") if isinstance(last, dict) else str(last)
 
         import asyncio
+
         return asyncio.run(self._route_tool(content))
 
     async def _route_tool(self, content: str) -> str:
@@ -84,7 +85,7 @@ class Pipeline:
 
         for prefix, handler in tools.items():
             if content.strip().startswith(prefix):
-                args = content[len(prefix):].strip()
+                args = content[len(prefix) :].strip()
                 return await handler(args)
 
         return (
@@ -118,7 +119,9 @@ class Pipeline:
 
     async def _post(self, path: str, json_data: dict = None, params: dict = None) -> Any:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            r = await client.post(f"{API_BASE}{path}", json=json_data, params=params, headers={"X-API-Key": API_KEY})
+            r = await client.post(
+                f"{API_BASE}{path}", json=json_data, params=params, headers={"X-API-Key": API_KEY}
+            )
             r.raise_for_status()
             return r.json()
 
@@ -134,7 +137,10 @@ class Pipeline:
             pending = data.get("approvals", []) if isinstance(data, dict) else data
             if not pending:
                 return "No pending approvals."
-            lines = [f"- **{a.get('id', 'N/A')}**: {a.get('action', 'N/A')} on {a.get('target', 'N/A')} (risk: {a.get('risk_score', 'N/A')})" for a in pending]
+            lines = [
+                f"- **{a.get('id', 'N/A')}**: {a.get('action', 'N/A')} on {a.get('target', 'N/A')} (risk: {a.get('risk_score', 'N/A')})"
+                for a in pending
+            ]
             return f"### Pending Approvals ({len(pending)})\n" + "\n".join(lines)
         except Exception as exc:
             return f"Error: {exc}"
@@ -144,10 +150,15 @@ class Pipeline:
             data = await self._get("/api/v1/dictator/policies")
             policies = data.get("policies", [])
             overrides = data.get("overrides", {})
-            lines = [f"- **{p.get('name')}** ({p.get('teaming_structure')}) - {'enabled' if p.get('enabled') else 'disabled'}" for p in policies]
+            lines = [
+                f"- **{p.get('name')}** ({p.get('teaming_structure')}) - {'enabled' if p.get('enabled') else 'disabled'}"
+                for p in policies
+            ]
             result = "### Policies\n" + "\n".join(lines)
             if overrides:
-                result += "\n\n### Active Overrides\n" + "\n".join(f"- **{k}**: {v}" for k, v in overrides.items())
+                result += "\n\n### Active Overrides\n" + "\n".join(
+                    f"- **{k}**: {v}" for k, v in overrides.items()
+                )
             return result
         except Exception as exc:
             return f"Error: {exc}"
@@ -158,7 +169,12 @@ class Pipeline:
             return "Usage: policy_set <name> <teaming> <priority>"
         name, teaming, priority = parts[0], parts[1], parts[2]
         try:
-            policy = {"name": name, "teaming_structure": teaming, "priority": priority, "enabled": True}
+            policy = {
+                "name": name,
+                "teaming_structure": teaming,
+                "priority": priority,
+                "enabled": True,
+            }
             result = await self._post("/api/v1/dictator/policies/override", json_data=policy)
             return f"Policy override set: {name} ({teaming}, {priority})"
         except Exception as exc:
@@ -185,7 +201,9 @@ class Pipeline:
         mission_id = parts[0]
         reason = parts[1] if len(parts) > 1 else "Operator request via pipeline"
         try:
-            result = await self._post(f"/api/v1/dictator/halt/{mission_id}", params={"reason": reason})
+            result = await self._post(
+                f"/api/v1/dictator/halt/{mission_id}", params={"reason": reason}
+            )
             return json.dumps(result, indent=2, default=str)
         except Exception as exc:
             return f"Error: {exc}"
@@ -212,7 +230,9 @@ class Pipeline:
         mission_id = parts[0]
         reason = parts[1] if len(parts) > 1 else ""
         try:
-            result = await self._post(f"/api/v1/dictator/escalate/{mission_id}", params={"reason": reason})
+            result = await self._post(
+                f"/api/v1/dictator/escalate/{mission_id}", params={"reason": reason}
+            )
             return json.dumps(result, indent=2, default=str)
         except Exception as exc:
             return f"Error: {exc}"
@@ -226,7 +246,9 @@ class Pipeline:
         if structure not in valid:
             return f"Invalid structure. Must be one of: {', '.join(valid)}"
         try:
-            result = await self._post(f"/api/v1/dictator/teaming/{mission_id}", json_data={"structure": structure})
+            result = await self._post(
+                f"/api/v1/dictator/teaming/{mission_id}", json_data={"structure": structure}
+            )
             return json.dumps(result, indent=2, default=str)
         except Exception as exc:
             return f"Error: {exc}"
@@ -242,24 +264,30 @@ class Pipeline:
     async def _registry_search(self, args: str) -> str:
         query = args.strip() or ""
         try:
-            data = await self._get(f"/mcp/registry")
+            data = await self._get("/mcp/registry")
             missions = data.get("missions", [])
             if not missions:
                 return "No missions found."
-            lines = [f"- **{m.get('mission_id', '?')}**: {m.get('status', '?')} ({m.get('severity', '?')})" for m in missions[:10]]
+            lines = [
+                f"- **{m.get('mission_id', '?')}**: {m.get('status', '?')} ({m.get('severity', '?')})"
+                for m in missions[:10]
+            ]
             return "### Missions\n" + "\n".join(lines)
         except Exception as exc:
             return f"Error: {exc}"
 
     async def _save_artifact(self, args: str) -> str:
         import ast
+
         try:
             parsed = ast.literal_eval(args)
             path = parsed.get("path", "")
             content = parsed.get("content", "")
             if not path or not content:
                 return "Usage: save_artifact {'path': '<path>', 'content': '<content>'}"
-            result = await self._post("/mcp/artifacts/save", json_data={"path": path, "content": content})
+            result = await self._post(
+                "/mcp/artifacts/save", json_data={"path": path, "content": content}
+            )
             return json.dumps(result, indent=2)
         except Exception as exc:
             return f"Error: {exc}"
@@ -267,7 +295,7 @@ class Pipeline:
     async def _generate_artifact(self, args: str) -> str:
         atype = args.strip()
         try:
-            data = await self._get(f"/mcp/artifacts")
+            data = await self._get("/mcp/artifacts")
             generators = {
                 "trend": "mission_throughput",
                 "directive_timeline": "directive_timeline",
@@ -279,7 +307,7 @@ class Pipeline:
             handler = generators.get(atype)
             if not handler:
                 return f"Unknown artifact type: {atype}. Available: {', '.join(generators.keys())}"
-            result = await self._post(f"/mcp/artifacts/generate", json_data={"type": handler})
+            result = await self._post("/mcp/artifacts/generate", json_data={"type": handler})
             return result.get("html", json.dumps(result))
         except Exception as exc:
             return f"Error: {exc}"
@@ -309,14 +337,17 @@ class Pipeline:
         agent_role, mission_id, turn_str, text = parts
         try:
             turn_number = int(turn_str)
-            result = await self._post("/api/v1/mesh/memory/write-episode", json_data={
-                "agent_role": agent_role,
-                "mission_id": mission_id,
-                "turn_number": turn_number,
-                "text": text,
-                "correlation_id": "",
-                "metadata": {"source": "pipeline"},
-            })
+            result = await self._post(
+                "/api/v1/mesh/memory/write-episode",
+                json_data={
+                    "agent_role": agent_role,
+                    "mission_id": mission_id,
+                    "turn_number": turn_number,
+                    "text": text,
+                    "correlation_id": "",
+                    "metadata": {"source": "pipeline"},
+                },
+            )
             return f"Episode written: {result.get('chunks_ingested', 0)} chunks ingested"
         except Exception as exc:
             return f"Error: {exc}"
@@ -385,13 +416,16 @@ class Pipeline:
             return "Usage: memory_write_procedure <tool_name> <text>"
         tool_name, text = parts
         try:
-            result = await self._post("/api/v1/mesh/memory/write-procedure", json_data={
-                "tool_name": tool_name,
-                "text": text,
-                "parameters": {},
-                "mission_id": "",
-                "metadata": {"source": "pipeline"},
-            })
+            result = await self._post(
+                "/api/v1/mesh/memory/write-procedure",
+                json_data={
+                    "tool_name": tool_name,
+                    "text": text,
+                    "parameters": {},
+                    "mission_id": "",
+                    "metadata": {"source": "pipeline"},
+                },
+            )
             return f"Procedure written: {result.get('chunks_ingested', 0)} chunks"
         except Exception as exc:
             return f"Error: {exc}"

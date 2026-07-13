@@ -2,10 +2,14 @@ import json
 import logging
 from typing import Any
 
-from magenta.dictator.state import dictator_state, DictatorState, MissionOversight
-from magenta.dictator.directives import Directive, DirectiveType, DirectivePriority, issue_directive
-from magenta.dictator.policies import PolicyEngine, OrchestrationPolicy
-from magenta.dictator.telemetry import emit_directive_span, write_directive_to_elastic, generate_directive_timeline_artifact
+from magenta.dictator.directives import Directive, DirectivePriority, DirectiveType, issue_directive
+from magenta.dictator.policies import OrchestrationPolicy, PolicyEngine
+from magenta.dictator.state import DictatorState, MissionOversight, dictator_state
+from magenta.dictator.telemetry import (
+    emit_directive_span,
+    generate_directive_timeline_artifact,
+    write_directive_to_elastic,
+)
 
 logger = logging.getLogger(__name__)
 

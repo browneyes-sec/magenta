@@ -8,10 +8,9 @@ Backed by Azure Table Storage with 24-hour TTL.
 
 from __future__ import annotations
 
-from typing import Optional
-from datetime import datetime, timedelta
 import hashlib
 import logging
+from datetime import datetime
 
 from magenta.config import settings
 from magenta.exceptions import DuplicateActionError
@@ -38,7 +37,7 @@ class IdempotencyStore:
     """
 
     def __init__(self):
-        self._table_client: Optional[Any] = None
+        self._table_client: Any | None = None
         self._initialized = False
 
     async def _ensure_table(self) -> Any:
@@ -59,20 +58,15 @@ class IdempotencyStore:
                 self._initialized = True
                 return self._table_client
 
-            service = TableServiceClient.from_connection_string(
-                conn_str=conn_str
-            )
-            self._table_client = service.get_table_client(
-                settings.idempotency.table_name
-            )
+            service = TableServiceClient.from_connection_string(conn_str=conn_str)
+            self._table_client = service.get_table_client(settings.idempotency.table_name)
             await self._table_client.create_table_if_not_exists()
             self._initialized = True
             return self._table_client
 
         except ImportError:
             logger.warning(
-                "IdempotencyStore: azure-data-tables not available — "
-                "using in-memory fallback"
+                "IdempotencyStore: azure-data-tables not available — using in-memory fallback"
             )
             self._table_client = _InMemoryTable()
             self._initialized = True
@@ -163,9 +157,7 @@ class _InMemoryTable:
     async def upsert_entity(self, entity: dict) -> dict:
         key = (entity["PartitionKey"], entity["RowKey"])
         if key in self._entities:
-            raise DuplicateActionError(
-                f"Action already executed (key: {entity['RowKey'][:12]}...)"
-            )
+            raise DuplicateActionError(f"Action already executed (key: {entity['RowKey'][:12]}...)")
         self._entities[key] = entity
         return entity
 

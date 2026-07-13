@@ -20,7 +20,7 @@ import json
 import os
 import subprocess
 import sys
-import traceback
+
 import yaml
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -51,6 +51,7 @@ def import_module(module_path: str) -> bool:
     """Try importing a Python module."""
     try:
         import importlib
+
         importlib.import_module(module_path)
         return True
     except Exception:

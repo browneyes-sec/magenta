@@ -11,9 +11,7 @@ Usage:
 """
 
 import argparse
-import json
 import sys
-import time
 from pathlib import Path
 
 # Add project root to path
@@ -46,12 +44,14 @@ def list_snapshots(base_url: str) -> list[dict]:
             resp = httpx.get(f"{base_url}/collections/{name}/snapshots")
             resp.raise_for_status()
             for snap in resp.json().get("result", []):
-                snapshots.append({
-                    "collection": name,
-                    "name": snap.get("name", ""),
-                    "size": snap.get("size", 0),
-                    "created_at": snap.get("created_at", ""),
-                })
+                snapshots.append(
+                    {
+                        "collection": name,
+                        "name": snap.get("name", ""),
+                        "size": snap.get("size", 0),
+                        "created_at": snap.get("created_at", ""),
+                    }
+                )
     except Exception as e:
         print(f"Error listing snapshots: {e}")
 
@@ -74,11 +74,13 @@ def create_snapshots(base_url: str) -> list[dict]:
             resp = httpx.post(f"{base_url}/collections/{name}/snapshots")
             resp.raise_for_status()
             snap = resp.json().get("result", {})
-            results.append({
-                "collection": name,
-                "snapshot": snap.get("name", ""),
-                "status": "created",
-            })
+            results.append(
+                {
+                    "collection": name,
+                    "snapshot": snap.get("name", ""),
+                    "status": "created",
+                }
+            )
             print(f"    ✓ {snap.get('name', 'unknown')}")
 
     except Exception as e:

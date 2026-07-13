@@ -14,21 +14,32 @@ logger = logging.getLogger(__name__)
 
 _VALID_TRANSITIONS: dict[MissionStatus, set[MissionStatus]] = {
     MissionStatus.created: {
-        MissionStatus.scoped, MissionStatus.executing, MissionStatus.cancelled,
+        MissionStatus.scoped,
+        MissionStatus.executing,
+        MissionStatus.cancelled,
     },
     MissionStatus.scoped: {
-        MissionStatus.assigned, MissionStatus.executing, MissionStatus.cancelled,
+        MissionStatus.assigned,
+        MissionStatus.executing,
+        MissionStatus.cancelled,
     },
     MissionStatus.assigned: {MissionStatus.executing, MissionStatus.cancelled},
     MissionStatus.executing: {
-        MissionStatus.review, MissionStatus.completed,
-        MissionStatus.failed, MissionStatus.escalated, MissionStatus.cancelled,
+        MissionStatus.review,
+        MissionStatus.completed,
+        MissionStatus.failed,
+        MissionStatus.escalated,
+        MissionStatus.cancelled,
     },
     MissionStatus.review: {
-        MissionStatus.completed, MissionStatus.failed, MissionStatus.escalated,
+        MissionStatus.completed,
+        MissionStatus.failed,
+        MissionStatus.escalated,
     },
     MissionStatus.escalated: {
-        MissionStatus.completed, MissionStatus.failed, MissionStatus.cancelled,
+        MissionStatus.completed,
+        MissionStatus.failed,
+        MissionStatus.cancelled,
     },
     MissionStatus.completed: set(),
     MissionStatus.failed: set(),
@@ -45,13 +56,11 @@ class MissionManager:
 
     def __init__(self, redis_url: str = ""):
         self._missions: dict[str, Mission] = {}
-        self._redis_url = redis_url or os.getenv(
-            "MAGENTA_REDIS_URL", "redis://localhost:6379/0"
-        )
+        self._redis_url = redis_url or os.getenv("MAGENTA_REDIS_URL", "redis://localhost:6379/0")
         self._redis = None
-        self._persistence_enabled = os.getenv(
-            "MAGENTA_REDIS_PERSISTENCE", "false"
-        ).lower() == "true"
+        self._persistence_enabled = (
+            os.getenv("MAGENTA_REDIS_PERSISTENCE", "false").lower() == "true"
+        )
 
     async def _ensure_redis(self):
         if self._redis is not None:
@@ -60,6 +69,7 @@ class MissionManager:
             return False
         try:
             import redis.asyncio as aioredis
+
             client = aioredis.from_url(self._redis_url, decode_responses=True)
             await client.ping()
             self._redis = client
@@ -101,9 +111,13 @@ class MissionManager:
         except Exception:
             pass
 
-    def create(self, alert_id: str, source_system: str,
-               playbook: Playbook | None = None,
-               description: str = "") -> Mission:
+    def create(
+        self,
+        alert_id: str,
+        source_system: str,
+        playbook: Playbook | None = None,
+        description: str = "",
+    ) -> Mission:
         mission = Mission(
             alert_id=alert_id,
             source_system=source_system,
@@ -134,18 +148,13 @@ class MissionManager:
     def list_active(self) -> list[Mission]:
         """Return missions in non-terminal states."""
         terminal = {MissionStatus.completed, MissionStatus.failed, MissionStatus.cancelled}
-        return [
-            m for m in self._missions.values()
-            if m.status not in terminal
-        ]
+        return [m for m in self._missions.values() if m.status not in terminal]
 
     def update_status(self, mission_id: str, status: MissionStatus) -> Mission:
         mission = self.get(mission_id)
         allowed = _VALID_TRANSITIONS.get(mission.status, set())
         if status not in allowed:
-            raise MissionError(
-                f"Invalid transition: {mission.status.value} → {status.value}"
-            )
+            raise MissionError(f"Invalid transition: {mission.status.value} → {status.value}")
         mission.status = status
         mission.updated_at = datetime.utcnow()
         if status in (MissionStatus.completed, MissionStatus.failed, MissionStatus.cancelled):
@@ -177,9 +186,7 @@ class MissionManager:
         mission = self._missions[mission_id]
         terminal = {MissionStatus.completed, MissionStatus.failed, MissionStatus.cancelled}
         if mission.status not in terminal:
-            raise MissionError(
-                f"Cannot delete mission in {mission.status.value} state"
-            )
+            raise MissionError(f"Cannot delete mission in {mission.status.value} state")
         del self._missions[mission_id]
 
     def active_count(self) -> int:

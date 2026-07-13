@@ -93,6 +93,7 @@ async def deep_dependency_check():
     # Check SOAR
     try:
         from magenta.integration.soar import SOARConnector
+
         soar = SOARConnector()
         ok = await soar.ping()
         checks["soar"] = {
@@ -107,8 +108,9 @@ async def deep_dependency_check():
 
     # Check Sentinel
     try:
-        from magenta.integration.sentinel import SentinelConnector
         from magenta.config import settings
+        from magenta.integration.sentinel import SentinelConnector
+
         if settings.sentinel.tenant_id:
             sentinel = SentinelConnector()
             ok = await sentinel.ping()
@@ -126,8 +128,9 @@ async def deep_dependency_check():
 
     # Check Splunk
     try:
-        from magenta.integration.splunk import SplunkConnector
         from magenta.config import settings
+        from magenta.integration.splunk import SplunkConnector
+
         if settings.splunk.host:
             splunk = SplunkConnector()
             ok = await splunk.ping()

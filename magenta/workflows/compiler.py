@@ -111,24 +111,28 @@ class WorkflowCompiler:
             if role == "ingest":
                 node_type = WorkflowNodeType.ingest
 
-            nodes.append(WorkflowNode(
-                id=node_id,
-                type=node_type,
-                label=stage.get("name", node_id),
-                agent=role,
-                depends_on=depends_on,
-                config=params,
-            ))
+            nodes.append(
+                WorkflowNode(
+                    id=node_id,
+                    type=node_type,
+                    label=stage.get("name", node_id),
+                    agent=role,
+                    depends_on=depends_on,
+                    config=params,
+                )
+            )
 
             for dep in depends_on:
                 edges.append(WorkflowEdge(source=dep, target=node_id))
 
         if not nodes:
-            nodes.append(WorkflowNode(
-                id="triage",
-                type=WorkflowNodeType.agentic,
-                agent="triage",
-            ))
+            nodes.append(
+                WorkflowNode(
+                    id="triage",
+                    type=WorkflowNodeType.agentic,
+                    agent="triage",
+                )
+            )
 
         return WorkflowSpec(nodes=nodes, edges=edges, parameters={})
 
@@ -205,16 +209,20 @@ class WorkflowCompiler:
         p = {**node.config, **params, "node_type": "parallel"}
         p["branches"] = node.config.get("branches", [])
         return DAGNode(
-            task_id=node.id, role="parallel",
-            depends_on=node.depends_on, params=p,
+            task_id=node.id,
+            role="parallel",
+            depends_on=node.depends_on,
+            params=p,
         )
 
     def _compile_subgraph_node(self, node: WorkflowNode, params: dict) -> DAGNode:
         p = {**node.config, **params, "node_type": "subgraph"}
         p["subgraph_name"] = node.subgraph
         return DAGNode(
-            task_id=node.id, role="subgraph",
-            depends_on=node.depends_on, params=p,
+            task_id=node.id,
+            role="subgraph",
+            depends_on=node.depends_on,
+            params=p,
         )
 
     def _validate_dag(self, nodes: dict[str, DAGNode]) -> None:

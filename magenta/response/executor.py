@@ -1,14 +1,13 @@
 """Response execution — action executor, approval gate with Redis persistence."""
 
-from typing import Any, Optional, Callable
-from datetime import datetime, timedelta
-from uuid import uuid4
 import json
 import logging
+from collections.abc import Callable
+from datetime import datetime, timedelta
+from typing import Any
+from uuid import uuid4
 
-from magenta.core.models import (
-    ActionType, ActionStatus, ApprovalState, ApprovalRequest, Target, TargetType
-)
+from magenta.core.models import ActionType, ApprovalRequest, ApprovalState, Target
 from magenta.exceptions import ApprovalError
 from magenta.orchestration.state import InMemoryStateStore
 
@@ -31,6 +30,7 @@ class DurableApprovalStore:
             return self._redis
         try:
             import redis.asyncio as aioredis
+
             client = aioredis.from_url(self._redis_url, decode_responses=True)
             await client.ping()
             self._redis = client
@@ -88,14 +88,14 @@ class DurableApprovalStore:
                 pass
         return self._in_memory
 
-    def get(self, approval_id: str) -> Optional[ApprovalRequest]:
+    def get(self, approval_id: str) -> ApprovalRequest | None:
         return self._in_memory.get(approval_id)
 
 
 class ActionExecutor:
     """Executes response actions with idempotency and approval gating."""
 
-    def __init__(self, approval_store: Optional[DurableApprovalStore] = None):
+    def __init__(self, approval_store: DurableApprovalStore | None = None):
         self._approval_callbacks: list[Callable] = []
         self._approval_store = approval_store or DurableApprovalStore()
 
@@ -197,7 +197,10 @@ class ActionExecutor:
 
         base_risk = risk_map.get(action, 30)
         criticality_modifier = {
-            "critical": 20, "high": 10, "medium": 0, "low": -10,
+            "critical": 20,
+            "high": 10,
+            "medium": 0,
+            "low": -10,
         }
         mod = criticality_modifier.get(
             target.asset_criticality.value if target.asset_criticality else "medium", 0
@@ -209,7 +212,7 @@ class ActionExecutor:
 class ApprovalGate:
     """Manages the approval lifecycle with Redis persistence."""
 
-    def __init__(self, approval_store: Optional[DurableApprovalStore] = None):
+    def __init__(self, approval_store: DurableApprovalStore | None = None):
         self._store = approval_store or DurableApprovalStore()
         self._approvals: dict[str, ApprovalRequest] = {}
 

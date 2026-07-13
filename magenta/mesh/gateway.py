@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from magenta.telemetry import get_tracer
+
     _tracer = get_tracer("mesh.gateway")
 except Exception:
     _tracer = None
@@ -202,9 +203,7 @@ class MeshGateway:
         try:
             import redis.asyncio as aioredis
 
-            r = aioredis.from_url(
-                f"redis://{self.config.redis.host}:{self.config.redis.port}"
-            )
+            r = aioredis.from_url(f"redis://{self.config.redis.host}:{self.config.redis.port}")
             await r.ping()
             await r.aclose()
             checks["redis"] = {"status": "healthy"}

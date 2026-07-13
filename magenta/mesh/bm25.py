@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 try:
     import tantivy
     from tantivy import STORED, TEXT, SchemaBuilder
+
     HAS_TANTIVY = True
 except ImportError:
     HAS_TANTIVY = False
@@ -88,15 +89,89 @@ class _FallbackBM25Searcher:
         text = text.lower()
         text = re.sub(r"[^a-z0-9\s]", " ", text)
         tokens = text.split()
-        stop_words = {"the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-                       "have", "has", "had", "do", "does", "did", "will", "would", "could",
-                       "should", "may", "might", "shall", "can", "need", "dare", "ought",
-                       "used", "to", "of", "in", "for", "on", "with", "at", "by", "from",
-                       "as", "into", "through", "during", "before", "after", "above", "below",
-                       "between", "out", "off", "over", "under", "again", "further", "then",
-                       "once", "and", "but", "or", "nor", "not", "so", "yet", "both", "either",
-                       "neither", "each", "every", "all", "any", "few", "more", "most", "other",
-                       "some", "such", "no", "only", "own", "same", "than", "too", "very"}
+        stop_words = {
+            "the",
+            "a",
+            "an",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "being",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "shall",
+            "can",
+            "need",
+            "dare",
+            "ought",
+            "used",
+            "to",
+            "of",
+            "in",
+            "for",
+            "on",
+            "with",
+            "at",
+            "by",
+            "from",
+            "as",
+            "into",
+            "through",
+            "during",
+            "before",
+            "after",
+            "above",
+            "below",
+            "between",
+            "out",
+            "off",
+            "over",
+            "under",
+            "again",
+            "further",
+            "then",
+            "once",
+            "and",
+            "but",
+            "or",
+            "nor",
+            "not",
+            "so",
+            "yet",
+            "both",
+            "either",
+            "neither",
+            "each",
+            "every",
+            "all",
+            "any",
+            "few",
+            "more",
+            "most",
+            "other",
+            "some",
+            "such",
+            "no",
+            "only",
+            "own",
+            "same",
+            "than",
+            "too",
+            "very",
+        }
         return [t for t in tokens if t not in stop_words and len(t) > 1]
 
     def count(self) -> int:
@@ -160,12 +235,14 @@ class TantivyBM25Sidecar:
             output = []
             for hit in results.hits:
                 doc = self._searcher.doc(hit.doc_address)
-                output.append({
-                    "id": str(hit.doc_id),
-                    "score": hit.score,
-                    "text": doc.get_first("text") or "",
-                    "metadata": {},
-                })
+                output.append(
+                    {
+                        "id": str(hit.doc_id),
+                        "score": hit.score,
+                        "text": doc.get_first("text") or "",
+                        "metadata": {},
+                    }
+                )
             return output
         except Exception:
             logger.exception("Tantivy search failed for collection=%s", self.collection)
@@ -247,7 +324,9 @@ class TantivyBM25Sidecar:
                 self._searcher = self._index.searcher()
             self._doc_count = total_reindexed
 
-            logger.info("BM25 rebuilt from Qdrant: collection=%s, docs=%d", self.collection, total_reindexed)
+            logger.info(
+                "BM25 rebuilt from Qdrant: collection=%s, docs=%d", self.collection, total_reindexed
+            )
             return total_reindexed
 
         except Exception as e:

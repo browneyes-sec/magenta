@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import time
-from typing import Any
-
 from chaos_engineering.attestation.preparing import ComponentMap
 from chaos_engineering.chaos import ScenarioResult
 from chaos_engineering.injection.registry_injector import RegistryInjector
@@ -28,9 +25,7 @@ class RegistryPoisonScenario:
         return True, ""
 
     def run(self, components: ComponentMap, stealth: bool) -> ScenarioResult:
-        inject_result = self.injector.inject_poison(
-            components, count=self.intensity
-        )
+        inject_result = self.injector.inject_poison(components, count=self.intensity)
 
         all_rejected = all(
             item.get("rejected", False) for item in inject_result.get("injected", [])
@@ -44,6 +39,7 @@ class RegistryPoisonScenario:
 
     def validate(self, components: ComponentMap) -> list[dict]:
         from chaos_engineering.attestation.probe_runner import ProbeRunner
+
         runner = ProbeRunner(components)
         return runner.run_all()
 

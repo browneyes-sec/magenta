@@ -1,12 +1,10 @@
 """CLI utilities: table rendering, JSON output, formatting."""
 
-from typing import Any
 import json
+from typing import Any
 
 from rich.console import Console
 from rich.table import Table
-from rich.text import Text
-
 
 console = Console()
 

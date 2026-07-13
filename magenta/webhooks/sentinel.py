@@ -1,11 +1,7 @@
 """Microsoft Sentinel webhook handler."""
 
-from typing import Any
-from datetime import datetime
-
 from magenta.core.mission import mission_manager
 from magenta.core.models import MissionStatus
-from magenta.core.swarm import swarm_manager
 
 
 async def handle_incident(payload: dict) -> dict:

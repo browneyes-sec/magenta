@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-from collections import defaultdict, deque
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Optional
 import asyncio
 import logging
+from collections import defaultdict, deque
+from dataclasses import dataclass, field
+from typing import Any
 
-from magenta.core.models import Mission, MissionStatus, AgentConfig
 from magenta.core.agent import agent_registry
 from magenta.core.mission import mission_manager
+from magenta.core.models import Mission, MissionStatus
 from magenta.exceptions import MissionError
 
 logger = logging.getLogger(__name__)
@@ -20,14 +19,15 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DAGNode:
     """A node in the execution DAG."""
+
     task_id: str
     role: str
-    agent_id: Optional[str] = None
+    agent_id: str | None = None
     depends_on: list[str] = field(default_factory=list)
     params: dict[str, Any] = field(default_factory=dict)
     status: str = "pending"  # pending, running, completed, failed
-    result: Optional[dict] = None
-    error: Optional[str] = None
+    result: dict | None = None
+    error: str | None = None
     attempts: int = 0
     max_retries: int = 2
 
@@ -38,33 +38,37 @@ class DAGExecutor:
     def __init__(self, max_concurrency: int = 5):
         self._running: dict[str, asyncio.Task] = {}
         self._max_concurrency = max_concurrency
-        self._semaphore: Optional[asyncio.Semaphore] = None
+        self._semaphore: asyncio.Semaphore | None = None
 
     def _build_dag(self, mission: Mission) -> dict[str, DAGNode]:
         """Build DAG from mission tasks/playbook stages."""
         nodes = {}
 
         # Use playbook stages if available, fall back to mission tasks
-        stages = mission.playbook_stages if hasattr(mission, 'playbook_stages') else []
+        stages = mission.playbook_stages if hasattr(mission, "playbook_stages") else []
 
         if not stages and mission.tasks:
             # Convert linear tasks to stages
             for i, task in enumerate(mission.tasks):
-                stages.append({
-                    "task_id": task.get("task_id", f"task_{i}"),
-                    "role": task.get("role", "triage"),
-                    "depends_on": task.get("depends_on", []),
-                    "params": task.get("params", {}),
-                })
+                stages.append(
+                    {
+                        "task_id": task.get("task_id", f"task_{i}"),
+                        "role": task.get("role", "triage"),
+                        "depends_on": task.get("depends_on", []),
+                        "params": task.get("params", {}),
+                    }
+                )
 
         if not stages:
             # Default single-stage triage
-            stages = [{
-                "task_id": "triage",
-                "role": "triage",
-                "depends_on": [],
-                "params": {},
-            }]
+            stages = [
+                {
+                    "task_id": "triage",
+                    "role": "triage",
+                    "depends_on": [],
+                    "params": {},
+                }
+            ]
 
         for stage in stages:
             task_id = stage["task_id"]
@@ -161,7 +165,7 @@ class DAGExecutor:
 
             # Launch ready tasks up to concurrency limit
             launch_tasks = []
-            for task_id in ready[:self._max_concurrency]:
+            for task_id in ready[: self._max_concurrency]:
                 node = nodes[task_id]
                 node.status = "running"
                 task = asyncio.create_task(self._execute_task(node, mission, results))
@@ -236,10 +240,12 @@ class DAGExecutor:
                     node.error = str(e)
                     logger.warning("Task %s attempt %d failed: %s", node.task_id, attempt + 1, e)
                     if attempt < node.max_retries:
-                        await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                        await asyncio.sleep(2**attempt)  # Exponential backoff
 
             node.status = "failed"
-            logger.error("Task %s failed after %d attempts: %s", node.task_id, node.attempts, node.error)
+            logger.error(
+                "Task %s failed after %d attempts: %s", node.task_id, node.attempts, node.error
+            )
 
 
 dag_executor = DAGExecutor()

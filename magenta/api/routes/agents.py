@@ -2,9 +2,8 @@
 
 from fastapi import APIRouter, HTTPException
 
-from magenta.core.models import AgentConfig
 from magenta.core.agent import agent_registry
-from magenta.api.deps import get_agent_registry
+from magenta.core.models import AgentConfig
 
 router = APIRouter()
 
@@ -56,6 +55,7 @@ async def get_agents_by_role(role: str):
 async def register_agent(config: AgentConfig):
     """Register a new agent."""
     from magenta.agents.base import LLMAgent
+
     agent = LLMAgent(config)
     agent_registry.register(agent)
     return {"status": "registered", "agent_id": config.agent_id}

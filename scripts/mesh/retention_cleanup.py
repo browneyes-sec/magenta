@@ -11,23 +11,24 @@ Usage:
 
 import argparse
 import sys
-import time
 from pathlib import Path
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from magenta.mesh.config import MeshConfig
-from qdrant_client import QdrantClient
-from qdrant_client.models import Filter, FieldCondition, MatchValue, DatetimeRange
+from datetime import UTC
 
+from qdrant_client import QdrantClient
+from qdrant_client.models import DatetimeRange, FieldCondition, Filter
+
+from magenta.mesh.config import MeshConfig
 
 # Retention policies per memory type (in days)
 RETENTION_DAYS = {
-    "mem_episodic": 90,   # Hot: 90 days, then archive
+    "mem_episodic": 90,  # Hot: 90 days, then archive
     "mem_semantic": 365,  # Warm: 1 year
-    "mem_procedural": 730, # Warm: 2 years
+    "mem_procedural": 730,  # Warm: 2 years
 }
 
 
@@ -39,14 +40,16 @@ def get_qdrant_client(config: MeshConfig) -> QdrantClient:
     )
 
 
-def cleanup_collection(client: QdrantClient, collection: str, days: int, dry_run: bool = False) -> int:
+def cleanup_collection(
+    client: QdrantClient, collection: str, days: int, dry_run: bool = False
+) -> int:
     """Delete points older than `days` from collection.
 
     Uses the `timestamp` field in payload for age calculation.
     """
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    cutoff = datetime.now(UTC) - timedelta(days=days)
     cutoff_iso = cutoff.isoformat()
 
     # Build filter for points older than cutoff
@@ -72,7 +75,9 @@ def cleanup_collection(client: QdrantClient, collection: str, days: int, dry_run
         return 0
 
     if dry_run:
-        print(f"  [DRY-RUN] {collection}: Would delete {to_delete} points older than {days}d (cutoff: {cutoff_iso})")
+        print(
+            f"  [DRY-RUN] {collection}: Would delete {to_delete} points older than {days}d (cutoff: {cutoff_iso})"
+        )
         return 0
 
     # Delete in batches
@@ -106,7 +111,9 @@ def cleanup_collection(client: QdrantClient, collection: str, days: int, dry_run
 def main():
     parser = argparse.ArgumentParser(description="Qdrant Retention Cleanup")
     parser.add_argument("--env", default="dev", choices=["dev", "staging", "prod"])
-    parser.add_argument("--dry-run", action="store_true", help="Show what would be deleted without deleting")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Show what would be deleted without deleting"
+    )
     parser.add_argument("--collection", help="Specific collection to clean (default: all)")
     args = parser.parse_args()
 

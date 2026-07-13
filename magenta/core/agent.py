@@ -1,17 +1,15 @@
 """Agent base class and registry."""
 
 from __future__ import annotations
+
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, Optional
-from uuid import uuid4
-import time
+from typing import Any
 
-from magenta.core.models import AgentConfig, AgentStatus, Mission, AutomationActivity
-from magenta.exceptions import AgentError
-from magenta.config import settings
-from magenta.telemetry import get_tracer, get_meter
+from magenta.core.models import AgentConfig, AgentStatus, Mission
 from magenta.logging import StructuredLogger, get_structured_logger
+from magenta.telemetry import get_meter, get_tracer
 
 
 class BaseAgent(ABC):
@@ -57,9 +55,9 @@ class BaseAgent(ABC):
         self._ensure_metrics()
         self.config = config
         self.status = AgentStatus.idle
-        self.current_mission: Optional[Mission] = None
+        self.current_mission: Mission | None = None
         self.turn_count = 0
-        self.started_at: Optional[datetime] = None
+        self.started_at: datetime | None = None
         self._heartbeat_count = 0
         self._active_tasks = 0
         self._pre_turn_rag: bool = True  # Enable pre-turn RAG by default (ADR-018)
@@ -133,12 +131,15 @@ class BaseAgent(ABC):
 
                 result = await self._process_impl(mission, context)
                 span.set_status(1)  # OK
-                self._logger.info(f"Agent {self.role} completed mission", action="process", status="succeeded")
+                self._logger.info(
+                    f"Agent {self.role} completed mission", action="process", status="succeeded"
+                )
 
                 # Post-turn: auto-log activity to episodic memory (ADR-018)
                 if hasattr(self, "log_activity"):
                     try:
                         from magenta.core.models import ActionStatus
+
                         await self.log_activity(
                             mission=mission,
                             action=f"{self.role}_completed",
@@ -152,7 +153,9 @@ class BaseAgent(ABC):
             except Exception as exc:
                 span.set_status(2, str(exc))  # ERROR
                 self._mission_errors.add(1, {"role": self.role, "error": type(exc).__name__})
-                self._logger.error(f"Agent {self.role} failed: {exc}", action="process", status="failed")
+                self._logger.error(
+                    f"Agent {self.role} failed: {exc}", action="process", status="failed"
+                )
                 raise
             finally:
                 elapsed = time.monotonic() - start
@@ -173,7 +176,9 @@ class BaseAgent(ABC):
             return result
         except Exception as exc:
             if is_llm:
-                self._model_errors.add(1, {"role": self.role, "tool": tool_name, "error": type(exc).__name__})
+                self._model_errors.add(
+                    1, {"role": self.role, "tool": tool_name, "error": type(exc).__name__}
+                )
             raise
         finally:
             elapsed = time.monotonic() - start
@@ -191,8 +196,7 @@ class BaseAgent(ABC):
             "role": self.role,
             "status": self.status.value,
             "uptime_seconds": (
-                (datetime.utcnow() - self.started_at).total_seconds()
-                if self.started_at else 0
+                (datetime.utcnow() - self.started_at).total_seconds() if self.started_at else 0
             ),
             "turn_count": self.turn_count,
         }
@@ -224,7 +228,7 @@ class AgentRegistry:
     def get_by_role(self, role: str) -> list[BaseAgent]:
         return self._agents.get(role, [])
 
-    def get_by_id(self, agent_id: str) -> Optional[BaseAgent]:
+    def get_by_id(self, agent_id: str) -> BaseAgent | None:
         for agents in self._agents.values():
             for agent in agents:
                 if agent.agent_id == agent_id:
@@ -232,17 +236,11 @@ class AgentRegistry:
         return None
 
     def get_available(self, role: str) -> list[BaseAgent]:
-        return [
-            a for a in self._agents.get(role, [])
-            if a.status == AgentStatus.idle
-        ]
+        return [a for a in self._agents.get(role, []) if a.status == AgentStatus.idle]
 
     def get_available_for_role(self, role: str) -> list[BaseAgent]:
         """Return agents for role that can accept more concurrent tasks."""
-        return [
-            a for a in self._agents.get(role, [])
-            if a.can_accept_task
-        ]
+        return [a for a in self._agents.get(role, []) if a.can_accept_task]
 
     def all_agents(self) -> list[BaseAgent]:
         result = []

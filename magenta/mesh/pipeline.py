@@ -22,6 +22,7 @@ except Exception:
 
 # ── Chunker ──────────────────────────────────────────────────────────────
 
+
 class SemanticChunker:
     """Split text into semantic chunks by sentence/paragraph boundaries."""
 
@@ -46,7 +47,7 @@ class SemanticChunker:
             sentence_tokens = len(sentence.split())
             if current_len + sentence_tokens > self.chunk_size and current:
                 chunks.append(current.strip())
-                overlap_text = " ".join(current.split()[-self.overlap:]) if self.overlap else ""
+                overlap_text = " ".join(current.split()[-self.overlap :]) if self.overlap else ""
                 current = f"{overlap_text} {sentence}".strip()
                 current_len = len(current.split())
             else:
@@ -60,6 +61,7 @@ class SemanticChunker:
 
 
 # ── Embedder ──────────────────────────────────────────────────────────────
+
 
 class OllamaEmbedder:
     """Embed text via OLLAMA API using nomic-embed-text model.
@@ -77,16 +79,19 @@ class OllamaEmbedder:
 
     def _cache_key(self, text: str) -> str:
         import hashlib
+
         return hashlib.sha256(f"{self.model}:{text}".encode()).hexdigest()[:16]
 
     def _is_cache_fresh(self, ts: float) -> bool:
         import time
+
         return (time.monotonic() - ts) < self._cache_ttl
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         """Embed a batch of texts. Returns list of embedding vectors."""
-        import httpx
         import time
+
+        import httpx
 
         embeddings: list[list[float]] = []
         uncached_texts: list[str] = []
@@ -132,6 +137,7 @@ class OllamaEmbedder:
 
 
 # ── Indexer ──────────────────────────────────────────────────────────────
+
 
 class QdrantIndexer:
     """Upsert vectors and payloads into Qdrant collections."""
@@ -193,9 +199,7 @@ class QdrantIndexer:
                 for key, value in filters.items():
                     if isinstance(value, list):
                         for v in value:
-                            conditions.append(
-                                FieldCondition(key=key, match=MatchValue(value=v))
-                            )
+                            conditions.append(FieldCondition(key=key, match=MatchValue(value=v)))
                     else:
                         conditions.append(FieldCondition(key=key, match=MatchValue(value=value)))
                 if conditions:
@@ -225,6 +229,7 @@ class QdrantIndexer:
 
 # ── Pipeline ──────────────────────────────────────────────────────────────
 
+
 class VectorizationPipeline:
     """Full pipeline: chunk -> embed -> index. Used by mesh_ingest and memory writes.
 
@@ -253,7 +258,10 @@ class VectorizationPipeline:
                 bm25 = self._get_bm25(collection)
                 await bm25.rebuild_from_qdrant(self.config)
                 self._bm25_rebuilt.add(collection)
-        logger.info("VectorizationPipeline initialized with BM25 rebuilt for %d collections", len(self._bm25_rebuilt))
+        logger.info(
+            "VectorizationPipeline initialized with BM25 rebuilt for %d collections",
+            len(self._bm25_rebuilt),
+        )
 
     def _get_bm25(self, collection: str) -> TantivyBM25Sidecar:
         if collection not in self._bm25_sidecars:
@@ -301,20 +309,22 @@ class VectorizationPipeline:
                         errors.append(f"Document {doc_id} chunk {i}: empty embedding")
                         continue
 
-                    point_id = hashlib.sha256(
-                        f"{doc_id}:{i}:{chunk[:100]}".encode()
-                    ).hexdigest()[:16]
+                    point_id = hashlib.sha256(f"{doc_id}:{i}:{chunk[:100]}".encode()).hexdigest()[
+                        :16
+                    ]
 
                     ids.append(point_id)
                     vectors.append(embedding)
-                    payloads.append({
-                        **metadata,
-                        "doc_id": doc_id,
-                        "chunk_index": i,
-                        "chunk_total": len(chunks),
-                        "text": chunk,
-                        "timestamp": datetime.now(UTC).isoformat(),
-                    })
+                    payloads.append(
+                        {
+                            **metadata,
+                            "doc_id": doc_id,
+                            "chunk_index": i,
+                            "chunk_total": len(chunks),
+                            "text": chunk,
+                            "timestamp": datetime.now(UTC).isoformat(),
+                        }
+                    )
 
                 if vectors:
                     result = await self.indexer.upsert(collection, ids, vectors, payloads)

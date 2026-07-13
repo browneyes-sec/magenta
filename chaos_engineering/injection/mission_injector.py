@@ -28,11 +28,13 @@ class MissionInjector:
         for mission in targets:
             original = mission.completed_at
             mission.completed_at = datetime.utcnow() - timedelta(hours=1)
-            modified.append({
-                "mission_id": mission.mission_id[:12],
-                "original_deadline": str(original),
-                "new_deadline": str(mission.completed_at),
-            })
+            modified.append(
+                {
+                    "mission_id": mission.mission_id[:12],
+                    "original_deadline": str(original),
+                    "new_deadline": str(mission.completed_at),
+                }
+            )
             logger.info("Set expired deadline for mission: %s", mission.mission_id[:12])
 
         return {"modified": modified, "count": len(modified)}
@@ -51,10 +53,12 @@ class MissionInjector:
         for mission in targets:
             original_status = str(mission.status)
             mission.status = "CHAOS_INVALID_STATUS"
-            modified.append({
-                "mission_id": mission.mission_id[:12],
-                "original_status": original_status,
-            })
+            modified.append(
+                {
+                    "mission_id": mission.mission_id[:12],
+                    "original_status": original_status,
+                }
+            )
             logger.info("Corrupted mission status: %s", mission.mission_id[:12])
 
         return {"modified": modified, "count": len(modified)}

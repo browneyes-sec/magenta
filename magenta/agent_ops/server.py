@@ -18,8 +18,8 @@ import structlog
 import tomli
 from pydantic import BaseModel, Field
 
-from magenta.agent_ops.config import ConfigAnalyzer
 from magenta.agent_ops.cloud import CloudOrchestrator
+from magenta.agent_ops.config import ConfigAnalyzer
 from magenta.agent_ops.finops import FinOpsEngine
 from magenta.agent_ops.iac import IaCEngine
 
@@ -196,14 +196,21 @@ class AgentOpsServer:
 
     def _handle_finops_tags(self, args: dict) -> Any:
         return self.finops_engine.audit_tags(
-            required_tags=args.get("required_tags", [
-                "environment", "cost-center", "owner", "project",
-            ]),
+            required_tags=args.get(
+                "required_tags",
+                [
+                    "environment",
+                    "cost-center",
+                    "owner",
+                    "project",
+                ],
+            ),
         )
 
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="Agent Ops MCP Server")
     parser.add_argument("--config", default="soa/config/agents.toml")
     parser.add_argument("--port", type=int, default=50060)
@@ -215,6 +222,7 @@ def main():
     def shutdown(sig, frame):
         logger.info("Shutting down")
         sys.exit(0)
+
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
 

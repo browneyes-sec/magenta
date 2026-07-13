@@ -116,15 +116,9 @@ class WorkflowExecution:
 
     @classmethod
     def from_dict(cls, data: dict) -> WorkflowExecution:
-        started_at = (
-            datetime.fromisoformat(data["started_at"])
-            if data.get("started_at")
-            else None
-        )
+        started_at = datetime.fromisoformat(data["started_at"]) if data.get("started_at") else None
         completed_at = (
-            datetime.fromisoformat(data["completed_at"])
-            if data.get("completed_at")
-            else None
+            datetime.fromisoformat(data["completed_at"]) if data.get("completed_at") else None
         )
         return cls(
             mission_id=data["mission_id"],
@@ -150,13 +144,11 @@ class WorkflowEngine:
         self._approval_lock = asyncio.Lock()
         self._running_missions: set[str] = set()
         self._running_lock = asyncio.Lock()
-        self._redis_url = os.getenv(
-            "MAGENTA_REDIS_URL", "redis://localhost:6379/0"
-        )
+        self._redis_url = os.getenv("MAGENTA_REDIS_URL", "redis://localhost:6379/0")
         self._redis = None
-        self._persistence_enabled = os.getenv(
-            "MAGENTA_REDIS_PERSISTENCE", "false"
-        ).lower() == "true"
+        self._persistence_enabled = (
+            os.getenv("MAGENTA_REDIS_PERSISTENCE", "false").lower() == "true"
+        )
 
     async def _ensure_redis(self):
         if self._redis is not None:
@@ -165,6 +157,7 @@ class WorkflowEngine:
             return False
         try:
             import redis.asyncio as aioredis
+
             client = aioredis.from_url(self._redis_url, decode_responses=True)
             await client.ping()
             self._redis = client
@@ -223,7 +216,7 @@ class WorkflowEngine:
         """Execute a playbook from file, returning mission_id."""
         pb = workflow_compiler.load_playbook(playbook)
 
-        legacy_pb = pb.to_legacy() if isinstance(pb, type(pb)) and hasattr(pb, 'to_legacy') else pb
+        legacy_pb = pb.to_legacy() if isinstance(pb, type(pb)) and hasattr(pb, "to_legacy") else pb
 
         mission = mission_manager.create(
             alert_id=alert_id,
@@ -252,8 +245,7 @@ class WorkflowEngine:
         if len(self._executions) <= self._MAX_COMPLETED_EXECUTIONS:
             return
         completed = [
-            mid for mid, ex in self._executions.items()
-            if ex.status in ("completed", "failed")
+            mid for mid, ex in self._executions.items() if ex.status in ("completed", "failed")
         ]
         completed.sort(key=lambda mid: self._executions[mid].completed_at or datetime.min)
         to_remove = completed[: len(completed) - self._MAX_COMPLETED_EXECUTIONS + 50]
@@ -338,7 +330,7 @@ class WorkflowEngine:
                 continue
 
             launch_tasks = []
-            for task_id in ready[:dag_executor._max_concurrency]:
+            for task_id in ready[: dag_executor._max_concurrency]:
                 node = nodes[task_id]
                 node.status = "running"
                 execution.current_node = task_id
@@ -509,11 +501,13 @@ class WorkflowEngine:
                 params=branch.get("params", {}),
             )
             await self._execute_standard_node(branch_node, mission, shared_results)
-            branch_results.append({
-                "id": branch['id'],
-                "result": branch_node.result,
-                "status": branch_node.status,
-            })
+            branch_results.append(
+                {
+                    "id": branch["id"],
+                    "result": branch_node.result,
+                    "status": branch_node.status,
+                }
+            )
 
         node.result = {"branches": branch_results}
         all_ok = all(b["status"] == "completed" for b in branch_results)
@@ -607,7 +601,7 @@ class WorkflowEngine:
             except Exception as e:
                 node.error = str(e)
                 if attempt < node.max_retries:
-                    await asyncio.sleep(2 ** attempt)
+                    await asyncio.sleep(2**attempt)
 
         node.status = "failed"
 

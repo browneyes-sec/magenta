@@ -3,21 +3,21 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 try:
-    from opentelemetry import trace, metrics
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
-    from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
-    from opentelemetry.sdk.metrics import MeterProvider
-    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+    from opentelemetry import metrics, trace
+    from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
     from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
     from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
     from opentelemetry.instrumentation.redis import RedisInstrumentor
     from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
-    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-    from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
+
     _OTEL_AVAILABLE = True
 except ImportError:
     _OTEL_AVAILABLE = False
@@ -28,6 +28,7 @@ except ImportError:
 
 try:
     from azure.monitor.opentelemetry.exporter import AzureMonitorTraceExporter
+
     _AZURE_EXPORTER_AVAILABLE = True
 except ImportError:
     _AZURE_EXPORTER_AVAILABLE = False
@@ -36,8 +37,8 @@ from magenta.config import settings
 
 logger = logging.getLogger(__name__)
 
-_tracer_provider: Optional["TracerProvider"] = None
-_meter_provider: Optional["MeterProvider"] = None
+_tracer_provider: TracerProvider | None = None
+_meter_provider: MeterProvider | None = None
 _initialized = False
 
 
@@ -59,8 +60,10 @@ def setup_telemetry(app=None) -> None:
         return
 
     if not _OTEL_AVAILABLE:
-        logger.warning("opentelemetry packages not installed — telemetry disabled. "
-                       "Install with: pip install opentelemetry-sdk opentelemetry-exporter-otlp")
+        logger.warning(
+            "opentelemetry packages not installed — telemetry disabled. "
+            "Install with: pip install opentelemetry-sdk opentelemetry-exporter-otlp"
+        )
         _initialized = True
         return
 
@@ -88,7 +91,9 @@ def setup_telemetry(app=None) -> None:
             insecure=insecure,
         )
         _tracer_provider.add_span_processor(BatchSpanProcessor(otlp_trace_exporter))
-        logger.info(f"OTLP trace exporter configured: {settings.telemetry.otlp_endpoint} (tls={use_tls})")
+        logger.info(
+            f"OTLP trace exporter configured: {settings.telemetry.otlp_endpoint} (tls={use_tls})"
+        )
     except Exception as exc:
         logger.warning(f"Failed to configure OTLP trace exporter: {exc}")
 
@@ -121,14 +126,14 @@ def setup_telemetry(app=None) -> None:
     _initialized = True
 
 
-def get_tracer(name: str = "magenta") -> "trace.Tracer":
+def get_tracer(name: str = "magenta") -> trace.Tracer:
     """Get a tracer instance."""
     if not _OTEL_AVAILABLE or trace is None:
         return _NoOpTracer()
     return trace.get_tracer(name)
 
 
-def get_meter(name: str = "magenta") -> "metrics.Meter":
+def get_meter(name: str = "magenta") -> metrics.Meter:
     """Get a meter instance."""
     if not _OTEL_AVAILABLE or metrics is None:
         return _NoOpMeter()
@@ -147,6 +152,7 @@ def shutdown_telemetry() -> None:
 
 class _NoOpTracer:
     """No-op tracer when OTel is unavailable."""
+
     from contextlib import contextmanager
 
     @contextmanager
@@ -156,20 +162,32 @@ class _NoOpTracer:
 
 class _NoOpSpan:
     """No-op span when OTel is unavailable."""
-    def set_status(self, *args, **kwargs): pass
-    def set_attribute(self, *args, **kwargs): pass
-    def add_event(self, *args, **kwargs): pass
+
+    def set_status(self, *args, **kwargs):
+        pass
+
+    def set_attribute(self, *args, **kwargs):
+        pass
+
+    def add_event(self, *args, **kwargs):
+        pass
 
 
 class _NoOpMeter:
     """No-op meter when OTel is unavailable."""
-    def create_histogram(self, *args, **kwargs): return _NoOpHistogram()
-    def create_counter(self, *args, **kwargs): return _NoOpCounter()
+
+    def create_histogram(self, *args, **kwargs):
+        return _NoOpHistogram()
+
+    def create_counter(self, *args, **kwargs):
+        return _NoOpCounter()
 
 
 class _NoOpHistogram:
-    def record(self, *args, **kwargs): pass
+    def record(self, *args, **kwargs):
+        pass
 
 
 class _NoOpCounter:
-    def add(self, *args, **kwargs): pass
+    def add(self, *args, **kwargs):
+        pass

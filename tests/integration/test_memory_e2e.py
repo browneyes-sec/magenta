@@ -14,9 +14,9 @@ Tests:
 import os
 import time
 import uuid
-import pytest
-import httpx
 
+import httpx
+import pytest
 
 # Skip all integration tests if Qdrant/OLLAMA not available
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
@@ -35,15 +35,13 @@ def _services_available() -> bool:
         return False
 
 
-pytestmark = pytest.mark.skipif(
-    not _services_available(),
-    reason="Qdrant or OLLAMA not available"
-)
+pytestmark = pytest.mark.skipif(not _services_available(), reason="Qdrant or OLLAMA not available")
 
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="module")
 def qdrant():
@@ -60,12 +58,17 @@ def ollama():
 @pytest.fixture(scope="module")
 def embed(ollama):
     """Embedding helper using nomic-embed-text."""
+
     def _embed(text: str) -> list[float]:
-        r = ollama.post("/api/embed", json={
-            "model": "nomic-embed-text",
-            "input": text,
-        })
+        r = ollama.post(
+            "/api/embed",
+            json={
+                "model": "nomic-embed-text",
+                "input": text,
+            },
+        )
         return r.json()["embeddings"][0]
+
     return _embed
 
 
@@ -73,14 +76,15 @@ def embed(ollama):
 # Test 1: Write → Search round-trip via MemoryMCPServer
 # ---------------------------------------------------------------------------
 
+
 class TestWriteSearchRoundTrip:
     """Verify write_episode → search_episodes works end-to-end."""
 
     def test_write_then_search(self, qdrant, embed):
         """Write an episode, search for it, verify it's found."""
+        from magenta.mesh.config import MeshConfig
         from magenta.mesh.memory import MemoryMCPServer
         from magenta.mesh.pipeline import VectorizationPipeline
-        from magenta.mesh.config import MeshConfig
 
         config = MeshConfig.from_env()
         pipeline = VectorizationPipeline(config)
@@ -118,13 +122,15 @@ class TestWriteSearchRoundTrip:
 
         # Verify the written text is in results
         texts = [r.get("text", "") for r in search_result["results"]]
-        assert any("192.168.1.100" in t for t in texts), \
+        assert any("192.168.1.100" in t for t in texts), (
             f"Expected '192.168.1.100' in results: {texts}"
+        )
 
 
 # ---------------------------------------------------------------------------
 # Test 2: Agent log_activity → retrieve_context cycle
 # ---------------------------------------------------------------------------
+
 
 class TestAgentMemoryCycle:
     """Verify agent writes via log_activity, reads via retrieve_context."""
@@ -132,13 +138,14 @@ class TestAgentMemoryCycle:
     @pytest.mark.asyncio
     async def test_log_then_retrieve(self):
         """Agent logs an action, then retrieves it as context."""
-        from unittest.mock import MagicMock, AsyncMock, patch
-        from magenta.core.models import AgentConfig, Mission, SourceSystem, SeverityLevel
+        from unittest.mock import MagicMock, patch
+
+        from magenta.core.models import AgentConfig, Mission
+        from magenta.mesh.config import MeshConfig
 
         # Create a real memory MCP instance
         from magenta.mesh.memory import MemoryMCPServer
         from magenta.mesh.pipeline import VectorizationPipeline
-        from magenta.mesh.config import MeshConfig
 
         config = MeshConfig.from_env()
         pipeline = VectorizationPipeline(config)
@@ -175,8 +182,11 @@ class TestAgentMemoryCycle:
 
             # Step 1: Log activity (writes to memory)
             from magenta.core.models import ActionStatus
+
             await agent.log_activity(
-                mission, "triage", ActionStatus.succeeded,
+                mission,
+                "triage",
+                ActionStatus.succeeded,
                 tenant_id="integration-test",
             )
 
@@ -192,22 +202,24 @@ class TestAgentMemoryCycle:
             )
 
             # Verify context contains the logged action
-            assert "Relevant Past Decisions" in context or len(context) > 0, \
+            assert "Relevant Past Decisions" in context or len(context) > 0, (
                 f"Expected RAG context, got: {context[:200]}"
+            )
 
 
 # ---------------------------------------------------------------------------
 # Test 3: Multi-turn memory accumulation
 # ---------------------------------------------------------------------------
 
+
 class TestMultiTurnMemory:
     """Verify memory accumulates across multiple agent turns."""
 
     def test_multiple_writes_searchable(self):
         """Write multiple episodes, verify all are searchable."""
+        from magenta.mesh.config import MeshConfig
         from magenta.mesh.memory import MemoryMCPServer
         from magenta.mesh.pipeline import VectorizationPipeline
-        from magenta.mesh.config import MeshConfig
 
         config = MeshConfig.from_env()
         pipeline = VectorizationPipeline(config)
@@ -228,7 +240,7 @@ class TestMultiTurnMemory:
                 agent_role=role,
                 mission_id=mission_id,
                 turn_number=i + 1,
-                text=f"Turn {i+1}: {text}",
+                text=f"Turn {i + 1}: {text}",
                 correlation_id=f"corr-multi-{i}",
                 metadata={"tenant_id": "multi-turn-test"},
             )
@@ -254,14 +266,15 @@ class TestMultiTurnMemory:
 # Test 4: Tenant isolation
 # ---------------------------------------------------------------------------
 
+
 class TestTenantIsolation:
     """Verify tenant_id filtering works correctly."""
 
     def test_cross_tenant_isolation(self):
         """Data written by tenant A should not appear in tenant B search."""
+        from magenta.mesh.config import MeshConfig
         from magenta.mesh.memory import MemoryMCPServer
         from magenta.mesh.pipeline import VectorizationPipeline
-        from magenta.mesh.config import MeshConfig
 
         config = MeshConfig.from_env()
         pipeline = VectorizationPipeline(config)
@@ -304,22 +317,22 @@ class TestTenantIsolation:
         # Verify no tenant B data in results
         for result in search_a.get("results", []):
             text = result.get("text", "")
-            assert "Beta Inc" not in text, \
-                f"Tenant B data leaked to tenant A: {text[:100]}"
+            assert "Beta Inc" not in text, f"Tenant B data leaked to tenant A: {text[:100]}"
 
 
 # ---------------------------------------------------------------------------
 # Test 5: Token budget enforcement
 # ---------------------------------------------------------------------------
 
+
 class TestTokenBudget:
     """Verify context truncation respects tier budgets."""
 
     def test_speed_tier_budget(self):
         """Speed tier should truncate to ~1000 tokens."""
+        from magenta.mesh.config import MeshConfig
         from magenta.mesh.memory import MemoryMCPServer
         from magenta.mesh.pipeline import VectorizationPipeline
-        from magenta.mesh.config import MeshConfig
 
         config = MeshConfig.from_env()
         pipeline = VectorizationPipeline(config)

@@ -1,8 +1,9 @@
 """API middleware: auth, rate limiting, request logging."""
 
-from fastapi import Request, HTTPException
 import time
+
 import jwt
+from fastapi import HTTPException, Request
 
 
 async def validate_auth(request: Request) -> dict:
@@ -49,16 +50,12 @@ class RateLimiter:
     def __init__(self):
         self._requests: dict[str, list[float]] = {}
 
-    async def check(
-        self, key: str, max_requests: int = 100, window_seconds: int = 60
-    ) -> bool:
+    async def check(self, key: str, max_requests: int = 100, window_seconds: int = 60) -> bool:
         now = time.time()
         if key not in self._requests:
             self._requests[key] = []
 
-        self._requests[key] = [
-            t for t in self._requests[key] if now - t < window_seconds
-        ]
+        self._requests[key] = [t for t in self._requests[key] if now - t < window_seconds]
 
         if len(self._requests[key]) >= max_requests:
             return False

@@ -4,8 +4,7 @@ import json
 import logging
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
-from uuid import uuid4
+from typing import Any
 
 from pydantic import BaseModel, Field, PrivateAttr
 
@@ -104,10 +103,12 @@ class DictatorState(BaseModel):
             self.status = DictatorStatus.idle
 
     def log_directive(self, directive: dict) -> None:
-        self.directive_log.append({
-            **directive,
-            "timestamp": datetime.utcnow().isoformat(),
-        })
+        self.directive_log.append(
+            {
+                **directive,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
         oversight = self.active_missions.get(directive.get("mission_id", ""))
         if oversight:
             oversight.directive_count += 1

@@ -1,7 +1,5 @@
 """MCP server — Microsoft Entra ID user, group, and device lookups."""
 
-from typing import Optional
-
 
 class EntraMCPServer:
     """MCP tools for Microsoft Entra ID operations."""
@@ -21,6 +19,7 @@ class EntraMCPServer:
         """
         try:
             from magenta.integration.entra import entra_connector
+
             result = await entra_connector.get_user(user_id)
             return {"status": "success", "user": result}
         except Exception as exc:
@@ -37,6 +36,7 @@ class EntraMCPServer:
         """
         try:
             from magenta.integration.entra import entra_connector
+
             result = await entra_connector.list_group_members(group_id)
             return {"status": "success", "members": result, "count": len(result)}
         except Exception as exc:
@@ -53,6 +53,7 @@ class EntraMCPServer:
         """
         try:
             from magenta.integration.entra import entra_connector
+
             result = await entra_connector.get_device(device_id)
             return {"status": "success", "device": result}
         except Exception as exc:
@@ -69,6 +70,7 @@ class EntraMCPServer:
         """
         try:
             from magenta.integration.entra import entra_connector
+
             result = await entra_connector.search_users(query)
             return {"status": "success", "users": result, "count": len(result)}
         except Exception as exc:

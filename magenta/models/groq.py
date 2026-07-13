@@ -1,15 +1,15 @@
 """Groq model client."""
 
-import httpx
 from datetime import datetime
-from typing import Optional
 
-from magenta.models.base import BaseModelClient, ModelRequest, ModelResponse
+import httpx
+
 from magenta.exceptions import ModelError
+from magenta.models.base import BaseModelClient, ModelRequest, ModelResponse
 
 
 class GroqClient(BaseModelClient):
-    def __init__(self, model: str = "mixtral-8x7b-32768", api_key: Optional[str] = None):
+    def __init__(self, model: str = "mixtral-8x7b-32768", api_key: str | None = None):
         super().__init__(model=model, provider="groq")
         self.api_key = api_key or ""
         self.base_url = "https://api.groq.com/openai/v1"

@@ -21,6 +21,7 @@ try:
     from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
     from langgraph.graph import END, START, StateGraph
     from langgraph.graph.message import add_messages
+
     HAS_LANGGRAPH = True
 except ImportError:
     HAS_LANGGRAPH = False
@@ -29,12 +30,14 @@ except ImportError:
 
 # ── Shared state schema ────────────────────────────────────────────────
 
+
 class WorkflowState(TypedDict, total=False):
     """Shared state passed through all LangGraph subgraph nodes.
 
     Designed to be a superset of what magenta's DAG nodes produce,
     so upstream_results from the DAG executor map cleanly.
     """
+
     mission_id: str
     alert: dict
     context: dict
@@ -81,6 +84,7 @@ def list_subgraphs() -> list[str]:
 # Each factory returns a compiled StateGraph.
 # They use MCP tools from the tool_registry — imported lazily to avoid
 # circular imports and to degrade if MCP servers are unavailable.
+
 
 def build_triage_subgraph():
     """Triage: assess_severity → extract_iocs → assign_mitre.
@@ -209,13 +213,14 @@ def build_compliance_subgraph():
 # They use the magenta LLM gateway (already exists) for model calls,
 # and MCP tools (via tool_registry) for data access.
 
+
 async def _triage_assess_severity(state: WorkflowState) -> dict:
     """Assess alert severity using LLM."""
     alert = state.get("alert", {})
     prompt = f"""Assess this security alert and assign severity (1-5):
-Alert: {alert.get('id', 'unknown')}
-Source: {alert.get('source', 'unknown')}
-Description: {alert.get('description', 'none')}
+Alert: {alert.get("id", "unknown")}
+Source: {alert.get("source", "unknown")}
+Description: {alert.get("description", "none")}
 
 Return JSON: {{"severity": <int>, "reasoning": "<str>", "mitre_tactics": [<str>]}}"""
 
@@ -246,8 +251,8 @@ async def _triage_assign_mitre(state: WorkflowState) -> dict:
     """Assign MITRE ATT&CK techniques."""
     context = state.get("context", {})
     prompt = f"""Based on this triage context, assign MITRE ATT&CK techniques:
-Severity: {context.get('severity_assessment', {})}
-IOCs: {context.get('iocs', {})}
+Severity: {context.get("severity_assessment", {})}
+IOCs: {context.get("iocs", {})}
 
 Return JSON: {{"techniques": [{{"id": "T####", "name": "<str>", "tactic": "<str>", "confidence": <float>}}]}}"""
 
@@ -277,8 +282,8 @@ async def _investigation_root_cause(state: WorkflowState) -> dict:
     """Perform root cause analysis."""
     context = state.get("context", {})
     prompt = f"""Analyze root cause from:
-Timeline: {context.get('timeline', {})}
-IOCs: {context.get('iocs', {})}
+Timeline: {context.get("timeline", {})}
+IOCs: {context.get("iocs", {})}
 
 Return JSON: {{"root_cause": "<str>", "attack_path": [<str>], "initial_access": "<str>", "persistence": "<str>"}}"""
 
@@ -292,9 +297,9 @@ async def _investigation_scope(state: WorkflowState) -> dict:
     """Assess scope and blast radius."""
     context = state.get("context", {})
     prompt = f"""Assess the scope and blast radius:
-Root cause: {context.get('root_cause', {})}
-Timeline: {context.get('timeline', {})}
-IOCs: {context.get('iocs', {})}
+Root cause: {context.get("root_cause", {})}
+Timeline: {context.get("timeline", {})}
+IOCs: {context.get("iocs", {})}
 
 Return JSON: {{"scope": {{"affected_hosts": [<str>], "affected_users": [<str>], "affected_networks": [<str>]}}, "blast_radius": "<single-user|subnet|domain|enterprise>", "data_exfiltration_risk": "<low|medium|high>"}}"""
 
@@ -308,8 +313,8 @@ async def _containment_evaluate_risk(state: WorkflowState) -> dict:
     """Evaluate containment risk and blast radius."""
     context = state.get("context", {})
     prompt = f"""Evaluate containment risk for this incident:
-Scope: {context.get('scope', {})}
-Root cause: {context.get('root_cause', {})}
+Scope: {context.get("scope", {})}
+Root cause: {context.get("root_cause", {})}
 
 Return JSON: {{"risk_score": <int 0-100>, "auto_contain": <bool>, "reasoning": "<str>", "blast_radius": "<str>"}}"""
 
@@ -342,7 +347,12 @@ async def _containment_execute(state: WorkflowState) -> dict:
     context = state.get("context", {})
     actions = context.get("containment_actions", {}).get("actions", [])
     outputs = list(state.get("agent_outputs", []))
-    outputs.append({"node": "execute_containment", "result": {"planned": len(actions), "note": "Executed by DAG action nodes"}})
+    outputs.append(
+        {
+            "node": "execute_containment",
+            "result": {"planned": len(actions), "note": "Executed by DAG action nodes"},
+        }
+    )
     return {"agent_outputs": outputs, "context": {**context, "containment_executed": True}}
 
 
@@ -364,7 +374,12 @@ async def _compliance_validate_evidence(state: WorkflowState) -> dict:
     """Validate evidence preservation."""
     context = state.get("context", {})
     outputs = list(state.get("agent_outputs", []))
-    outputs.append({"node": "validate_evidence", "result": {"validated": True, "artifacts": list(state.get("artifacts", {}).keys())}})
+    outputs.append(
+        {
+            "node": "validate_evidence",
+            "result": {"validated": True, "artifacts": list(state.get("artifacts", {}).keys())},
+        }
+    )
     return {"agent_outputs": outputs, "context": {**context, "evidence_validated": True}}
 
 
@@ -381,10 +396,14 @@ async def _compliance_generate_audit(state: WorkflowState) -> dict:
         "root_cause": context.get("root_cause", {}),
     }
     outputs.append({"node": "generate_audit", "result": audit_entry})
-    return {"agent_outputs": outputs, "artifacts": {**state.get("artifacts", {}), "audit_entry": audit_entry}}
+    return {
+        "agent_outputs": outputs,
+        "artifacts": {**state.get("artifacts", {}), "audit_entry": audit_entry},
+    }
 
 
 # ── Helpers ────────────────────────────────────────────────────────────
+
 
 async def _llm_call(prompt: str, tier: str = "speed") -> dict:
     """Call LLM via magenta's existing model router (zero new deps)."""
@@ -417,6 +436,7 @@ def _make_tool_node(tools: list):
         return None
     try:
         from langgraph.prebuilt import ToolNode
+
         return ToolNode(tools)
     except ImportError:
         return None
@@ -437,6 +457,7 @@ def _get_checkpointer_sync():
     try:
         if _shared_checkpointer is None:
             from langgraph.checkpoint.memory import MemorySaver
+
             _shared_checkpointer = MemorySaver()
         return _shared_checkpointer
     except ImportError:
@@ -444,6 +465,7 @@ def _get_checkpointer_sync():
 
 
 # ── Auto-register built-in subgraphs on import ────────────────────────
+
 
 def initialize_subgraphs() -> None:
     """Build and register all built-in subgraphs. Call once at startup."""

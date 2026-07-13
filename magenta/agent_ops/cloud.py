@@ -6,9 +6,7 @@ Reads provider configuration from providers.toml.
 
 from __future__ import annotations
 
-from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 import structlog
 import tomli
@@ -20,7 +18,9 @@ class CloudOrchestrator:
     """Provision, discover, and migrate resources across cloud providers."""
 
     def __init__(self, providers_path: str | Path = ""):
-        self.providers_path = Path(providers_path) if providers_path else Path("soa/config/providers.toml")
+        self.providers_path = (
+            Path(providers_path) if providers_path else Path("soa/config/providers.toml")
+        )
         self.providers: dict[str, dict] = {}
         self._load_providers()
 
@@ -64,10 +64,11 @@ class CloudOrchestrator:
 
     def _provision_azure(self, resource_type: str, spec: dict, region: str) -> dict:
         from azure.identity import DefaultAzureCredential
+
         credential = DefaultAzureCredential()
         if resource_type == "compute":
             from azure.mgmt.compute import ComputeManagementClient
-            from azure.mgmt.resource import ResourceManagementClient
+
             sub_id = spec.get("subscription_id", os.environ.get("AZURE_SUBSCRIPTION_ID", ""))
             client = ComputeManagementClient(credential, sub_id)
             # Simulated — real call would create VM/VMSS
@@ -78,10 +79,15 @@ class CloudOrchestrator:
                 "provisioned": True,
                 "note": "Azure compute provisioned (simulated)",
             }
-        return {"provider": "azure", "resource_type": resource_type, "note": f"Azure {resource_type} stub"}
+        return {
+            "provider": "azure",
+            "resource_type": resource_type,
+            "note": f"Azure {resource_type} stub",
+        }
 
     def _provision_aws(self, resource_type: str, spec: dict, region: str) -> dict:
         import boto3
+
         session = boto3.Session(region_name=region)
         if resource_type == "compute":
             ec2 = session.client("ec2")
@@ -93,14 +99,25 @@ class CloudOrchestrator:
                 "provisioned": True,
                 "note": "AWS compute provisioned (simulated)",
             }
-        return {"provider": "aws", "resource_type": resource_type, "note": f"AWS {resource_type} stub"}
+        return {
+            "provider": "aws",
+            "resource_type": resource_type,
+            "note": f"AWS {resource_type} stub",
+        }
 
     def _provision_gcp(self, resource_type: str, spec: dict, region: str) -> dict:
-        from google.cloud import compute_v1
-        return {"provider": "gcp", "resource_type": resource_type, "note": f"GCP {resource_type} stub"}
+        return {
+            "provider": "gcp",
+            "resource_type": resource_type,
+            "note": f"GCP {resource_type} stub",
+        }
 
     def _provision_vsphere(self, resource_type: str, spec: dict, region: str) -> dict:
-        return {"provider": "vsphere", "resource_type": resource_type, "note": f"vSphere {resource_type} stub"}
+        return {
+            "provider": "vsphere",
+            "resource_type": resource_type,
+            "note": f"vSphere {resource_type} stub",
+        }
 
     def discover(self, providers: list[str] | None = None, tags: dict | None = None) -> dict:
         """Discover existing resources across specified cloud providers."""
@@ -128,21 +145,31 @@ class CloudOrchestrator:
         try:
             from azure.identity import DefaultAzureCredential
             from azure.mgmt.resource import ResourceManagementClient
+
             credential = DefaultAzureCredential()
             sub_id = os.environ.get("AZURE_SUBSCRIPTION_ID", "")
             client = ResourceManagementClient(credential, sub_id)
             resources = list(client.resources.list())
-            return {"discovered": True, "count": len(resources), "resources": [r.name for r in resources[:50]]}
+            return {
+                "discovered": True,
+                "count": len(resources),
+                "resources": [r.name for r in resources[:50]],
+            }
         except Exception as e:
             return {"discovered": False, "error": str(e)}
 
     def _discover_aws(self, tags: dict) -> dict:
         try:
             import boto3
+
             resourcegroupstagging = boto3.client("resourcegroupstaggingapi")
             paginator = resourcegroupstagging.get_paginator("get_resources")
             resources = []
-            for page in paginator.paginate(TagFilters=[{"Key": k, "Values": [v]} for k, v in tags.items()]) if tags else []:
+            for page in (
+                paginator.paginate(TagFilters=[{"Key": k, "Values": [v]} for k, v in tags.items()])
+                if tags
+                else []
+            ):
                 resources.extend(page.get("ResourceTagMappingList", []))
             return {"discovered": True, "count": len(resources)}
         except Exception as e:

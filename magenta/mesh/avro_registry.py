@@ -38,8 +38,11 @@ SECURITY_EVENT_AVRO: dict[str, Any] = {
                 "type": "enum",
                 "name": "SourceSystem",
                 "symbols": [
-                    "windows_event", "linux_syslog",
-                    "cloud_azure", "cloud_aws", "cloud_gcp",
+                    "windows_event",
+                    "linux_syslog",
+                    "cloud_azure",
+                    "cloud_aws",
+                    "cloud_gcp",
                     "customer_custom",
                 ],
             },
@@ -67,16 +70,19 @@ SECURITY_EVENT_AVRO: dict[str, Any] = {
         },
         {
             "name": "provenance",
-            "type": ["null", {
-                "type": "record",
-                "name": "Provenance",
-                "fields": [
-                    {"name": "pipeline_step", "type": "string", "default": ""},
-                    {"name": "input_hash", "type": "string", "default": ""},
-                    {"name": "raw_alert_ref", "type": ["null", "string"], "default": None},
-                    {"name": "output_ref", "type": ["null", "string"], "default": None},
-                ],
-            }],
+            "type": [
+                "null",
+                {
+                    "type": "record",
+                    "name": "Provenance",
+                    "fields": [
+                        {"name": "pipeline_step", "type": "string", "default": ""},
+                        {"name": "input_hash", "type": "string", "default": ""},
+                        {"name": "raw_alert_ref", "type": ["null", "string"], "default": None},
+                        {"name": "output_ref", "type": ["null", "string"], "default": None},
+                    ],
+                },
+            ],
             "default": None,
         },
     ],
@@ -112,15 +118,18 @@ AUTOMATION_ACTIVITY_AVRO: dict[str, Any] = {
         {"name": "risk_score", "type": "int", "default": 0},
         {
             "name": "evidence",
-            "type": ["null", {
-                "type": "record",
-                "name": "Evidence",
-                "fields": [
-                    {"name": "input_hash", "type": ["null", "string"], "default": None},
-                    {"name": "raw_alert_ref", "type": ["null", "string"], "default": None},
-                    {"name": "output_ref", "type": ["null", "string"], "default": None},
-                ],
-            }],
+            "type": [
+                "null",
+                {
+                    "type": "record",
+                    "name": "Evidence",
+                    "fields": [
+                        {"name": "input_hash", "type": ["null", "string"], "default": None},
+                        {"name": "raw_alert_ref", "type": ["null", "string"], "default": None},
+                        {"name": "output_ref", "type": ["null", "string"], "default": None},
+                    ],
+                },
+            ],
             "default": None,
         },
         {
@@ -251,7 +260,8 @@ class AvroSchemaRegistry:
         if removed:
             logger.warning(
                 "Schema incompatibility for %s: removed fields %s",
-                event_type, removed,
+                event_type,
+                removed,
             )
             return False
 

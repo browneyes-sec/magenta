@@ -7,9 +7,7 @@ and the Magenta Dictator CLI/API.
 All actions are idempotent and logged to the audit trail.
 """
 
-import json
 import logging
-from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -21,18 +19,23 @@ class DictatorActions:
     async def get_status() -> dict:
         """Get full framework status."""
         from magenta.agents.dictator import dictator
+
         return await dictator.get_framework_status()
 
     @staticmethod
     async def get_oversight() -> dict:
         """Get the oversight board."""
         from magenta.agents.dictator import dictator
+
         return await dictator.get_oversight_board()
 
     @staticmethod
-    async def issue_directive(dtype: str, target: str, mission_id: str = "", payload: dict = None, reason: str = "") -> dict:
+    async def issue_directive(
+        dtype: str, target: str, mission_id: str = "", payload: dict = None, reason: str = ""
+    ) -> dict:
         """Issue a directive via the Dictator."""
-        from magenta.dictator.directives import DirectiveType, issue_directive as issue
+        from magenta.dictator.directives import DirectiveType
+        from magenta.dictator.directives import issue_directive as issue
 
         try:
             directive_type = DirectiveType(dtype)
@@ -52,18 +55,21 @@ class DictatorActions:
     async def halt_mission(mission_id: str, reason: str = "Operator request") -> dict:
         """Halt a running mission."""
         from magenta.agents.dictator import dictator
+
         return await dictator.halt_mission(mission_id, reason)
 
     @staticmethod
     async def escalate_mission(mission_id: str, reason: str = "") -> dict:
         """Escalate a mission."""
         from magenta.agents.dictator import dictator
+
         return await dictator.escalate_mission(mission_id, reason)
 
     @staticmethod
-    async def deploy_agent(role: str, model: Optional[str] = None) -> dict:
+    async def deploy_agent(role: str, model: str | None = None) -> dict:
         """Deploy an agent by role."""
         from magenta.agents.dictator import dictator
+
         kwargs = {}
         if model:
             kwargs["model_name"] = model
@@ -74,6 +80,7 @@ class DictatorActions:
     async def recall_agent(agent_id: str) -> dict:
         """Recall an agent."""
         from magenta.agents.dictator import dictator
+
         result = await dictator.recall_agent(agent_id)
         if not result:
             return {"status": "error", "error": f"Agent {agent_id} not found"}
@@ -83,6 +90,7 @@ class DictatorActions:
     async def override_teaming(mission_id: str, structure: str) -> dict:
         """Override teaming structure."""
         from magenta.agents.dictator import dictator
+
         valid = ["pipeline", "supervisor", "debate", "mesh", "referee"]
         if structure not in valid:
             return {"status": "error", "error": f"Invalid structure: {structure}. Valid: {valid}"}
@@ -91,8 +99,8 @@ class DictatorActions:
     @staticmethod
     async def apply_policy_override(name: str, teaming: str, priority: str = "normal") -> dict:
         """Apply a policy override."""
-        from magenta.dictator.policies import OrchestrationPolicy
         from magenta.agents.dictator import dictator
+        from magenta.dictator.policies import OrchestrationPolicy
 
         policy = OrchestrationPolicy(name=name, teaming_structure=teaming, priority=priority)
         return await dictator.apply_policy_override(policy)
@@ -101,18 +109,21 @@ class DictatorActions:
     async def clear_policy_overrides() -> dict:
         """Clear all policy overrides."""
         from magenta.agents.dictator import dictator
+
         return await dictator.clear_policy_overrides()
 
     @staticmethod
     async def get_pending_approvals() -> list[dict]:
         """Get list of pending approvals."""
         from magenta.response.executor import approval_gate
+
         return await approval_gate.list_pending()
 
     @staticmethod
     async def approve_action(approval_id: str) -> dict:
         """Approve a pending action."""
         from magenta.response.executor import approval_gate
+
         try:
             return await approval_gate.approve(approval_id, "operator")
         except Exception as exc:
@@ -122,6 +133,7 @@ class DictatorActions:
     async def deny_action(approval_id: str, reason: str = "") -> dict:
         """Deny a pending action."""
         from magenta.response.executor import approval_gate
+
         try:
             return await approval_gate.reject(approval_id, reason)
         except Exception as exc:
@@ -130,8 +142,8 @@ class DictatorActions:
     @staticmethod
     async def run_probes() -> dict:
         """Run magnet probes and return results."""
-        import importlib
         import asyncio
+        import importlib
 
         results = {}
         for name in ["dictator_probe"]:

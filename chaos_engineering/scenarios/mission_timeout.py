@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import time
-from typing import Any
-
 from chaos_engineering.attestation.preparing import ComponentMap
 from chaos_engineering.chaos import ScenarioResult
 from chaos_engineering.injection.mission_injector import MissionInjector
@@ -28,9 +25,7 @@ class MissionTimeoutScenario:
         return True, ""
 
     def run(self, components: ComponentMap, stealth: bool) -> ScenarioResult:
-        inject_result = self.injector.set_expired_deadline(
-            components, count=self.intensity
-        )
+        inject_result = self.injector.set_expired_deadline(components, count=self.intensity)
 
         return ScenarioResult(
             scenario=self.name,
@@ -41,6 +36,7 @@ class MissionTimeoutScenario:
 
     def validate(self, components: ComponentMap) -> list[dict]:
         from chaos_engineering.attestation.probe_runner import ProbeRunner
+
         runner = ProbeRunner(components)
         return runner.run_all()
 

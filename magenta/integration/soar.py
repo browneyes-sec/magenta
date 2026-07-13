@@ -7,16 +7,15 @@ breaker for resilience and session key caching with TTL check.
 
 from __future__ import annotations
 
-from typing import Any, Optional
-from datetime import datetime, timedelta
-import asyncio
 import logging
+from datetime import datetime, timedelta
+from typing import Any
 
 import httpx
 
 from magenta.config import settings
-from magenta.exceptions import IntegrationError
 from magenta.core.circuit_breaker import CircuitBreaker
+from magenta.exceptions import IntegrationError
 
 logger = logging.getLogger(__name__)
 
@@ -52,14 +51,12 @@ class SOARConnector:
         self.username = username or settings.soar.username
         self.password = password or settings.soar.password
 
-        self._verify: str | bool = (
-            ca_bundle_path or settings.soar.ca_bundle_path or verify_ssl
-        )
+        self._verify: str | bool = ca_bundle_path or settings.soar.ca_bundle_path or verify_ssl
         self._base_url = f"https://{self.host}:{self.port}"
 
         # Session key management
-        self._session_key: Optional[str] = None
-        self._session_expires_at: Optional[datetime] = None
+        self._session_key: str | None = None
+        self._session_expires_at: datetime | None = None
 
         # Circuit breaker protects against SOAR API downtime
         self._circuit_breaker = CircuitBreaker(

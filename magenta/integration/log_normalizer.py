@@ -15,9 +15,18 @@ logger = logging.getLogger(__name__)
 # ── PII Redaction for Log Envelopes ────────────────────────────────────────
 
 _PII_FIELDS_TO_REDACT = {
-    "username", "user", "email", "ipaddress", "ip_address",
-    "hostname", "source_host", "ActorUsername", "TargetIPAddress",
-    "ProcessName", "SubjectUserName", "IpAddress",
+    "username",
+    "user",
+    "email",
+    "ipaddress",
+    "ip_address",
+    "hostname",
+    "source_host",
+    "ActorUsername",
+    "TargetIPAddress",
+    "ProcessName",
+    "SubjectUserName",
+    "IpAddress",
 }
 
 _PII_KEY_PATTERNS = re.compile(
@@ -71,6 +80,7 @@ def detect_source(payload: dict, raw_body: str = "") -> str:
 
 # ── Field Mappers ──────────────────────────────────────────────────────────
 
+
 class WindowsEventMapper:
     """Normalize Windows Event XML → security.event."""
 
@@ -111,10 +121,14 @@ class SyslogMapper:
     """Normalize syslog messages → security.event."""
 
     SEVERITY_MAP = {
-        0: "critical", 1: "critical", 2: "critical",
-        3: "high", 4: "high",
+        0: "critical",
+        1: "critical",
+        2: "critical",
+        3: "high",
+        4: "high",
         5: "medium",
-        6: "low", 7: "informational",
+        6: "low",
+        7: "informational",
     }
 
     @classmethod
@@ -253,6 +267,7 @@ MAPPERS = {
 
 # ── Normalizer ─────────────────────────────────────────────────────────────
 
+
 class LogNormalizer:
     """Transforms raw log payloads into canonical security.event schema."""
 
@@ -343,14 +358,13 @@ class LogNormalizer:
             "tags": mapped.get("tags", []),
             "provenance": {
                 "pipeline_step": "normalize",
-                "input_hash": hashlib.sha256(
-                    str(raw).encode()
-                ).hexdigest()[:16],
+                "input_hash": hashlib.sha256(str(raw).encode()).hexdigest()[:16],
             },
         }
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
+
 
 def _parse_xml_time(xml_time: str) -> str:
     try:
@@ -390,8 +404,10 @@ def _classify_syslog_msg(msg: str) -> str:
 
 def _azure_severity(level: str) -> str:
     mapping = {
-        "Critical": "critical", "Error": "high",
-        "Warning": "medium", "Informational": "informational",
+        "Critical": "critical",
+        "Error": "high",
+        "Warning": "medium",
+        "Informational": "informational",
         "Verbose": "informational",
     }
     return mapping.get(level, "informational")

@@ -1,7 +1,6 @@
 """Base model client interface."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -20,15 +19,15 @@ class ModelResponse:
 @dataclass
 class ModelRequest:
     messages: list[dict]
-    system: Optional[str] = None
+    system: str | None = None
     temperature: float = 0.2
     max_tokens: int = 2048
-    tools: Optional[list[dict]] = None
+    tools: list[dict] | None = None
     correlation_id: str = ""
     task_type: str = "generic"
     sensitivity_level: str = "low"
     priority: str = "interactive"
-    redaction_policy: Optional[dict] = None
+    redaction_policy: dict | None = None
     max_cost_usd: float = 0.0
 
 

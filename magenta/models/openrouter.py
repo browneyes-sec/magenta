@@ -1,11 +1,11 @@
 """OpenRouter model client with multi-model fallback."""
 
-import httpx
 from datetime import datetime
-from typing import Optional
 
-from magenta.models.base import BaseModelClient, ModelRequest, ModelResponse
+import httpx
+
 from magenta.exceptions import ModelError
+from magenta.models.base import BaseModelClient, ModelRequest, ModelResponse
 
 
 class OpenRouterClient(BaseModelClient):
@@ -20,7 +20,7 @@ class OpenRouterClient(BaseModelClient):
     def __init__(
         self,
         model: str = "openrouter/auto",
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
     ):
         super().__init__(model=model, provider="openrouter")
         self.api_key = api_key or ""

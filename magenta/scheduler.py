@@ -4,11 +4,9 @@ import asyncio
 import logging
 import signal
 from datetime import datetime, timedelta
-from typing import Optional
 
 from magenta.core.mission import mission_manager
 from magenta.core.models import MissionStatus
-from magenta.orchestration.engine import orchestration_engine
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +45,8 @@ class Scheduler:
                 playbooks = mission_manager.list()  # This would be playbook_manager in reality
                 now = datetime.utcnow()
                 for pb in playbooks:
-                    if hasattr(pb, 'trigger') and pb.trigger and pb.trigger.get('type') == 'cron':
-                        cron_expr = pb.trigger.get('cron', '')
+                    if hasattr(pb, "trigger") and pb.trigger and pb.trigger.get("type") == "cron":
+                        cron_expr = pb.trigger.get("cron", "")
                         if self._should_run(cron_expr, now):
                             logger.info("Triggering scheduled playbook: %s", pb.name)
                             # Create mission from playbook
@@ -76,15 +74,15 @@ class Scheduler:
             if len(parts) != 5:
                 return False
             minute, hour, day, month, dow = parts
-            if minute != '*' and int(minute) != now.minute:
+            if minute != "*" and int(minute) != now.minute:
                 return False
-            if hour != '*' and int(hour) != now.hour:
+            if hour != "*" and int(hour) != now.hour:
                 return False
-            if day != '*' and int(day) != now.day:
+            if day != "*" and int(day) != now.day:
                 return False
-            if month != '*' and int(month) != now.month:
+            if month != "*" and int(month) != now.month:
                 return False
-            if dow != '*' and int(dow) != now.weekday():
+            if dow != "*" and int(dow) != now.weekday():
                 return False
             return True
         except Exception:
@@ -103,17 +101,21 @@ class Scheduler:
     async def _process_outbox_retries(self) -> None:
         """Process failed outbox events for retry."""
         from magenta.data.sql.outbox import get_outbox_publisher
+
         publisher = await get_outbox_publisher()
         # The publisher's _run_loop already handles retries
 
 
 async def main() -> None:
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, default="/app/config/system.toml")
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    )
 
     scheduler = Scheduler()
 

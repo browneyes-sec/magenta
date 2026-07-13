@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PaperConfig:
     """Configuration for paper generation."""
+
     template: str = "incident-report"
     title: str = ""
     authors: list[str] = field(default_factory=lambda: ["Magenta ASOAR", "SOC Team"])
@@ -33,6 +34,7 @@ class PaperConfig:
 @dataclass
 class PaperResult:
     """Result of paper generation."""
+
     paper_id: str
     title: str
     markdown: str = ""
@@ -47,23 +49,48 @@ class PaperPublisher:
     TEMPLATES = {
         "incident-report": {
             "description": "Incident analysis and response report",
-            "sections": ["Executive Summary", "Timeline", "Root Cause Analysis",
-                         "IOCs", "Containment Actions", "Lessons Learned", "Recommendations"],
+            "sections": [
+                "Executive Summary",
+                "Timeline",
+                "Root Cause Analysis",
+                "IOCs",
+                "Containment Actions",
+                "Lessons Learned",
+                "Recommendations",
+            ],
         },
         "threat-analysis": {
             "description": "Threat intelligence analysis paper",
-            "sections": ["Abstract", "Threat Overview", "Attack Vectors",
-                         "Indicators of Compromise", "MITRE Mapping", "Defensive Recommendations"],
+            "sections": [
+                "Abstract",
+                "Threat Overview",
+                "Attack Vectors",
+                "Indicators of Compromise",
+                "MITRE Mapping",
+                "Defensive Recommendations",
+            ],
         },
         "post-mortem": {
             "description": "Post-incident review document",
-            "sections": ["Incident Summary", "Timeline of Events", "Root Cause",
-                         "Impact Assessment", "Response Actions", "Action Items", "Appendix"],
+            "sections": [
+                "Incident Summary",
+                "Timeline of Events",
+                "Root Cause",
+                "Impact Assessment",
+                "Response Actions",
+                "Action Items",
+                "Appendix",
+            ],
         },
         "detection-engineering": {
             "description": "Detection rule engineering paper",
-            "sections": ["Detection Goal", "Logic", "False Positives",
-                         "Tuning Recommendations", "Deployment Notes"],
+            "sections": [
+                "Detection Goal",
+                "Logic",
+                "False Positives",
+                "Tuning Recommendations",
+                "Deployment Notes",
+            ],
         },
     }
 
@@ -113,9 +140,7 @@ class PaperPublisher:
             },
         )
 
-    def _build_context(
-        self, mission_data: dict, artifacts: dict, config: PaperConfig
-    ) -> dict:
+    def _build_context(self, mission_data: dict, artifacts: dict, config: PaperConfig) -> dict:
         alert = mission_data.get("alert", {})
         timeline = artifacts.get("timeline", {})
         iocs = artifacts.get("iocs", {})
@@ -124,10 +149,8 @@ class PaperPublisher:
         compliance = artifacts.get("compliance", {})
         mitre = artifacts.get("mitre", {})
 
-        mission_id = mission_data.get('mission_id', 'unknown')
-        title = config.title or (
-            f"Security Incident Analysis: {alert.get('id', mission_id)}"
-        )
+        mission_id = mission_data.get("mission_id", "unknown")
+        title = config.title or (f"Security Incident Analysis: {alert.get('id', mission_id)}")
 
         keywords = config.keywords or []
         if not keywords:
@@ -149,9 +172,7 @@ class PaperPublisher:
             "generated_at": datetime.utcnow().isoformat(),
         }
 
-    def _extract_keywords(
-        self, alert: dict, iocs: dict, mitre: dict
-    ) -> list[str]:
+    def _extract_keywords(self, alert: dict, iocs: dict, mitre: dict) -> list[str]:
         keywords = ["security-incident", "asoar", "magenta"]
         source = alert.get("source", "")
         if source:

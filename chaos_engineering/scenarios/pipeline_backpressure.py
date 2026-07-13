@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-from typing import Any
 
 from chaos_engineering.attestation.preparing import ComponentMap
 from chaos_engineering.chaos import ScenarioResult
@@ -42,6 +41,7 @@ class PipelineBackpressureScenario:
 
     def validate(self, components: ComponentMap) -> list[dict]:
         from chaos_engineering.attestation.probe_runner import ProbeRunner
+
         runner = ProbeRunner(components)
         return runner.run_all()
 

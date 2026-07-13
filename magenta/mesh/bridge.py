@@ -5,9 +5,9 @@ via the Magenta API mesh endpoints.
 
 Usage in pipelines:
     from magenta.mesh.bridge import MemoryBridge
-    
+
     bridge = MemoryBridge(api_url="http://magenta-api:8000")
-    
+
     # Write episodic memory
     await bridge.write_episode(
         agent_role="operator",
@@ -15,7 +15,7 @@ Usage in pipelines:
         turn_number=0,
         text="Approved firewall rule change for 10.0.0.0/8",
     )
-    
+
     # Search episodic memory
     results = await bridge.search_episodes(
         query="firewall rule changes",
@@ -23,9 +23,7 @@ Usage in pipelines:
     )
 """
 
-import hashlib
-import time
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 
@@ -36,7 +34,7 @@ class MemoryBridge:
     def __init__(self, api_url: str = "http://magenta-api:8000", timeout: float = 10.0):
         self.api_url = api_url.rstrip("/")
         self.timeout = timeout
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:

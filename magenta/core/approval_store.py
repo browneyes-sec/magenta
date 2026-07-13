@@ -11,9 +11,8 @@ Lifecycle:
 
 from __future__ import annotations
 
-from typing import Optional
-from datetime import datetime, timedelta
 import logging
+from datetime import datetime
 
 from magenta.core.models import ApprovalRequest, ApprovalState
 from magenta.exceptions import ApprovalError
@@ -35,9 +34,7 @@ class ApprovalStore:
     async def create(self, request: ApprovalRequest) -> ApprovalRequest:
         """Create a new approval request in pending state."""
         if request.correlation_id in self._requests:
-            raise ApprovalError(
-                f"Approval request {request.correlation_id} already exists"
-            )
+            raise ApprovalError(f"Approval request {request.correlation_id} already exists")
         self._requests[request.correlation_id] = request
         logger.info(
             "ApprovalStore: created request %s (risk_score=%d, action=%s)",
@@ -47,7 +44,7 @@ class ApprovalStore:
         )
         return request
 
-    async def get(self, correlation_id: str) -> Optional[ApprovalRequest]:
+    async def get(self, correlation_id: str) -> ApprovalRequest | None:
         """Get a single approval request by correlation_id."""
         req = self._requests.get(correlation_id)
         if req and self._is_expired(req):
@@ -99,9 +96,7 @@ class ApprovalStore:
             raise ApprovalError(f"Approval request {correlation_id} not found")
 
         if req.state != ApprovalState.pending:
-            raise ApprovalError(
-                f"Approval request {correlation_id} is already {req.state.value}"
-            )
+            raise ApprovalError(f"Approval request {correlation_id} is already {req.state.value}")
 
         if new_state not in (ApprovalState.approved, ApprovalState.denied):
             raise ApprovalError(f"Invalid state transition: {new_state}")
@@ -123,11 +118,7 @@ class ApprovalStore:
 
     async def delete_expired(self) -> int:
         """Remove expired requests from the store. Returns count removed."""
-        expired = [
-            cid
-            for cid, req in self._requests.items()
-            if self._is_expired(req)
-        ]
+        expired = [cid for cid, req in self._requests.items() if self._is_expired(req)]
         for cid in expired:
             del self._requests[cid]
         if expired:

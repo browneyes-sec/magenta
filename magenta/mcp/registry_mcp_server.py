@@ -1,7 +1,5 @@
 """MCP server — Mission, agent, and directive registry search."""
 
-from typing import Optional
-
 
 class RegistryMCPServer:
     """MCP tools for Magenta registry searches."""
@@ -22,6 +20,7 @@ class RegistryMCPServer:
         """
         try:
             from magenta.data.sql.mission_repo import mission_repository
+
             missions = await mission_repository.search(query=query, status=status)
             return {
                 "status": "success",
@@ -42,6 +41,7 @@ class RegistryMCPServer:
         """
         try:
             from magenta.data.sql.mission_repo import mission_repository
+
             mission = await mission_repository.get_by_id(mission_id)
             if not mission:
                 return {"status": "not_found", "mission_id": mission_id}
@@ -64,6 +64,7 @@ class RegistryMCPServer:
             Dictator status details.
         """
         from magenta.agents.dictator import dictator
+
         return await dictator.get_framework_status()
 
     async def search_directives(self, limit: int = 50) -> dict:
@@ -76,6 +77,7 @@ class RegistryMCPServer:
             Recent directive entries.
         """
         from magenta.dictator.state import dictator_state
+
         directives = dictator_state.directive_log[-limit:]
         return {"status": "success", "directives": directives, "count": len(directives)}
 
@@ -87,6 +89,7 @@ class RegistryMCPServer:
         """
         try:
             from magenta.agents.registry import agent_registry
+
             agents = agent_registry.list_agents()
             return {
                 "status": "success",

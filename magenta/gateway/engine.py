@@ -1,28 +1,25 @@
 """LLM Gateway — policy evaluation, redaction, routing, audit chain."""
 
-import os
-from typing import Optional
-
-from magenta.models.base import ModelRequest, ModelResponse, PolicyDecision
-from magenta.models.router import ModelRouter, model_router
-from magenta.gateway.policy import PolicyEngine
-from magenta.gateway.redact import RedactionLayer
-from magenta.gateway.ratelimit import TokenBucket, CircuitBreaker
+from magenta.exceptions import ModelError
 from magenta.gateway.audit import AuditLogger
 from magenta.gateway.cache import SemanticCache
-from magenta.exceptions import ModelError
+from magenta.gateway.policy import PolicyEngine
+from magenta.gateway.ratelimit import CircuitBreaker, TokenBucket
+from magenta.gateway.redact import RedactionLayer
+from magenta.models.base import ModelRequest, ModelResponse, PolicyDecision
+from magenta.models.router import ModelRouter, model_router
 
 
 class LLMGateway:
     def __init__(
         self,
-        policy: Optional[PolicyEngine] = None,
-        redact: Optional[RedactionLayer] = None,
-        ratelimit: Optional[TokenBucket] = None,
-        circuit_breaker: Optional[CircuitBreaker] = None,
-        audit: Optional[AuditLogger] = None,
-        cache: Optional[SemanticCache] = None,
-        router: Optional[ModelRouter] = None,
+        policy: PolicyEngine | None = None,
+        redact: RedactionLayer | None = None,
+        ratelimit: TokenBucket | None = None,
+        circuit_breaker: CircuitBreaker | None = None,
+        audit: AuditLogger | None = None,
+        cache: SemanticCache | None = None,
+        router: ModelRouter | None = None,
         mode: str = "shadow",
     ):
         self.policy = policy or PolicyEngine()
