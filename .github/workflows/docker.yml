@@ -44,7 +44,7 @@ jobs:
 
       - name: Extract metadata for API
         id: meta-api
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api
           tags: |
@@ -66,7 +66,7 @@ jobs:
 
       - name: Extract metadata for Worker
         id: meta-worker
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker
           tags: |
@@ -88,7 +88,7 @@ jobs:
 
       - name: Extract metadata for Scheduler
         id: meta-scheduler
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/scheduler
           tags: |
@@ -110,7 +110,7 @@ jobs:
 
       - name: Extract metadata for Agent Ops
         id: meta-agent-ops
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/agent-ops
           tags: |
