@@ -3,7 +3,7 @@
 import json
 import logging
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field, PrivateAttr
@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, PrivateAttr
 logger = logging.getLogger(__name__)
 
 
-class DictatorStatus(str, Enum):
+class DictatorStatus(StrEnum):
     idle = "idle"
     commanding = "commanding"
     reviewing = "reviewing"

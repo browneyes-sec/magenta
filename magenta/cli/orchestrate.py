@@ -7,6 +7,7 @@ import typer
 from magenta.cli.utils import (
     print_error,
     print_info,
+    print_json,
     print_output,
     print_success,
     print_table,

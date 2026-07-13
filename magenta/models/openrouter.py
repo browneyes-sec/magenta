@@ -80,7 +80,7 @@ class OpenRouterClient(BaseModelClient):
         choice = data["choices"][0]
         message = choice["message"]
 
-        tokens_cost = data.get("usage", {}).get("total_cost", 0)
+        _tokens_cost = data.get("usage", {}).get("total_cost", 0)  # noqa: F841
 
         return ModelResponse(
             content=message.get("content", ""),

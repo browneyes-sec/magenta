@@ -230,7 +230,6 @@ class GCPLoggingCollector(BaseCollector):
             return []
         try:
             from google.cloud import pubsub_v1
-            from google.cloud.pubsub_v1.types import FlowControl
 
             subscriber = (
                 pubsub_v1.SubscriberClient.from_service_account_json(self._credentials_path)

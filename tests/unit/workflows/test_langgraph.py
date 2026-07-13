@@ -16,6 +16,11 @@ from magenta.workflows.langgraph.engine import (
     list_subgraphs,
 )
 
+pytestmark = pytest.mark.skipif(
+    not HAS_LANGGRAPH,
+    reason="langgraph not available — install langgraph and langgraph-checkpoint-sqlite",
+)
+
 
 @pytest.fixture(autouse=True)
 def _init_subgraphs():

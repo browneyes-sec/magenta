@@ -77,8 +77,6 @@ class AuditLogger:
     def _writers(self):
         writers = []
         try:
-            from magenta.adapters.elastic import ElasticAdapter
-
             writers.append(self._elastic_writer)
         except ImportError:
             pass
@@ -94,6 +92,8 @@ class AuditLogger:
             )
 
     async def _elastic_writer(self, payload: str, records: list[AuditRecord]) -> None:
+        from magenta.adapters.elastic import ElasticAdapter
+
         adapter = ElasticAdapter()
         for record in records:
             await adapter.index(index="magenta-llm-audit", body=self._record_to_dict(record))

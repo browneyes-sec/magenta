@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
-
 import pytest
 
 from magenta.workflows.publisher.paper_publisher import PaperConfig, PaperPublisher, PaperResult
@@ -102,11 +100,10 @@ class TestPaperPublisher:
         assert "incident-report" in names
         assert "threat-analysis" in names
 
-    def test_publish_markdown(self, publisher, sample_mission, sample_artifacts):
+    @pytest.mark.asyncio
+    async def test_publish_markdown(self, publisher, sample_mission, sample_artifacts):
         config = PaperConfig(template="incident-report", format="markdown")
-        result = asyncio.get_event_loop().run_until_complete(
-            publisher.publish_from_mission(sample_mission, sample_artifacts, config)
-        )
+        result = await publisher.publish_from_mission(sample_mission, sample_artifacts, config)
         assert isinstance(result, PaperResult)
         assert result.paper_id.startswith("paper-")
         assert len(result.markdown) > 0
@@ -114,68 +111,60 @@ class TestPaperPublisher:
         assert "## Timeline" in result.markdown
         assert "## Indicators of Compromise" in result.markdown
 
-    def test_publish_latex(self, publisher, sample_mission, sample_artifacts):
+    @pytest.mark.asyncio
+    async def test_publish_latex(self, publisher, sample_mission, sample_artifacts):
         config = PaperConfig(template="incident-report", format="latex")
-        result = asyncio.get_event_loop().run_until_complete(
-            publisher.publish_from_mission(sample_mission, sample_artifacts, config)
-        )
+        result = await publisher.publish_from_mission(sample_mission, sample_artifacts, config)
         assert len(result.latex) > 0
         assert "\\documentclass" in result.latex
         assert "\\begin{document}" in result.latex
         assert "\\end{document}" in result.latex
 
-    def test_publish_both(self, publisher, sample_mission, sample_artifacts):
+    @pytest.mark.asyncio
+    async def test_publish_both(self, publisher, sample_mission, sample_artifacts):
         config = PaperConfig(format="both")
-        result = asyncio.get_event_loop().run_until_complete(
-            publisher.publish_from_mission(sample_mission, sample_artifacts, config)
-        )
+        result = await publisher.publish_from_mission(sample_mission, sample_artifacts, config)
         assert len(result.markdown) > 0
         assert len(result.latex) > 0
 
-    def test_metadata_populated(self, publisher, sample_mission, sample_artifacts):
+    @pytest.mark.asyncio
+    async def test_metadata_populated(self, publisher, sample_mission, sample_artifacts):
         config = PaperConfig(keywords=["phishing", "test"])
-        result = asyncio.get_event_loop().run_until_complete(
-            publisher.publish_from_mission(sample_mission, sample_artifacts, config)
-        )
+        result = await publisher.publish_from_mission(sample_mission, sample_artifacts, config)
         assert result.metadata["template"] == "incident-report"
         assert result.metadata["mission_id"] == "mission-test-001"
         assert "phishing" in result.metadata["keywords"]
 
-    def test_custom_title(self, publisher, sample_mission, sample_artifacts):
+    @pytest.mark.asyncio
+    async def test_custom_title(self, publisher, sample_mission, sample_artifacts):
         config = PaperConfig(title="Custom Report Title")
-        result = asyncio.get_event_loop().run_until_complete(
-            publisher.publish_from_mission(sample_mission, sample_artifacts, config)
-        )
+        result = await publisher.publish_from_mission(sample_mission, sample_artifacts, config)
         assert result.title == "Custom Report Title"
         assert "Custom Report Title" in result.markdown
 
-    def test_empty_artifacts(self, publisher, sample_mission):
+    @pytest.mark.asyncio
+    async def test_empty_artifacts(self, publisher, sample_mission):
         config = PaperConfig()
-        result = asyncio.get_event_loop().run_until_complete(
-            publisher.publish_from_mission(sample_mission, {}, config)
-        )
+        result = await publisher.publish_from_mission(sample_mission, {}, config)
         assert len(result.markdown) > 0
         assert "No timeline data" in result.markdown
 
-    def test_mitre_section(self, publisher, sample_mission, sample_artifacts):
+    @pytest.mark.asyncio
+    async def test_mitre_section(self, publisher, sample_mission, sample_artifacts):
         config = PaperConfig(format="markdown")
-        result = asyncio.get_event_loop().run_until_complete(
-            publisher.publish_from_mission(sample_mission, sample_artifacts, config)
-        )
+        result = await publisher.publish_from_mission(sample_mission, sample_artifacts, config)
         assert "T1566.001" in result.markdown
         assert "Spearphishing Attachment" in result.markdown
 
-    def test_scope_section(self, publisher, sample_mission, sample_artifacts):
+    @pytest.mark.asyncio
+    async def test_scope_section(self, publisher, sample_mission, sample_artifacts):
         config = PaperConfig(format="markdown")
-        result = asyncio.get_event_loop().run_until_complete(
-            publisher.publish_from_mission(sample_mission, sample_artifacts, config)
-        )
+        result = await publisher.publish_from_mission(sample_mission, sample_artifacts, config)
         assert "Blast Radius" in result.markdown
         assert "medium" in result.markdown
 
-    def test_compliance_section(self, publisher, sample_mission, sample_artifacts):
+    @pytest.mark.asyncio
+    async def test_compliance_section(self, publisher, sample_mission, sample_artifacts):
         config = PaperConfig(format="markdown")
-        result = asyncio.get_event_loop().run_until_complete(
-            publisher.publish_from_mission(sample_mission, sample_artifacts, config)
-        )
+        result = await publisher.publish_from_mission(sample_mission, sample_artifacts, config)
         assert "NIST CSF" in result.markdown

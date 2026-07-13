@@ -9,23 +9,23 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timedelta
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator
 
 
-class EventType(str, Enum):
+class EventType(StrEnum):
     automation_activity = "automation.activity"
 
 
-class SourceSystem(str, Enum):
+class SourceSystem(StrEnum):
     sentinel = "sentinel"
     splunk = "splunk"
 
 
-class ActionType(str, Enum):
+class ActionType(StrEnum):
     disable_account = "disable_account"
     isolate_host = "isolate_host"
     create_ticket = "create_ticket"
@@ -40,7 +40,7 @@ class ActionType(str, Enum):
     custom = "custom"
 
 
-class ActionStatus(str, Enum):
+class ActionStatus(StrEnum):
     queued = "queued"
     executing = "executing"
     succeeded = "succeeded"
@@ -49,7 +49,7 @@ class ActionStatus(str, Enum):
     pending_approval = "pending_approval"
 
 
-class ApprovalState(str, Enum):
+class ApprovalState(StrEnum):
     pending = "pending"
     approved = "approved"
     denied = "denied"
@@ -57,7 +57,7 @@ class ApprovalState(str, Enum):
     modified = "modified"
 
 
-class TargetType(str, Enum):
+class TargetType(StrEnum):
     user = "user"
     host = "host"
     ip = "ip"
@@ -67,21 +67,21 @@ class TargetType(str, Enum):
     application = "application"
 
 
-class AssetCriticality(str, Enum):
+class AssetCriticality(StrEnum):
     critical = "critical"
     high = "high"
     medium = "medium"
     low = "low"
 
 
-class BlastRadius(str, Enum):
+class BlastRadius(StrEnum):
     single_user = "single-user"
     subnet = "subnet"
     domain = "domain"
     enterprise = "enterprise"
 
 
-class MissionStatus(str, Enum):
+class MissionStatus(StrEnum):
     created = "created"
     scoped = "scoped"
     assigned = "assigned"
@@ -93,7 +93,7 @@ class MissionStatus(str, Enum):
     cancelled = "cancelled"
 
 
-class AgentStatus(str, Enum):
+class AgentStatus(StrEnum):
     idle = "idle"
     ready = "ready"
     executing = "executing"
@@ -229,7 +229,7 @@ class Playbook(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
-class WorkflowNodeType(str, Enum):
+class WorkflowNodeType(StrEnum):
     ingest = "ingest"
     agentic = "agentic"
     decision = "decision"
@@ -283,7 +283,7 @@ class GovernanceSpec(BaseModel):
 
 
 class PlaybookV2(BaseModel):
-    apiVersion: str = "magenta.soar/v1"
+    apiVersion: str = Field(default="magenta.soar/v1", alias="apiVersion")  # noqa: N815
     kind: str = "Playbook"
     metadata: dict = Field(default_factory=dict)
     spec: dict = Field(default_factory=dict)

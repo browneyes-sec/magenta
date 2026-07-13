@@ -21,7 +21,7 @@ class ModelError(MagentaError):
     """Raised when an AI model call fails."""
 
 
-class ModelTimeout(ModelError):
+class ModelTimeout(ModelError):  # noqa: N818
     """Raised when a model call times out."""
 
 

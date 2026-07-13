@@ -102,7 +102,7 @@ class Scheduler:
         """Process failed outbox events for retry."""
         from magenta.data.sql.outbox import get_outbox_publisher
 
-        publisher = await get_outbox_publisher()
+        _publisher = await get_outbox_publisher()  # noqa: F841
         # The publisher's _run_loop already handles retries
 
 
@@ -111,7 +111,7 @@ async def main() -> None:
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, default="/app/config/system.toml")
-    args = parser.parse_args()
+    _args = parser.parse_args()  # noqa: F841
 
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"

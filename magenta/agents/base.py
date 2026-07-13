@@ -41,7 +41,7 @@ try:
 except Exception:
     conversation_manager = None
 
-from magenta.core.registry import registry_writer
+    from magenta.core.registry import registry_writer  # noqa: E402
 
 
 class LLMAgent(BaseAgent, ABC):

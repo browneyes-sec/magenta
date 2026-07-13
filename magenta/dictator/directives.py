@@ -1,14 +1,14 @@
 """Dictator directives — imperative commands issued to agents, probes, or subsystems."""
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
 
-class DirectiveType(str, Enum):
+class DirectiveType(StrEnum):
     deploy_agent = "deploy_agent"
     recall_agent = "recall_agent"
     override_teaming = "override_teaming"
@@ -22,7 +22,7 @@ class DirectiveType(str, Enum):
     system_command = "system_command"
 
 
-class DirectivePriority(str, Enum):
+class DirectivePriority(StrEnum):
     critical = "critical"
     high = "high"
     normal = "normal"

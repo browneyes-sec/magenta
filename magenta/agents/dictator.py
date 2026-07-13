@@ -94,7 +94,7 @@ teaming structures, inject probes, halt missions, and escalate incidents.""",
         )
 
         # 3. Issue deployment directive
-        deploy_directive = issue_directive(
+        issue_directive(
             dtype=DirectiveType.deploy_agent,
             target="swarm_manager",
             mission_id=mission.mission_id,
@@ -175,7 +175,7 @@ teaming structures, inject probes, halt missions, and escalate incidents.""",
             priority=DirectivePriority.high,
         )
         try:
-            mission = mission_manager.get(mission_id)
+            mission_manager.get(mission_id)
             mission_manager.update_status(mission_id, MissionStatus.escalated)
         except Exception:
             pass

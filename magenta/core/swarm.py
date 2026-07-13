@@ -160,7 +160,7 @@ class SwarmManager:
         # ─── Phase 1: Execute independent tasks concurrently ─────────────
         task_context: dict[str, Any] = {}
         task_results: dict[str, Any] = {}
-        task_map = {t["task_id"]: t for t in tasks}
+        {t["task_id"]: t for t in tasks}
         executed: set[str] = set()
 
         independent = [t for t in tasks if not t.get("dependencies")]

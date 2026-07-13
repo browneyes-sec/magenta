@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from datetime import datetime
+from typing import Any
 
 from magenta.config import settings
 from magenta.exceptions import DuplicateActionError

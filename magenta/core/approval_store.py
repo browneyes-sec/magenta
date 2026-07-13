@@ -60,7 +60,6 @@ class ApprovalStore:
     ) -> list[ApprovalRequest]:
         """Get pending approval requests, sorted by risk_score descending."""
         pending = []
-        expired_coros = []
         for req in self._requests.values():
             if req.state == ApprovalState.pending:
                 if self._is_expired(req):

@@ -86,7 +86,7 @@ async def approve_action(
 ) -> dict:
     """Approve a pending action — resumes the blocked mission."""
     try:
-        req = await approval_store.update(
+        await approval_store.update(
             correlation_id,
             ApprovalState.approved,
             decision.approver_id,
@@ -114,7 +114,7 @@ async def deny_action(
 ) -> dict:
     """Deny a pending action — terminates the blocked mission."""
     try:
-        req = await approval_store.update(
+        await approval_store.update(
             correlation_id,
             ApprovalState.denied,
             decision.approver_id,

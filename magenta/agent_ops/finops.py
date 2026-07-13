@@ -6,6 +6,7 @@ All tools degrade gracefully if cloud SDKs are not installed.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -309,8 +310,8 @@ class FinOpsEngine:
             from azure.mgmt.costmanagement import CostManagementClient
 
             credential = DefaultAzureCredential()
-            scope = f"/subscriptions/{os.environ.get('AZURE_SUBSCRIPTION_ID', '')}"
-            client = CostManagementClient(credential)
+            f"/subscriptions/{os.environ.get('AZURE_SUBSCRIPTION_ID', '')}"
+            CostManagementClient(credential)
             # Check existing budget via REST
             results["azure_budget_checked"] = True
         except Exception:
@@ -386,6 +387,3 @@ class FinOpsEngine:
             logger.warning("AWS tag audit failed", error=str(e))
 
         return results
-
-
-import os

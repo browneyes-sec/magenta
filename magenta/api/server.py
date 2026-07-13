@@ -38,7 +38,7 @@ def generate_metrics() -> str:
 
     # Workflow engine metrics
     active_workflows = len(workflow_engine._running_missions)
-    total_executions = len(workflow_engine._executions)
+    len(workflow_engine._executions)
     pending_approvals = sum(len(e.approvals_pending) for e in workflow_engine._executions.values())
 
     # Count executions by status
