@@ -7,13 +7,12 @@ Usage:
 
 from __future__ import annotations
 
-from typing import Any, Optional
-from datetime import datetime
 import logging
+from datetime import datetime
+from typing import Any
 
-from magenta.core.models import AutomationActivity
 from magenta.config import settings
-from magenta.exceptions import RegistryError
+from magenta.core.models import AutomationActivity
 
 logger = logging.getLogger(__name__)
 
@@ -72,8 +71,7 @@ class RegistryWriter:
                 )
 
             index_name = (
-                f"{settings.elastic.index_prefix}-"
-                f"activity-{datetime.utcnow().strftime('%Y.%m')}"
+                f"{settings.elastic.index_prefix}-activity-{datetime.utcnow().strftime('%Y.%m')}"
             )
             await self._es_client.index(
                 index=index_name,
@@ -101,9 +99,7 @@ class RegistryWriter:
                     workspace_id=settings.sentinel.workspace_id,
                 )
 
-            await self._sentinel_connector.ingest_activity(
-                [activity.model_dump()]
-            )
+            await self._sentinel_connector.ingest_activity([activity.model_dump()])
             logger.debug(
                 "Registry: wrote activity %s to Sentinel",
                 activity.event_id[:8],
@@ -122,9 +118,7 @@ class RegistryWriter:
                 try:
                     from deltalake import write_deltalake
                 except ImportError:
-                    logger.warning(
-                        "deltalake package not available — skipping Delta write"
-                    )
+                    logger.warning("deltalake package not available — skipping Delta write")
                     return
 
                 self._delta_writer = True

@@ -1,9 +1,9 @@
 """Splunk REST API connector."""
 
-from typing import Any, Optional
-from datetime import datetime, timedelta
-import httpx
 import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta
+
+import httpx
 
 from magenta.config import settings
 from magenta.exceptions import IntegrationError
@@ -39,8 +39,8 @@ class SplunkConnector:
             or settings.splunk.ca_bundle_path
             or (verify_ssl if verify_ssl else settings.splunk.verify_ssl)
         )
-        self._session_key: Optional[str] = None
-        self._session_expires_at: Optional[datetime] = None
+        self._session_key: str | None = None
+        self._session_expires_at: datetime | None = None
 
     async def _login(self) -> str:
         """Authenticate and get session key with TTL check.

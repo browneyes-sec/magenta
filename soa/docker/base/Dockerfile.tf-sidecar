@@ -1,0 +1,108 @@
+# Magenta Terraform Sidecar — Distroless with Terraform + Cloud CLIs
+# Runs Terraform, Azure CLI, AWS CLI, and gcloud SDK.
+# Used as a sidecar pod for Agent Ops MCP server.
+#
+# Build: docker build -t magenta/agent-ops-tf-sidecar:latest -f soa/docker/base/Dockerfile.tf-sidecar .
+# Size: ~800MB (vs ~1.5GB with full Agent Ops)
+#
+# K8s: Deploy as sidecar in same pod as agent-ops-core.
+# Share Terraform state via emptyDir or PVC.
+
+FROM chainguard/python:3.12 AS builder
+
+WORKDIR /app
+
+# Install uv for dependency management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Copy dependency manifest
+COPY pyproject.toml uv.lock README.md /app/
+
+# Install dependencies (frozen lockfile)
+RUN uv sync --frozen --no-dev
+
+# Install Terraform
+ARG TERRAFORM_VERSION=1.10.0
+RUN apk add --no-cache wget unzip && \
+    wget -q https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip && \
+    unzip terraform_${TERRAFORM_VERSION}_linux_amd64.zip -d /usr/local/bin/ && \
+    rm terraform_${TERRAFORM_VERSION}_linux_amd64.zip && \
+    wget -q https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_arm64.zip && \
+    unzip terraform_${TERRAFORM_VERSION}_linux_arm64.zip -d /tmp/arm64/ && \
+    mv /tmp/arm64/terraform /usr/local/bin/terraform-arm64 && \
+    rm -rf /tmp/arm64 terraform_${TERRAFORM_VERSION}_linux_arm64.zip
+
+# Install Azure CLI
+RUN apk add --no-cache gcc musl-dev libffi-dev && \
+    pip install --no-cache-dir azure-cli && \
+    apk del gcc musl-dev libffi-dev
+
+# Install AWS CLI v2
+RUN apk add --no-cache unzip groff && \
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+    unzip awscliv2.zip && \
+    ./aws/install --update && \
+    rm -rf aws awscliv2.zip
+
+# Install gcloud SDK
+RUN apk add --no-cache curl bash && \
+    curl -sSL https://sdk.cloud.google.com | bash -s -- --disable-prompts --install-dir=/opt && \
+    rm -rf /root/.install
+
+# ── Runtime ───────────────────────────────────────────────────────────────
+
+FROM chainguard/python:3.12
+
+WORKDIR /app
+
+# Runtime deps
+RUN apk add --no-cache \
+    curl \
+    git \
+    ca-certificates \
+    bash \
+    jq
+
+# Non-root user (uid 10001)
+RUN addgroup -g 10001 magenta && \
+    adduser -u 10001 -G magenta -s /bin/bash -D magenta
+
+# Copy binaries from builder
+COPY --from=builder /usr/local/bin/terraform /usr/local/bin/terraform
+COPY --from=builder /usr/local/bin/terraform-arm64 /usr/local/bin/terraform-arm64
+COPY --from=builder /usr/local/bin/az /usr/local/bin/az
+COPY --from=builder /usr/local/bin/aws /usr/local/bin/aws
+COPY --from=builder /opt/google-cloud-sdk /opt/google-cloud-sdk
+
+# Copy venv from builder
+COPY --from=builder /app/.venv /app/.venv
+
+# Copy source
+COPY magenta/ /app/magenta/
+COPY soa/config/ /app/config/
+COPY soa/terraform/ /app/terraform/
+
+# Writable directories
+RUN mkdir -p /app/data /tmp/terraform && \
+    chown -R magenta:magenta /app /tmp/terraform
+
+# Environment
+ENV PATH="/app/.venv/bin:/opt/google-cloud-sdk/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONFAULTHANDLER=1 \
+    TF_CLI_ARGS_init="-input=false" \
+    TF_CLI_ARGS_plan="-input=false" \
+    TF_CLI_ARGS_apply="-input=false" \
+    TF_IN_AUTOMATION=1 \
+    TF_DATA_DIR=/tmp/terraform
+
+USER magenta
+
+EXPOSE 50060 9090
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD ["python", "-c", "import magenta.agent_ops; print('ok')"]
+
+ENTRYPOINT ["python", "-m", "magenta.agent_ops.server"]
+CMD ["--config", "/app/config/agents.toml", "--port", "50060"]

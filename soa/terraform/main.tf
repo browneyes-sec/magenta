@@ -34,11 +34,30 @@ terraform {
 
 # ── Provider configs in providers.tf ─────────────────────────────────────
 
-# ── Multi-Cloud Compute ───────────────────────────────────────────────────
+# ── Multi-Cloud Network Hub ──────────────────────────────────────────────
 
+module "network_hub" {
+  source = "./modules/network"
+  count  = var.enable_network_hub ? 1 : 0
+
+  environment = var.environment
+  region      = var.azure_location
+
+  azure_hub_cidr    = var.azure_hub_cidr
+  azure_hub_subnets = var.azure_hub_subnets
+  aws_hub_cidr      = var.aws_hub_cidr
+  gcp_hub_cidr      = var.gcp_hub_cidr
+  gcp_project_id    = var.gcp_project_id
+
+  tags = var.common_tags
+}
+
+# ── Multi-Cloud Compute ──────────────────────────────────────────────────
+
+# Generic compute module (legacy path)
 module "compute_azure" {
   source   = "./modules/compute"
-  count    = var.enable_azure ? 1 : 0
+  count    = var.enable_azure && !var.use_new_k8s_modules ? 1 : 0
   provider = "azure"
 
   environment     = var.environment
@@ -52,7 +71,7 @@ module "compute_azure" {
 
 module "compute_aws" {
   source   = "./modules/compute"
-  count    = var.enable_aws ? 1 : 0
+  count    = var.enable_aws && !var.use_new_k8s_modules ? 1 : 0
   provider = "aws"
 
   environment     = var.environment
@@ -66,7 +85,7 @@ module "compute_aws" {
 
 module "compute_gcp" {
   source   = "./modules/compute"
-  count    = var.enable_gcp ? 1 : 0
+  count    = var.enable_gcp && !var.use_new_k8s_modules ? 1 : 0
   provider = "gcp"
 
   environment     = var.environment
@@ -78,11 +97,11 @@ module "compute_gcp" {
   tags = merge(var.common_tags, { provider = "gcp" })
 }
 
-# ── Kubernetes Clusters ──────────────────────────────────────────────────
+# ── Kubernetes Clusters (Legacy) ─────────────────────────────────────────
 
 module "kubernetes_azure" {
   source   = "./modules/kubernetes"
-  count    = var.enable_azure && var.enable_kubernetes ? 1 : 0
+  count    = var.enable_azure && var.enable_kubernetes && !var.use_new_k8s_modules ? 1 : 0
   provider = "azure"
 
   environment     = var.environment
@@ -97,7 +116,7 @@ module "kubernetes_azure" {
 
 module "kubernetes_aws" {
   source   = "./modules/kubernetes"
-  count    = var.enable_aws && var.enable_kubernetes ? 1 : 0
+  count    = var.enable_aws && var.enable_kubernetes && !var.use_new_k8s_modules ? 1 : 0
   provider = "aws"
 
   environment     = var.environment
@@ -112,7 +131,7 @@ module "kubernetes_aws" {
 
 module "kubernetes_gcp" {
   source   = "./modules/kubernetes"
-  count    = var.enable_gcp && var.enable_kubernetes ? 1 : 0
+  count    = var.enable_gcp && var.enable_kubernetes && !var.use_new_k8s_modules ? 1 : 0
   provider = "gcp"
 
   environment     = var.environment
@@ -125,28 +144,182 @@ module "kubernetes_gcp" {
   tags = merge(var.common_tags, { provider = "gcp", service = "gke" })
 }
 
-# ── Outputs ──────────────────────────────────────────────────────────────
+# ── Per-Provider K8s Modules (New) ───────────────────────────────────────
 
-output "cluster_endpoints" {
-  value = {
-    azure = try(module.kubernetes_azure[0].cluster_endpoint, null)
-    aws   = try(module.kubernetes_aws[0].cluster_endpoint, null)
-    gcp   = try(module.kubernetes_gcp[0].cluster_endpoint, null)
-  }
+module "aks" {
+  source = "./modules/aks"
+  count  = var.enable_azure && var.enable_kubernetes && var.use_new_k8s_modules ? 1 : 0
+
+  cluster_name        = "${var.resource_prefix}-aks"
+  location            = var.azure_location
+  resource_group_name = "${var.resource_prefix}-aks-rg"
+  environment         = var.environment
+  kubernetes_version  = var.k8s_kubernetes_version
+  system_node_sku     = var.k8s_system_node_sku
+  system_node_count   = var.k8s_system_node_count
+  service_cidr        = var.k8s_service_cidr
+  private_cluster     = var.k8s_private_cluster
+  enable_auto_scaling = var.k8s_enable_auto_scaling
+  min_node_count      = var.k8s_min_node_count
+  max_node_count      = var.k8s_max_node_count
+  enable_cost_allocation = true
+  user_node_pools     = var.k8s_user_node_pools
+  log_analytics_workspace_id = var.azure_log_analytics_workspace_id
+
+  tags = merge(var.common_tags, { provider = "azure", service = "aks" })
 }
 
-output "compute_pools" {
-  value = {
-    azure = try(module.compute_azure[0].pool_id, null)
-    aws   = try(module.compute_aws[0].pool_id, null)
-    gcp   = try(module.compute_gcp[0].pool_id, null)
-  }
+module "eks" {
+  source = "./modules/eks"
+  count  = var.enable_aws && var.enable_kubernetes && var.use_new_k8s_modules ? 1 : 0
+
+  cluster_name       = "${var.resource_prefix}-eks"
+  subnet_ids         = try(module.network_hub[0].aws_hub_vpc_id, [])
+  environment        = var.environment
+  kubernetes_version = var.k8s_kubernetes_version
+  system_node_sku    = replace(var.k8s_system_node_sku, "/^Standard_/", "t3.")
+  system_node_count  = var.k8s_system_node_count
+  service_cidr       = var.k8s_service_cidr
+  private_cluster    = var.k8s_private_cluster
+  enable_auto_scaling = var.k8s_enable_auto_scaling
+  min_node_count     = var.k8s_min_node_count
+  max_node_count     = var.k8s_max_node_count
+  user_node_groups   = var.k8s_user_node_pools
+
+  tags = merge(var.common_tags, { provider = "aws", service = "eks" })
 }
 
-output "cost_tags" {
-  value = {
-    environment = var.environment
-    project     = var.resource_prefix
-    managed_by  = "magenta-agent-ops"
-  }
+module "gke" {
+  source = "./modules/gke"
+  count  = var.enable_gcp && var.enable_kubernetes && var.use_new_k8s_modules ? 1 : 0
+
+  cluster_name       = "${var.resource_prefix}-gke"
+  location           = var.gcp_region
+  project_id         = var.gcp_project_id
+  environment        = var.environment
+  kubernetes_version = var.k8s_kubernetes_version
+  system_node_sku    = replace(var.k8s_system_node_sku, "/^Standard_/", "e2-standard-")
+  system_node_count  = var.k8s_system_node_count
+  private_cluster    = var.k8s_private_cluster
+  enable_auto_scaling = var.k8s_enable_auto_scaling
+  min_node_count     = var.k8s_min_node_count
+  max_node_count     = var.k8s_max_node_count
+  user_node_pools    = var.k8s_user_node_pools
+
+  tags = merge(var.common_tags, { provider = "gcp", service = "gke" })
+}
+
+# ── GPU Operator (per-provider) ────────────────────────────────────────────
+
+module "gpu_operator_azure" {
+  source = "./modules/gpu-operator"
+  count  = var.enable_azure && var.enable_kubernetes && var.enable_gpu_operator && var.use_new_k8s_modules ? 1 : 0
+
+  cluster_name         = "${var.resource_prefix}-aks"
+  provider             = "azure"
+  environment          = var.environment
+  gpu_driver_version   = var.gpu_driver_version
+  gpu_operator_version = var.gpu_operator_version
+  enable_monitoring    = var.enable_gpu_monitoring
+
+  tags = merge(var.common_tags, { provider = "azure", service = "gpu-operator" })
+}
+
+module "gpu_operator_aws" {
+  source = "./modules/gpu-operator"
+  count  = var.enable_aws && var.enable_kubernetes && var.enable_gpu_operator && var.use_new_k8s_modules ? 1 : 0
+
+  cluster_name         = "${var.resource_prefix}-eks"
+  provider             = "aws"
+  environment          = var.environment
+  gpu_driver_version   = var.gpu_driver_version
+  gpu_operator_version = var.gpu_operator_version
+  enable_monitoring    = var.enable_gpu_monitoring
+
+  tags = merge(var.common_tags, { provider = "aws", service = "gpu-operator" })
+}
+
+module "gpu_operator_gcp" {
+  source = "./modules/gpu-operator"
+  count  = var.enable_gcp && var.enable_kubernetes && var.enable_gpu_operator && var.use_new_k8s_modules ? 1 : 0
+
+  cluster_name         = "${var.resource_prefix}-gke"
+  provider             = "gcp"
+  environment          = var.environment
+  gpu_driver_version   = var.gpu_driver_version
+  gpu_operator_version = var.gpu_operator_version
+  enable_monitoring    = var.enable_gpu_monitoring
+
+  tags = merge(var.common_tags, { provider = "gcp", service = "gpu-operator" })
+}
+
+# ── vSphere Private Cloud ─────────────────────────────────────────────────
+
+module "vsphere_cluster" {
+  source = "./modules/vsphere"
+  count  = var.enable_vsphere ? 1 : 0
+
+  datacenter         = var.vsphere_datacenter
+  compute_cluster    = var.vsphere_compute_cluster
+  datastore          = var.vsphere_datastore
+  network_name       = var.vsphere_network
+  template_name      = var.vsphere_template
+  folder_path        = var.vsphere_vm_folder
+  vm_name_prefix     = "${var.resource_prefix}-vsphere"
+  control_plane_cidr = var.vsphere_cp_cidr
+  worker_cidr        = var.vsphere_worker_cidr
+  control_plane_count = 3
+  worker_count        = var.compute_node_count
+  control_plane_cpu   = 4
+  worker_cpu          = 8
+  control_plane_memory_mb = 16384
+  worker_memory_mb        = 32768
+
+  tags = merge(var.common_tags, { provider = "vsphere" })
+}
+
+# ── Event Hubs Capture → ADLS ─────────────────────────────────────────────
+
+module "capture" {
+  source = "./modules/capture"
+  count  = var.enable_capture ? 1 : 0
+
+  environment         = var.environment
+  resource_prefix     = var.resource_prefix
+  resource_group_name = "${var.resource_prefix}-data"
+  location            = var.azure_location
+  common_tags         = var.common_tags
+
+  capture_topics       = var.capture_topics
+  topic_partitions     = var.capture_topic_partitions
+  topic_retention_days = var.capture_topic_retention_days
+  eventhub_sku         = var.capture_eventhub_sku
+  eventhub_capacity    = var.capture_eventhub_capacity
+  consumer_groups      = var.capture_consumer_groups
+}
+
+# ── Budget Management (Azure) ──────────────────────────────────────────────
+
+module "budget" {
+  source = "./modules/budget"
+  count  = var.enable_azure ? 1 : 0
+
+  environment         = var.environment
+  resource_group_name = "${var.resource_prefix}-monitoring"
+  monthly_budget_total = var.budget_monthly_total
+  provider_budgets    = var.budget_provider_amounts
+  notification_email  = var.budget_notification_email
+  webhook_url         = var.budget_webhook_url
+  enable_block_threshold = var.environment == "production"
+  alert_thresholds    = var.budget_alert_thresholds
+  filter_tags         = var.budget_filter_tags
+
+  tags = merge(var.common_tags, { service = "budget" })
+}
+
+# ── Collector Infrastructure ───────────────────────────────────────────────
+
+module "collectors" {
+  source = "./collectors.tf"
+  count  = 1
 }

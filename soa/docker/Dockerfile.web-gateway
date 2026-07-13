@@ -1,0 +1,36 @@
+# MCP Web Gateway — HTTP/REST API MCP Wrapper
+# Distroless base image (~80MB vs ~300MB with python:3.12-slim)
+#
+# Build: docker build -t magenta/web-gateway:latest -f soa/docker/Dockerfile.web-gateway .
+# Size: ~120MB (distroless base + app)
+
+FROM magenta/base:distroless AS builder
+
+WORKDIR /app
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY pyproject.toml /app/
+RUN uv sync --frozen --no-dev
+
+# ── Runtime ──────────────────────────────────────────────────────────────
+
+FROM magenta/base:distroless
+
+WORKDIR /app
+
+# Copy venv from builder
+COPY --from=builder /app/.venv /app/.venv
+
+# Copy application code
+COPY web_gateway/ /app/web_gateway/
+COPY soa/config/ /app/config/
+
+# Non-root user (inherited from base)
+USER 10001:10001
+
+EXPOSE 8081 9090
+
+HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/mcp/web/health')"]
+
+ENTRYPOINT ["python", "-m", "web_gateway.server"]
+CMD ["--config", "/app/config/web-service.toml", "--port", "8081"]

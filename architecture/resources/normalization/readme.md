@@ -149,6 +149,113 @@ Events are routed to `dead-letter` when:
 | Field type mismatch | `started_at` not parseable as ISO 8601 |
 | Payload too large | > 1 MB raw payload |
 
+---
+
+## Log Normalizer (ADR-011)
+
+A separate normalization path for raw log events parallel to the alert normalizer:
+
+```
+raw-logs (source-native JSON/syslog/CEF)
+    │
+    ▼
+┌──────────────────────────────────────┐
+│         Log Normalizer               │
+│                                      │
+│  1. Identify source system           │
+│     (windows_event | linux_syslog |  │
+│      cloud.azure | cloud.aws |       │
+│      cloud.gcp | customer.custom)    │
+│  2. Load source mapping config       │
+│  3. Map fields → security.event      │
+│  4. Generate idempotency_key         │
+│     (SHA256 source+timestamp+host)   │
+│  5. Validate against schema          │
+│  6. Dedup via idempotency_key        │
+│  7. Publish to enriched-events       │
+│     OR dead-letter on failure        │
+└──────────────────────────────────────┘
+    │
+    ▼
+enriched-events (security.event)
+```
+
+### security.event Schema
+
+Every event on `enriched-events` follows the `security.event` schema defined in ADR-011:
+
+```json
+{
+  "schema_version": "1.0",
+  "event_type": "security.event",
+  "event_id": "<uuid>",
+  "correlation_id": "<uuid>",
+  "idempotency_key": "<sha256(source + timestamp + host + event_id)>",
+  "source_system": "windows_event | linux_syslog | cloud.azure | cloud.aws | cloud.gcp | customer.custom",
+  "source_host": "<fqdn>",
+  "timestamp": "<ISO8601>",
+  "severity": "informational | low | medium | high | critical",
+  "category": "authentication | network | process | audit | application",
+  "raw_ref": "adl://lake/raw-logs/<date>/<event_id>.json",
+  "normalized_fields": {
+    "ActorUsername": "",
+    "TargetIPAddress": "",
+    "ProcessName": "",
+    "EventID": ""
+  },
+  "tags": ["env:prod", "bu:finance", "data-class:internal"]
+}
+```
+
+### Source Mappings
+
+#### Windows Event → security.event
+
+| Windows Field | security.event Field | Transform |
+|---|---|---|
+| `System/EventID` | `normalized_fields.EventID` | Direct |
+| `System/Provider/@Name` | `tags: provider` | Direct |
+| `EventData/Data[@Name='SubjectUserName']` | `normalized_fields.ActorUsername` | Direct |
+| `EventData/Data[@Name='IpAddress']` | `normalized_fields.TargetIPAddress` | Direct |
+| `EventData/Data[@Name='ProcessName']` | `normalized_fields.ProcessName` | Direct |
+| `System/Computer` | `source_host` | FQDN normalization |
+| `System/TimeCreated/@SystemTime` | `timestamp` | Parse W3C XML → ISO 8601 |
+| Event Level | `severity` | 1→critical, 2→high, 3→medium, 4→low |
+
+#### Linux Syslog → security.event
+
+| Syslog Field | security.event Field | Transform |
+|---|---|---|
+| `PRI` (facility*8+severity) | `severity` | Decode priority value |
+| `HOSTNAME` | `source_host` | Direct |
+| `TIMESTAMP` | `timestamp` | Parse syslog formats |
+| `MSG` body | `normalized_fields` | Copy raw; structured parsers for sudo/sshd/pam |
+| `APP-NAME` | `tags: application` | Direct |
+
+#### Cloud (Azure/AWS/GCP) → security.event
+
+| Cloud Field | security.event Field | Transform |
+|---|---|---|
+| `operationName` / `eventName` | `category` | Direct |
+| `callerIpAddress` / `sourceIPAddress` | `normalized_fields.TargetIPAddress` | Direct |
+| `identity.claims.name` / `userIdentity.arn` | `normalized_fields.ActorUsername` | Extract from claims |
+| `properties` | `normalized_fields` | JSON blob preserved |
+
+### Idempotency
+
+Log Normalizer performs deduplication before publishing:
+
+```python
+# Dedup check (Redis-backed)
+idempotency_key = sha256(f"{source}|{timestamp}|{host}|{event_id}")
+if await redis.exists(idempotency_key):
+    return  # Already processed
+
+await redis.setex(idempotency_key, ttl=86400)  # 24h dedup window
+```
+
+---
+
 ## Monitoring
 
 | Metric | Alert |
@@ -158,3 +265,5 @@ Events are routed to `dead-letter` when:
 | Unknown source system count > 0 | Warning — new connector needed |
 | Dead-letter queue depth > 100 | Investigate |
 | Normalization latency p99 > 500 ms | Warning |
+| Log dedup rate > 50% | Info — adjust dedup window |
+| Log normalization throughput < 100 EPS | Warning — consumer lag |

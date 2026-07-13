@@ -1,4 +1,4 @@
-from magenta.webhooks.server import webhook_server, WebhookServer
+from magenta.webhooks.server import WebhookServer, webhook_server
 
 __all__ = [
     "webhook_server",

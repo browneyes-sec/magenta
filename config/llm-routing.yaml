@@ -1,0 +1,101 @@
+policies:
+  - match:
+      sensitivity_level: high
+    routing:
+      providers: ["ollama"]
+      fallback: queue
+    redaction:
+      enabled: false
+      fields: []
+    quotas:
+      max_tokens_per_minute: 100000
+
+  - match:
+      task_type: triage
+      sensitivity_level: medium
+    routing:
+      providers: ["ollama", "openrouter"]
+      preferred: ollama
+      fallback: openrouter
+    redaction:
+      enabled: true
+      fields: [usernames, ips, email_addresses]
+    quotas:
+      max_tokens_per_minute: 50000
+
+  - match:
+      task_type: contain
+      sensitivity_level: medium
+    routing:
+      providers: ["ollama", "openrouter"]
+      preferred: ollama
+      fallback: openrouter
+    redaction:
+      enabled: true
+      fields: [usernames, ips, hostnames]
+    quotas:
+      max_tokens_per_minute: 40000
+
+  - match:
+      task_type: enrich
+      sensitivity_level: medium
+    routing:
+      providers: ["ollama", "openrouter"]
+      preferred: ollama
+      fallback: openrouter
+    redaction:
+      enabled: true
+      fields: [usernames, ips, email_addresses, hostnames]
+    quotas:
+      max_tokens_per_minute: 30000
+
+  - match:
+      task_type: report
+      sensitivity_level: low
+    routing:
+      providers: ["openrouter", "ollama"]
+      preferred: openrouter
+      fallback: ollama
+    redaction:
+      enabled: true
+      fields: [usernames, ips, email_addresses]
+    quotas:
+      max_cost_per_day: 0.50
+
+  - match:
+      task_type: generic
+      sensitivity_level: low
+    routing:
+      providers: ["openrouter", "groq", "gemini"]
+      preferred: openrouter
+      fallback: groq
+    redaction:
+      enabled: true
+      fields: [usernames, ips, email_addresses]
+    quotas:
+      max_tokens_per_minute: 100000
+
+default:
+  routing:
+    providers: ["ollama"]
+    preferred: ollama
+    fallback: queue
+  redaction:
+    enabled: true
+    fields: [usernames, ips, email_addresses]
+  quotas:
+    max_tokens_per_minute: 10000
+
+openrouter:
+  api_key: "${OPENROUTER_API_KEY}"
+  default_model: "openrouter/auto"
+  fallback_models:
+    - "google/gemini-2.0-flash-001"
+    - "meta-llama/llama-3.3-70b-instruct"
+    - "mistralai/mistral-7b-instruct"
+  cost_controls:
+    daily_budget_usd: 10.00
+    monthly_budget_usd: 200.00
+  rate_limiting:
+    requests_per_minute: 60
+    tokens_per_minute: 100000

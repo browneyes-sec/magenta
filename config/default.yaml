@@ -46,3 +46,23 @@ models:
   openrouter_key: null
   gemini_key: null
   groq_key: null
+
+gateway:
+  enabled: true
+  mode: shadow
+  policy_file: config/llm-routing.yaml
+  redis_url: redis://localhost:6379/0
+  cache:
+    enabled: true
+    ttl_seconds: 3600
+    min_similarity: 0.92
+  redaction:
+    enabled: true
+    default_fields:
+      - usernames
+      - ips
+      - email_addresses
+  audit:
+    enabled: true
+    batch_size: 10
+    flush_interval_seconds: 5

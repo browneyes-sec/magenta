@@ -1,0 +1,63 @@
+# Kustomize Overlay — Development
+# Development environment overrides.
+# Uses latest images, minimal replicas, debug logging.
+#
+# Usage: kubectl apply -k soa/kubernetes/overlays/dev/
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+namespace: magenta-dev
+
+commonLabels:
+  environment: dev
+
+patches:
+  # API — 1 replica, debug logging
+  - path: patches/api-patch.yaml
+
+  # Worker — 1 replica
+  - path: patches/worker-patch.yaml
+
+  # Scheduler — 1 replica
+  - path: patches/scheduler-patch.yaml
+
+  # Agent Ops — 1 replica
+  - path: patches/agent-ops-patch.yaml
+
+  # Agent Orchestrator — 1 replica
+  - path: patches/agent-orchestrator-patch.yaml
+
+  # MCP Bridge — 1 replica
+  - path: patches/mcp-bridge-patch.yaml
+
+  # Web Gateway — 1 replica
+  - path: patches/web-gateway-patch.yaml
+
+  # Collector — 1 replica
+  - path: patches/collector-patch.yaml
+
+images:
+  - name: ghcr.io/browneyes-sec/magenta/api
+    newTag: latest
+  - name: ghcr.io/browneyes-sec/magenta/worker
+    newTag: latest
+  - name: ghcr.io/browneyes-sec/magenta/scheduler
+    newTag: latest
+  - name: ghcr.io/browneyes-sec/magenta/agent-ops
+    newTag: latest
+  - name: ghcr.io/browneyes-sec/magenta/agent-ops-tf-sidecar
+    newTag: latest
+  - name: ghcr.io/browneyes-sec/magenta/agent-orchestrator
+    newTag: latest
+  - name: ghcr.io/browneyes-sec/magenta/mcp-bridge
+    newTag: latest
+  - name: ghcr.io/browneyes-sec/magenta/web-gateway
+    newTag: latest
+  - name: ghcr.io/browneyes-sec/magenta/collector
+    newTag: latest
+  - name: ollama/ollama
+    newTag: "0.5.7"

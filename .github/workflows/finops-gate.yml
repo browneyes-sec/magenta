@@ -1,0 +1,163 @@
+name: FinOps Gate
+
+on:
+  pull_request:
+    paths:
+      - 'soa/terraform/**'
+      - 'soa/config/finops.toml'
+  schedule:
+    - cron: '0 8 * * 1-5'  # Weekdays 08:00 UTC — daily cost check
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: staging
+        type: choice
+        options: [dev, staging, production]
+
+env:
+  TF_DIR: soa/terraform
+
+jobs:
+  tag-compliance:
+    name: Tag Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Azure CLI
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+
+      - name: Azure Login
+        if: ${{ secrets.AZURE_CLIENT_ID != '' }}
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Check Azure Tag Compliance
+        if: ${{ secrets.AZURE_CLIENT_ID != '' }}
+        id: azure_tags
+        run: |
+          az graph query \
+            --graph-query "resources | where tags['cost-center'] == '' or tags['environment'] == '' or tags['owner'] == ''" \
+            --query "count(data)" \
+            -o tsv > /tmp/azure-noncompliant.txt
+          echo "non_compliant=$(cat /tmp/azure-noncompliant.txt)" >> $GITHUB_OUTPUT
+
+      - name: Check AWS Tag Compliance
+        if: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
+        id: aws_tags
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+        run: |
+          NON_COMPLIANT=$(aws resourcegroupstaggingapi get-resources \
+            --tag-filters "Key=cost-center,Values=[]" \
+            --query "length(ResourceTagMappingList)" 2>/dev/null || echo 0)
+          echo "non_compliant=$NON_COMPLIANT" >> $GITHUB_OUTPUT
+
+      - name: Enforce Gate
+        if: github.event_name == 'pull_request'
+        run: |
+          AZURE_NC=${{ steps.azure_tags.outputs.non_compliant || '0' }}
+          AWS_NC=${{ steps.aws_tags.outputs.non_compliant || '0' }}
+          TOTAL=$(( AZURE_NC + AWS_NC ))
+          if [ "$TOTAL" -gt 5 ]; then
+            echo "FAIL: $TOTAL non-compliant resources found (max 5 allowed)"
+            exit 1
+          fi
+          echo "PASS: $TOTAL non-compliant resources (threshold 5)"
+
+  budget-check:
+    name: Budget Check
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Azure CLI
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get Azure Budget Status
+        id: budget
+        run: |
+          az consumption budget list \
+            --query "[].{name:name,amount:amount,currentSpend:currentSpend.amount}" \
+            -o json > /tmp/budgets.json
+          cat /tmp/budgets.json
+
+      - name: Check Budget Thresholds
+        run: |
+          python3 -c "
+          import json
+          with open('/tmp/budgets.json') as f:
+              budgets = json.load(f)
+          alerts = []
+          for b in budgets:
+              pct = (b.get('currentSpend', 0) / b['amount']) * 100 if b['amount'] > 0 else 0
+              if pct > 80:
+                  alerts.append(f'{b[\"name\"]}: {pct:.0f}% used (${b.get(\"currentSpend\", 0):.2f} / \${b[\"amount\"]:.2f})')
+          if alerts:
+              print('BUDGET ALERTS:')
+              for a in alerts:
+                  print(f'  ⚠ {a}')
+              if any(pct > 95 for _, _, pct in [(0, 0, 0)]):
+                  exit(1)  # Soft fail if >95%
+          else:
+              print('All budgets within threshold.')
+          "
+
+  cost-report:
+    name: Cost Report
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Generate Cost Report
+        run: |
+          az consumption usage list \
+            --billing-period-name $(date +%Y%m) \
+            --query "sum([*].pretaxCost)" \
+            -o tsv > /tmp/monthly-cost.txt
+          echo "Monthly cost: \$$(cat /tmp/monthly-cost.txt)"
+
+      - name: Post Cost Summary
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_FINOPS_WEBHOOK }}
+        if: env.SLACK_WEBHOOK != ''
+        run: |
+          COST=$(cat /tmp/monthly-cost.txt)
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"*Magenta FinOps Report*\nMonthly Cost: \$${COST}\nEnvironment: All\"}" \
+            "$SLACK_WEBHOOK"

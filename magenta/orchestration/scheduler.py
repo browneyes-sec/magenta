@@ -1,9 +1,7 @@
 """Task scheduler for periodic and cron-based missions."""
 
-from typing import Any, Callable, Awaitable, Optional
 import asyncio
-from datetime import datetime
-import re
+from collections.abc import Awaitable, Callable
 
 
 class Scheduler:
@@ -45,10 +43,7 @@ class Scheduler:
 
     async def list(self) -> list[dict]:
         """List scheduled tasks."""
-        return [
-            {"name": name, "running": not task.done()}
-            for name, task in self._tasks.items()
-        ]
+        return [{"name": name, "running": not task.done()} for name, task in self._tasks.items()]
 
     async def stop_all(self) -> None:
         """Stop all scheduled tasks."""

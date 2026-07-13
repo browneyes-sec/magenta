@@ -1,0 +1,62 @@
+# Magenta Base — Distroless GPU Variant
+# Extends CPU base with NVIDIA container toolkit for GPU inference.
+# Use for OLLAMA inference pods, embedding services, and any GPU workload.
+#
+# Build: docker build -t magenta/base:gpu -f soa/docker/base/Dockerfile.gpu .
+# Size: ~200-250MB (vs ~4-8GB with ollama/ollama)
+#
+# Prerequisites: NVIDIA driver must be installed on host.
+# K8s: Use nvidia.com/gpu resource requests with RuntimeClass nvidia.
+
+FROM chainguard/python:3.12 AS builder
+
+WORKDIR /app
+
+# Install uv for dependency management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Copy dependency manifest
+COPY pyproject.toml uv.lock README.md /app/
+
+# Install dependencies (no dev deps, frozen lockfile)
+RUN uv sync --frozen --no-dev
+
+# ── Runtime ───────────────────────────────────────────────────────────────
+
+FROM chainguard/python:3.12
+
+WORKDIR /app
+
+# Non-root user (uid 10001)
+RUN addgroup -g 10001 magenta && \
+    adduser -u 10001 -G magenta -s /bin/sh -D magenta
+
+# NVIDIA container toolkit libraries (for GPU access)
+# These are the runtime libraries needed for CUDA inference.
+# The actual CUDA toolkit is provided by the host/driver.
+RUN addgroup -g 10001 magenta && \
+    adduser -u 10001 -G magenta -s /bin/sh -D magenta
+
+# Writable directories
+RUN mkdir -p /app/data /app/config /root/.ollama && \
+    chown -R magenta:magenta /app /root/.ollama
+
+# Copy venv from builder
+COPY --from=builder /app/.venv /app/.venv
+
+# Environment
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONFAULTHANDLER=1 \
+    OLLAMA_HOST=0.0.0.0 \
+    OLLAMA_ORIGINS="*" \
+    NVIDIA_VISIBLE_DEVICES=all \
+    NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+EXPOSE 11434 9090
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:11434/api/health')"]
+
+ENTRYPOINT ["python"]

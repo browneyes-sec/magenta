@@ -1,0 +1,264 @@
+// Agent Ops — gRPC Service Definition
+// Matches the MCP tool catalog defined in agent-ops-service.toml.
+// Protocol: gRPC with mTLS, port 50060.
+
+syntax = "proto3";
+
+package magenta.agent_ops;
+
+option go_package = "magenta/agent_ops";
+option py_package = "magenta.agent_ops.proto";
+
+// ── Agent Ops Service ─────────────────────────────────────────────────
+
+service AgentOps {
+  // Configuration Analysis
+  rpc ConfigAnalyze(ConfigAnalyzeRequest) returns (ConfigAnalyzeResponse);
+  rpc ConfigValidate(ConfigValidateRequest) returns (ConfigValidateResponse);
+  rpc ConfigDiff(ConfigDiffRequest) returns (ConfigDiffResponse);
+
+  // IaC Management
+  rpc IacPlan(IacPlanRequest) returns (IacPlanResponse);
+  rpc IacApply(IacApplyRequest) returns (IacApplyResponse);
+  rpc IacDriftDetect(IacDriftDetectRequest) returns (IacDriftDetectResponse);
+
+  // Multi-Cloud Orchestration
+  rpc CloudProvision(CloudProvisionRequest) returns (CloudProvisionResponse);
+  rpc CloudDiscoverResources(CloudDiscoverRequest) returns (CloudDiscoverResponse);
+  rpc CloudMigrate(CloudMigrateRequest) returns (CloudMigrateResponse);
+
+  // FinOps
+  rpc FinOpsCostAnalysis(FinOpsCostRequest) returns (FinOpsCostResponse);
+  rpc FinOpsRecommendRightsize(FinOpsRightsizeRequest) returns (FinOpsRightsizeResponse);
+  rpc FinOpsForecast(FinOpsForecastRequest) returns (FinOpsForecastResponse);
+  rpc FinOpsEnforceBudget(FinOpsBudgetRequest) returns (FinOpsBudgetResponse);
+  rpc FinOpsTagCompliance(FinOpsTagRequest) returns (FinOpsTagResponse);
+
+  // Health
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+// ── Messages ───────────────────────────────────────────────────────────
+
+message HealthRequest {}
+message HealthResponse {
+  string status = 1;
+  string service = 2;
+  string version = 3;
+  int32 tools_available = 4;
+  repeated string tools = 5;
+  string timestamp = 6;
+}
+
+// Config Analysis
+message ConfigAnalyzeRequest {
+  string path = 1;
+  string format = 2;       // toml | yaml | json | hcl
+  repeated string checks = 3;  // syntax | schema | security | compliance | deprecation | best_practice
+}
+message ConfigAnalyzeResponse {
+  int32 files_analyzed = 1;
+  repeated ConfigError errors = 2;
+  repeated ConfigWarning warnings = 3;
+  ConfigSummary summary = 4;
+}
+message ConfigError {
+  string file = 1;
+  string check = 2;
+  string message = 3;
+}
+message ConfigWarning {
+  string file = 1;
+  string check = 2;
+  string message = 3;
+}
+message ConfigSummary {
+  int32 total_errors = 1;
+  int32 total_warnings = 2;
+  repeated string checks_applied = 3;
+}
+
+message ConfigValidateRequest {
+  string file = 1;
+  string schema_ref = 2;
+}
+message ConfigValidateResponse {
+  bool valid = 1;
+  repeated string errors = 2;
+}
+
+message ConfigDiffRequest {
+  string current_path = 1;
+  string target_path = 2;
+  string format = 3;  // unified | json
+}
+message ConfigDiffResponse {
+  string current_file = 1;
+  string target_file = 2;
+  int32 changes = 3;
+  string diff = 4;
+}
+
+// IaC
+message IacPlanRequest {
+  string environment = 1;
+  string module_path = 2;
+  map<string, string> variables = 3;
+}
+message IacPlanResponse {
+  string environment = 1;
+  bool has_changes = 2;
+  int32 exit_code = 3;
+  string stdout = 4;
+  string stderr = 5;
+  bool success = 6;
+}
+
+message IacApplyRequest {
+  string plan_ref = 1;
+  bool auto_approve = 2;
+}
+message IacApplyResponse {
+  bool applied = 1;
+  int32 exit_code = 2;
+  string message = 3;
+}
+
+message IacDriftDetectRequest {
+  string environment = 1;
+}
+message IacDriftDetectResponse {
+  int32 drifted_resources = 1;
+  bool drifted = 2;
+  repeated string details = 3;
+  string environment = 4;
+}
+
+// Multi-Cloud
+message CloudProvisionRequest {
+  string provider = 1;
+  string resource_type = 2;
+  map<string, string> spec = 3;
+  string region = 4;
+}
+message CloudProvisionResponse {
+  string provider = 1;
+  string resource_type = 2;
+  bool provisioned = 3;
+  string resource_id = 4;
+  string error = 5;
+}
+
+message CloudDiscoverRequest {
+  repeated string providers = 1;
+  map<string, string> tags = 2;
+}
+message CloudDiscoverResponse {
+  int32 providers_checked = 1;
+  int32 total_resources = 2;
+  map<string, CloudProviderResult> results = 3;
+}
+message CloudProviderResult {
+  bool discovered = 1;
+  int32 count = 2;
+  string error = 3;
+}
+
+message CloudMigrateRequest {
+  CloudEndpoint source = 1;
+  CloudEndpoint target = 2;
+}
+message CloudEndpoint {
+  string provider = 1;
+  string region = 2;
+  string resource_id = 3;
+}
+message CloudMigrateResponse {
+  bool feasible = 1;
+  string plan_summary = 2;
+  repeated string phases = 3;
+}
+
+// FinOps
+message FinOpsCostRequest {
+  string period = 1;       // 7d | 30d | 90d
+  repeated string group_by = 2;
+}
+message FinOpsCostResponse {
+  double total_cost = 1;
+  repeated CostItem breakdown = 2;
+  CostTrend trends = 3;
+}
+message CostItem {
+  string provider = 1;
+  string service = 2;
+  double cost = 3;
+  string region = 4;
+}
+message CostTrend {
+  string direction = 1;
+  double change_pct = 2;
+  repeated string top_services = 3;
+}
+
+message FinOpsRightsizeRequest {
+  repeated string providers = 1;
+  double threshold = 2;
+}
+message FinOpsRightsizeResponse {
+  repeated RightsizeRecommendation recommendations = 1;
+  double estimated_savings_monthly = 2;
+}
+message RightsizeRecommendation {
+  string provider = 1;
+  string resource = 2;
+  string current_sku = 3;
+  double avg_cpu_pct = 4;
+  string recommended_action = 5;
+  double estimated_savings_monthly = 6;
+}
+
+message FinOpsForecastRequest {
+  int32 horizon_days = 1;
+  string model = 2;
+}
+message FinOpsForecastResponse {
+  string model = 1;
+  repeated ForecastPoint forecast = 2;
+  double estimated_total = 3;
+}
+message ForecastPoint {
+  string date = 1;
+  double yhat = 2;
+  double yhat_lower = 3;
+  double yhat_upper = 4;
+}
+
+message FinOpsBudgetRequest {
+  string budget_id = 1;
+  string action = 2;  // alert | block | tag
+}
+message FinOpsBudgetResponse {
+  string budget_id = 1;
+  double monthly_limit = 2;
+  double current_spend = 3;
+  double utilization_pct = 4;
+  bool blocked = 5;
+  string message = 6;
+}
+
+message FinOpsTagRequest {
+  repeated string required_tags = 1;
+}
+message FinOpsTagResponse {
+  repeated string required_tags = 1;
+  int32 compliant = 2;
+  int32 non_compliant = 3;
+  repeated TagAuditDetail details = 4;
+}
+message TagAuditDetail {
+  string provider = 1;
+  string resource = 2;
+  string resource_type = 3;
+  repeated string missing_tags = 4;
+}

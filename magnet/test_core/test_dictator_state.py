@@ -1,7 +1,8 @@
 """Tests for DictatorState — mission oversight tracking."""
 
 from datetime import datetime
-from magenta.dictator.state import DictatorState, DictatorStatus, MissionOversight
+
+from magenta.dictator.state import DictatorState, DictatorStatus
 
 
 class TestDictatorState:
@@ -56,7 +57,9 @@ class TestDictatorState:
 
     def test_log_directive_no_mission_match(self):
         state = DictatorState()
-        state.log_directive({"type": "system_command", "mission_id": "nonexistent", "target": "framework"})
+        state.log_directive(
+            {"type": "system_command", "mission_id": "nonexistent", "target": "framework"}
+        )
         assert len(state.directive_log) == 1
 
     def test_completed_missions_tracked_separately(self):

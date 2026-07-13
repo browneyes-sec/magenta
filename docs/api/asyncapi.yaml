@@ -1,0 +1,244 @@
+asyncapi: 3.0.0
+info:
+  title: Magenta ASOAR Event Bus
+  description: |
+    Azure Event Hubs topics for the Magenta ASOAR security automation bus.
+
+    Topics:
+    - raw-alerts: Ingested raw security events (Windows, Linux, Cloud)
+    - enriched-alerts: Enriched and normalized security events
+    - actions: Agent response actions (contain, remediate, notify)
+    - audit: Audit trail for all agent decisions and human overrides
+    - dead-letter: Failed messages requiring manual inspection
+  version: 0.1.0
+
+servers:
+  production:
+    url: magenta-agent-bus.servicebus.windows.net
+    protocol: amqps
+    description: Azure Event Hubs (production)
+  development:
+    url: localhost:5672
+    protocol: amqp
+    description: Local development (simulated)
+
+channels:
+  rawAlerts:
+    address: raw-alerts
+    messages:
+      RawAlertMessage:
+        summary: Raw security event from endpoint/cloud
+        payload:
+          type: object
+          required: [schema_version, event_type, event_id, source_system, timestamp, payload]
+          properties:
+            schema_version:
+              type: string
+              example: "1.0"
+            event_type:
+              type: string
+              example: security.event
+            event_id:
+              type: string
+            correlation_id:
+              type: string
+            idempotency_key:
+              type: string
+            source_system:
+              type: string
+              enum: [windows_event, linux_syslog, cloud.azure, cloud.aws, cloud.gcp, customer.custom]
+            source_host:
+              type: string
+            timestamp:
+              type: string
+              format: date-time
+            severity:
+              type: string
+              enum: [critical, high, medium, low, informational]
+            category:
+              type: string
+            payload:
+              type: object
+              description: Original log payload (source-specific schema)
+            tags:
+              type: array
+              items:
+                type: string
+
+  enrichedAlerts:
+    address: enriched-alerts
+    messages:
+      EnrichedAlertMessage:
+        summary: Normalized and enriched security event
+        payload:
+          type: object
+          required: [schema_version, event_type, event_id, normalized_fields]
+          properties:
+            schema_version:
+              type: string
+            event_type:
+              type: string
+              example: security.event
+            event_id:
+              type: string
+            correlation_id:
+              type: string
+            idempotency_key:
+              type: string
+            source_system:
+              type: string
+            timestamp:
+              type: string
+              format: date-time
+            severity:
+              type: string
+            category:
+              type: string
+            normalized_fields:
+              type: object
+              description: Canonical fields (ActorUsername, TargetIPAddress, ProcessName, EventID)
+            tags:
+              type: array
+              items:
+                type: string
+            enrichment:
+              type: object
+              description: Threat intel, identity, and asset enrichment data
+
+  actions:
+    address: actions
+    messages:
+      ActionMessage:
+        summary: Agent response action (contain, remediate, notify)
+        payload:
+          type: object
+          required: [action_type, target, mission_id]
+          properties:
+            action_type:
+              type: string
+              enum: [isolate_host, block_ip, disable_user, notify, escalate, custom]
+            target:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [host, ip, user, group, resource]
+                id:
+                  type: string
+                value:
+                  type: string
+            mission_id:
+              type: string
+            correlation_id:
+              type: string
+            agent_id:
+              type: string
+            reason:
+              type: string
+            risk_score:
+              type: number
+              minimum: 0
+              maximum: 1
+            approval_required:
+              type: boolean
+            idempotency_key:
+              type: string
+            metadata:
+              type: object
+
+  audit:
+    address: audit
+    messages:
+      AuditMessage:
+        summary: Audit trail entry for agent decisions and human overrides
+        payload:
+          type: object
+          required: [event_type, timestamp, actor]
+          properties:
+            event_type:
+              type: string
+              enum: [agent.action, human.override, policy.change, directive.issued, directive.executed]
+            timestamp:
+              type: string
+              format: date-time
+            actor:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [agent, human, system]
+                id:
+                  type: string
+                role:
+                  type: string
+            mission_id:
+              type: string
+            correlation_id:
+              type: string
+            action:
+              type: string
+            outcome:
+              type: string
+              enum: [success, failure, denied, overridden]
+            details:
+              type: object
+
+  deadLetter:
+    address: dead-letter
+    messages:
+      DeadLetterMessage:
+        summary: Failed message requiring manual inspection
+        payload:
+          type: object
+          properties:
+            original_event_id:
+              type: string
+            source_topic:
+              type: string
+            failure_reason:
+              type: string
+              enum: [processing_failed, schema_validation, timeout, provider_error, max_retries]
+            failure_count:
+              type: integer
+            first_failure_at:
+              type: string
+              format: date-time
+            last_failure_at:
+              type: string
+              format: date-time
+            payload:
+              type: object
+              description: Original message that failed processing
+            error_details:
+              type: object
+
+operations:
+  publishRawAlert:
+    action: receive
+    channel:
+      $ref: "#/channels/rawAlerts"
+    description: Receive raw security events from collectors
+
+  publishEnrichedAlert:
+    action: receive
+    channel:
+      $ref: "#/channels/enrichedAlerts"
+    description: Receive enriched events from normalizer pipeline
+
+  publishAction:
+    action: receive
+    channel:
+      $ref: "#/channels/actions"
+    description: Receive agent response actions
+
+  publishAudit:
+    action: receive
+    channel:
+      $ref: "#/channels/audit"
+    description: Receive audit trail entries
+
+  consumeDeadLetter:
+    action: receive
+    channel:
+      $ref: "#/channels/deadLetter"
+    description: Consume failed messages from dead-letter queue

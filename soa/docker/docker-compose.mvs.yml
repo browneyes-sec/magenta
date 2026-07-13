@@ -1,0 +1,256 @@
+# Magenta ASOAR — Minimum Viable Subset (MVS)
+# Resource-constrained dev environment for 8GB RAM + 8GB swap.
+#
+# Start:   docker compose -f soa/docker/docker-compose.mvs.yml up -d
+# Stop:    docker compose -f soa/docker/docker-compose.mvs.yml down
+# Logs:    docker compose -f soa/docker/docker-compose.mvs.yml logs -f
+# Status:  docker compose -f soa/docker/docker-compose.mvs.yml ps
+#
+# Exposed ports:
+#   3000 - Open WebUI (operator control plane)
+#   11434 - OLLAMA (local LLM inference)
+#   6333 - Qdrant (vector database)
+#   9099 - Pipelines (LangChain)
+#   4317/4318 - OTel Collector (traces/metrics)
+#   8001 - MCPO (MCP Proxy, HTTP transport)
+#   6379 - Redis (internal only)
+#
+# Total memory: ~1.5 GB (limits) — fits in 7.75 GB usable RAM.
+
+name: magenta-mvs
+
+services:
+
+  # ── 1. Redis ─────────────────────────────────────────────
+  # Core dependency: queue, cache, session storage.
+  magenta-redis:
+    image: redis:7-alpine
+    container_name: magenta-redis
+    ports:
+      - "6379:6379"
+    environment:
+      REDIS_APPENDONLY: "yes"
+    volumes:
+      - magenta-redis-data:/data
+    mem_limit: 64m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - magenta-mvs
+    restart: unless-stopped
+
+  # ── 2. OLLAMA ───────────────────────────────────────────
+  # Local LLM inference. Default model: qwen2.5:0.5b (~400 MB).
+  # After start, pull model: docker exec magenta-ollama ollama pull qwen2.5:0.5b
+  magenta-ollama:
+    image: ollama/ollama:latest
+    container_name: magenta-ollama
+    ports:
+      - "11434:11434"
+    environment:
+      OLLAMA_HOST: 0.0.0.0
+      OLLAMA_KEEP_ALIVE: 24h
+      OLLAMA_NUM_PARALLEL: 1
+    volumes:
+      - magenta-ollama-data:/root/.ollama
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/11434"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - magenta-mvs
+    restart: unless-stopped
+
+  # ── 2b. Qdrant ──────────────────────────────────────────
+  # Vector database for agent memory (episodic, semantic, procedural).
+  # ADR-018: 1024-dim bge-m3 embeddings, cosine similarity.
+  magenta-qdrant:
+    image: qdrant/qdrant:latest
+    container_name: magenta-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334
+    volumes:
+      - magenta-qdrant-data:/qdrant/storage
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:6333/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    networks:
+      - magenta-mvs
+    restart: unless-stopped
+
+  # ── 3. Open WebUI ────────────────────────────────────────
+  # Operator control plane. Connects to OLLAMA + Pipelines.
+  magenta-open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: magenta-open-webui
+    ports:
+      - "3000:8080"
+    environment:
+      OLLAMA_BASE_URL: http://magenta-ollama:11434
+      WEBUI_SECRET_KEY: "${WEBUI_SECRET_KEY:-magenta-dev-secret}"
+      WEBUI_NAME: Magenta ASOAR (MVS)
+      ENABLE_SIGNUP: "false"
+      DEFAULT_MODELS: qwen2.5:0.5b
+      OPENAI_API_BASE_URL: http://magenta-pipelines:9099
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-sk-magenta-pipeline}"
+      RAG_EMBEDDING_ENGINE: ollama
+      RAG_EMBEDDING_MODEL: nomic-embed-text
+      ENABLE_EMBEDDINGS: "true"
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    volumes:
+      - magenta-openwebui-data:/app/backend/data
+    mem_limit: 1024m
+    depends_on:
+      magenta-ollama:
+        condition: service_healthy
+      magenta-pipelines:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - magenta-mvs
+    restart: unless-stopped
+
+  # ── 4. Pipelines (LangChain) ─────────────────────────────
+  # Pipeline runtime for tool calling and RAG chains.
+  magenta-pipelines:
+    image: ghcr.io/open-webui/pipelines:main
+    container_name: magenta-pipelines
+    ports:
+      - "9099:9099"
+    environment:
+      PIPELINES_URL: http://localhost:9099
+      PIPELINES_API_KEY: "${OPENAI_API_KEY:-sk-magenta-pipeline}"
+      RUNTIME: "openai"
+    volumes:
+      - ./pipelines:/app/pipelines
+      - magenta-pipelines-data:/app/data
+    mem_limit: 128m
+    depends_on:
+      magenta-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9099/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - magenta-mvs
+    restart: unless-stopped
+
+  # ── 5. OTel Collector ────────────────────────────────────
+  # OpenTelemetry Collector for traces, metrics, logs.
+  magenta-otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: magenta-otel-collector
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      TZ: UTC
+    volumes:
+      - ./otel/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    command: ["--config", "/etc/otel-collector-config.yaml"]
+    mem_limit: 64m
+    healthcheck:
+      disable: true
+    networks:
+      - magenta-mvs
+    restart: unless-stopped
+
+  # ── 6. MCP Orchestrator (MCPO) ─────────────────────────
+  # MCP Proxy for tool calling via HTTP transport.
+  # Uses mcpo-config.mvs.json (HTTP, not stdio) to avoid Python module deps.
+  magenta-mcpo:
+    image: ghcr.io/open-webui/mcpo:latest
+    container_name: magenta-mcpo
+    command: ["--config", "/app/mcpo-config.json", "--port", "8001"]
+    ports:
+      - "8001:8001"
+    environment:
+      MCPO_PORT: 8001
+      LOG_LEVEL: info
+      MAGENTA_API_KEY: "${MAGENTA_API_KEY:-magenta-dev-api-key}"
+    volumes:
+      - ./mcpo-config.mvs.json:/app/mcpo-config.json:ro
+    mem_limit: 64m
+    depends_on:
+      magenta-redis:
+        condition: service_healthy
+      magenta-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/8001"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - magenta-mvs
+    restart: unless-stopped
+
+  # ── 7. Magenta API (Core) ──────────────────────────────────
+  # FastAPI REST API for missions, agents, approvals, MCP bridge.
+  # Required for pipeline HTTP calls to magenta-api:8000
+  magenta-api:
+    build:
+      context: ../..
+      dockerfile: soa/docker/Dockerfile.api
+    container_name: magenta-api
+    ports:
+      - "8000:8000"
+    environment:
+      MAGENTA_ENV: "dev"
+      MAGENTA_SQL__URL: "sqlite+aiosqlite:///data/magenta.db"
+      MAGENTA_REDIS_URL: "redis://magenta-redis:6379/0"
+      MAGENTA_REDIS_PERSISTENCE: "true"
+      MAGENTA_LOG_LEVEL: "INFO"
+      MAGENTA_CORS__ORIGINS: '["http://localhost:3000","http://localhost:8000"]'
+      MAGENTA_ENTRA_JWT__ENABLED: "false"
+      MAGENTA_MOCK_AUTH: "true"
+      MAGENTA_API_KEY: "${MAGENTA_API_KEY:-magenta-dev-api-key}"
+    volumes:
+      - magenta-sqlite-data:/app/data
+    mem_limit: 512m
+    depends_on:
+      magenta-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - magenta-mvs
+    restart: unless-stopped
+
+volumes:
+  magenta-redis-data:
+  magenta-ollama-data:
+  magenta-qdrant-data:
+  magenta-openwebui-data:
+  magenta-pipelines-data:
+  magenta-sqlite-data:
+
+networks:
+  magenta-mvs:
+    driver: bridge

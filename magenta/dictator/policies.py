@@ -1,6 +1,7 @@
 """Dictator orchestration policies — rules that govern how agents are deployed and missions run."""
 
-from typing import Any, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -58,7 +59,14 @@ DEFAULT_POLICIES = [
         rules={
             "teaming": "debate",
             "trigger": {"severity_min": 4, "severity_max": 4},
-            "probes": {"triage": True, "enrich": True, "contain": True, "investigate": True, "compliance": True, "report": True},
+            "probes": {
+                "triage": True,
+                "enrich": True,
+                "contain": True,
+                "investigate": True,
+                "compliance": True,
+                "report": True,
+            },
             "auto_approve": False,
         },
     ),
@@ -93,10 +101,17 @@ class PolicyEngine:
         self._policies = [p for p in self._policies if p.name != name]
         return len(self._policies) < before
 
-    def set_override(self, policy: OrchestrationPolicy) -> None:
+    async def set_override(self, policy: OrchestrationPolicy) -> None:
         self._overrides[policy.name] = policy
+        from magenta.dictator.state import dictator_state
 
-    def clear_overrides(self) -> None:
+        await dictator_state.set_policy(policy.name, policy.model_dump())
+
+    async def clear_overrides(self) -> None:
+        from magenta.dictator.state import dictator_state
+
+        for name in list(self._overrides.keys()):
+            await dictator_state.clear_policy(name)
         self._overrides.clear()
 
     def evaluate(self, mission) -> dict[str, Any]:

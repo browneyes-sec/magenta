@@ -1,0 +1,59 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+scrape_configs:
+  - job_name: magenta-otel-collector
+    honor_timestamps: true
+    scrape_interval: 15s
+    static_configs:
+      - targets:
+          - magenta-otel-collector:8889
+        labels:
+          service: magenta
+          component: telemetry
+
+  - job_name: magenta-api
+    honor_timestamps: true
+    scrape_interval: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - magenta-api:8000
+        labels:
+          service: magenta
+          component: api
+
+  - job_name: magenta-workflows
+    honor_timestamps: true
+    scrape_interval: 10s
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - magenta-api:8000
+        labels:
+          service: magenta
+          component: workflow-engine
+
+  - job_name: magenta-open-webui
+    honor_timestamps: true
+    scrape_interval: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - magenta-open-webui:8080
+        labels:
+          service: magenta
+          component: webui
+
+  - job_name: magenta-pipelines
+    honor_timestamps: true
+    scrape_interval: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - magenta-pipelines:9099
+        labels:
+          service: magenta
+          component: pipelines

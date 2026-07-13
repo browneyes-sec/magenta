@@ -1,0 +1,134 @@
+# Agent Orchestrator — Swarm Manager Runtime
+# Manages mission lifecycle: creation, agent assignment, progress tracking, escalation.
+# Consumes all MCP services through the MCP Bridge.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-orchestrator
+  namespace: magenta-agents
+  labels:
+    app: agent-orchestrator
+    role: orchestrator
+    agent: orchestrator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-orchestrator
+  template:
+    metadata:
+      labels:
+        app: agent-orchestrator
+        role: orchestrator
+        agent: orchestrator
+    spec:
+      serviceAccountName: agent-orchestrator-sa
+      containers:
+        - name: orchestrator
+          image: magenta/agent-orchestrator:0.1.0
+          ports:
+            - containerPort: 50061
+              name: grpc
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: ORCHESTRATOR__CONFIG_DIR
+              value: /app/config
+            - name: ORCHESTRATOR__BRIDGE_ENDPOINT
+              value: "mcp-bridge.magenta-soa:8080"
+            - name: ORCHESTRATOR__LOG_LEVEL
+              value: INFO
+            - name: ORCHESTRATOR__MISSION_TIMEOUT_SECONDS
+              value: "3600"
+          resources:
+            requests:
+              cpu: "1"
+              memory: "2Gi"
+            limits:
+              cpu: "4"
+              memory: "4Gi"
+          livenessProbe:
+            httpGet:
+              path: /mcp/orchestrator/health
+              port: 50061
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+            - name: state
+              mountPath: /app/state
+      volumes:
+        - name: config
+          configMap:
+            name: soa-config
+        - name: state
+          persistentVolumeClaim:
+            claimName: orchestrator-state-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-orchestrator
+  namespace: magenta-agents
+  labels:
+    app: agent-orchestrator
+    role: orchestrator
+spec:
+  ports:
+    - name: grpc
+      port: 50061
+      targetPort: 50061
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+  selector:
+    app: agent-orchestrator
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agent-orchestrator-sa
+  namespace: magenta-agents
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: orchestrator-state-pvc
+  namespace: magenta-agents
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: agent-orchestrator-role
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "endpoints"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: agent-orchestrator-rolebinding
+subjects:
+  - kind: ServiceAccount
+    name: agent-orchestrator-sa
+    namespace: magenta-agents
+roleRef:
+  kind: ClusterRole
+  name: agent-orchestrator-role
+  apiGroup: rbac.authorization.k8s.io

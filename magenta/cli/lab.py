@@ -1,16 +1,18 @@
 """Magenta lab CLI — Simulation, testing, model comparison, evaluation."""
 
-import typer
-from typing import Optional
-from datetime import datetime
 import json
+from datetime import datetime
 
-from magenta.core.models import (
-    Mission, MissionStatus, SeverityLevel, SourceSystem, AgentConfig
-)
+import typer
+
 from magenta.cli.utils import (
-    print_table, print_output, print_error, print_success, print_info, status_badge
+    print_error,
+    print_info,
+    print_output,
+    print_success,
+    print_table,
 )
+from magenta.core.models import MissionStatus, SeverityLevel
 
 lab_app = typer.Typer(
     name="lab",
@@ -54,9 +56,10 @@ def simulate(
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
     """Run a mission simulation."""
+    import asyncio
+
     from magenta.core.mission import mission_manager
     from magenta.core.swarm import swarm_manager
-    import asyncio
 
     # Load scenario
     if scenario in scenarios:
@@ -91,21 +94,24 @@ def simulate(
 
     print_success(f"Simulation complete: {mission.mission_id[:8]}")
 
-    print_output({
-        "mission_id": mission.mission_id[:8],
-        "scenario": config["name"],
-        "status": mission.status.value,
-        "severity": mission.severity.value,
-        "tasks": len(mission.tasks),
-        "team_size": len(mission.team),
-        "duration_simulated": f"{speed * 5}s",
-    }, format=format)
+    print_output(
+        {
+            "mission_id": mission.mission_id[:8],
+            "scenario": config["name"],
+            "status": mission.status.value,
+            "severity": mission.severity.value,
+            "tasks": len(mission.tasks),
+            "team_size": len(mission.team),
+            "duration_simulated": f"{speed * 5}s",
+        },
+        format=format,
+    )
 
 
 @lab_app.command()
 def test(
     agent_role: str = typer.Argument(..., help="Agent role to test"),
-    prompt: Optional[str] = typer.Option(None, "--prompt", help="Test prompt"),
+    prompt: str | None = typer.Option(None, "--prompt", help="Test prompt"),
     interactive: bool = typer.Option(False, "--interactive", help="Interactive REPL mode"),
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
@@ -117,20 +123,23 @@ def test(
         print_info("Interactive mode (stub — REPL pending)")
         return
 
-    print_output({
-        "agent": agent_role,
-        "status": "completed",
-        "turns": 1,
-        "response": f"[Simulated response from {agent_role} agent]",
-        "latency_ms": 2400,
-    }, format=format)
+    print_output(
+        {
+            "agent": agent_role,
+            "status": "completed",
+            "turns": 1,
+            "response": f"[Simulated response from {agent_role} agent]",
+            "latency_ms": 2400,
+        },
+        format=format,
+    )
 
 
 @lab_app.command()
 def compare(
     model_a: str = typer.Argument(..., help="First model (e.g. ollama/qwen2.5:7b)"),
     model_b: str = typer.Argument(..., help="Second model (e.g. ollama/mistral:7b)"),
-    suite: Optional[str] = typer.Option(None, "--suite", help="Test suite to run"),
+    suite: str | None = typer.Option(None, "--suite", help="Test suite to run"),
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
     """Compare two models on a test suite."""
@@ -152,7 +161,7 @@ def compare(
 @lab_app.command()
 def evaluate(
     suite: str = typer.Argument(..., help="Test suite path or name"),
-    output: Optional[str] = typer.Option(None, "--output", help="Output results to file"),
+    output: str | None = typer.Option(None, "--output", help="Output results to file"),
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
     """Run a full evaluation benchmark."""

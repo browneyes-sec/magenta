@@ -1,0 +1,156 @@
+# Magenta ASOAR — Core Services Compose
+# Adds API, Worker, Scheduler, and Agent-Ops to MVS stack.
+#
+# Start:   docker compose -f soa/docker/docker-compose.mvs.yml -f soa/docker/docker-compose.core.yml up -d
+# Stop:    docker compose -f soa/docker/docker-compose.mvs.yml -f soa/docker/docker-compose.core.yml down
+#
+# Exposed ports:
+#   8000  - Magenta API (FastAPI REST)
+#   50060 - Agent Ops MCP (gRPC)
+#   50061 - Agent Orchestrator MCP (gRPC)
+#
+# Total memory: ~576 MB additional on top of MVS (~1 GB).
+
+# This file is designed to be used with docker-compose.mvs.yml as the base.
+# It inherits the magenta-mvs network and depends on MVS services.
+
+services:
+
+  # ── 1. Magenta API ──────────────────────────────────────
+  # FastAPI REST API for missions, agents, playbooks, approvals.
+  # Entry point for external integrations and the web control plane.
+  magenta-api:
+    build:
+      context: ../..
+      dockerfile: soa/docker/Dockerfile.api
+    container_name: magenta-api
+    ports:
+      - "8000:8000"
+    environment:
+      MAGENTA_ENV: "dev"
+      MAGENTA_SQL__URL: "sqlite+aiosqlite:///data/magenta.db"
+      MAGENTA_REDIS_URL: "redis://magenta-redis:6379/0"
+      MAGENTA_REDIS_PERSISTENCE: "true"
+      MAGENTA_LOG_LEVEL: "INFO"
+      MAGENTA_CORS__ORIGINS: '["http://localhost:3000","http://localhost:8000"]'
+      MAGENTA_ENTRA_JWT__ENABLED: "false"
+      MAGENTA_MOCK_AUTH: "true"
+    volumes:
+      - magenta-sqlite-data:/app/data
+    mem_limit: 512m
+    depends_on:
+      magenta-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - magenta-mvs
+    restart: unless-stopped
+
+  # ── 2. Magenta Worker ────────────────────────────────────
+  # Background task processor: mission execution, approval gate, outbox.
+  # Polls for pending work and processes via DAG executor.
+  magenta-worker:
+    build:
+      context: ../..
+      dockerfile: soa/docker/Dockerfile.worker
+    container_name: magenta-worker
+    environment:
+      MAGENTA_ENV: "dev"
+      MAGENTA_SQL__URL: "sqlite+aiosqlite:///data/magenta.db"
+      MAGENTA_REDIS_URL: "redis://magenta-redis:6379/0"
+      MAGENTA_REDIS_PERSISTENCE: "true"
+      MAGENTA_LOG_LEVEL: "INFO"
+      MAGENTA_WORKER__CONCURRENCY: "2"
+      MAGENTA_API_KEY: "${MAGENTA_API_KEY:-magenta-dev-api-key}"
+    volumes:
+      - magenta-sqlite-data:/app/data
+    mem_limit: 256m
+    depends_on:
+      magenta-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import magenta.worker; print('OK')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - magenta-mvs
+    restart: unless-stopped
+
+  # ── 3. Magenta Scheduler ─────────────────────────────────
+  # Cron scheduler for recurring playbook execution, collector polling,
+  # and maintenance tasks (cleanup, outbox retries).
+  magenta-scheduler:
+    build:
+      context: ../..
+      dockerfile: soa/docker/Dockerfile.scheduler
+    container_name: magenta-scheduler
+    environment:
+      MAGENTA_ENV: "dev"
+      MAGENTA_SQL__URL: "sqlite+aiosqlite:///data/magenta.db"
+      MAGENTA_REDIS_URL: "redis://magenta-redis:6379/0"
+      MAGENTA_REDIS_PERSISTENCE: "true"
+      MAGENTA_LOG_LEVEL: "INFO"
+      MAGENTA_API_KEY: "${MAGENTA_API_KEY:-magenta-dev-api-key}"
+    volumes:
+      - magenta-sqlite-data:/app/data
+    mem_limit: 64m
+    depends_on:
+      magenta-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import magenta.scheduler; print('OK')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - magenta-mvs
+    restart: unless-stopped
+
+  # ── 4. Agent Ops MCP ─────────────────────────────────────
+  # Agent orchestration MCP server on port 50060.
+  # Provides gRPC tools for agent deployment, recall, mission management.
+  magenta-agent-ops:
+    build:
+      context: ../..
+      dockerfile: soa/docker/Dockerfile.agent-ops
+    container_name: magenta-agent-ops
+    ports:
+      - "50060:50060"
+    environment:
+      MAGENTA_ENV: "dev"
+      MAGENTA_SQL__URL: "sqlite+aiosqlite:///data/magenta.db"
+      MAGENTA_REDIS_URL: "redis://magenta-redis:6379/0"
+      MAGENTA_REDIS_PERSISTENCE: "true"
+      MAGENTA_LOG_LEVEL: "INFO"
+      MAGENTA_MOCK_AUTH: "true"
+      MAGENTA_API_KEY: "${MAGENTA_API_KEY:-magenta-dev-api-key}"
+    volumes:
+      - magenta-sqlite-data:/app/data
+    mem_limit: 128m
+    depends_on:
+      magenta-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import magenta.agent_ops; print('OK')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - magenta-mvs
+    restart: unless-stopped
+
+volumes:
+  magenta-sqlite-data:
+
+networks:
+  magenta-mvs:
+    external: true

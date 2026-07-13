@@ -1,0 +1,64 @@
+{
+  "run_id": "chaos-16_06_26-001",
+  "started_at": "2026-06-16T20:19:48.559348",
+  "completed_at": "2026-06-16T20:19:49.872159",
+  "duration_seconds": 1.312811,
+  "intensity": 1,
+  "stealth": false,
+  "verdict": "skip",
+  "scenarios_run": 1,
+  "scenarios_passed": 0,
+  "scenarios_failed": 0,
+  "scenarios_skipped": 1,
+  "baseline_probes": [
+    {
+      "probe": "dictator",
+      "healthy": false,
+      "status": "error",
+      "error": "No module named 'typer'"
+    },
+    {
+      "probe": "pipeline",
+      "healthy": false,
+      "status": "error",
+      "error": "No module named 'typer'"
+    },
+    {
+      "probe": "registry",
+      "healthy": false,
+      "status": "error",
+      "error": "No module named 'typer'"
+    }
+  ],
+  "post_probes": [
+    {
+      "probe": "dictator",
+      "healthy": false,
+      "status": "error",
+      "error": "No module named 'typer'"
+    },
+    {
+      "probe": "pipeline",
+      "healthy": false,
+      "status": "error",
+      "error": "No module named 'typer'"
+    },
+    {
+      "probe": "registry",
+      "healthy": false,
+      "status": "error",
+      "error": "No module named 'typer'"
+    }
+  ],
+  "regression": null,
+  "results": [
+    {
+      "scenario": "agent_failure",
+      "status": "skipped",
+      "reason": "No agents registered in registry",
+      "injection_details": {},
+      "recovery_time_seconds": 0.0,
+      "recommendations": {}
+    }
+  ]
+}

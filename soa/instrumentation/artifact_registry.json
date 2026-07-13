@@ -1,0 +1,106 @@
+{
+  "version": "1.0",
+  "artifacts": {
+    "mission_throughput": {
+      "name": "Mission Throughput",
+      "description": "Summary of active/completed missions and directive count",
+      "generator": "magenta_artifact_generator_pipeline",
+      "version": "1.0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "active_missions": {"type": "integer"},
+          "completed_missions": {"type": "integer"},
+          "total_directives": {"type": "integer"}
+        }
+      }
+    },
+    "threat_analytics": {
+      "name": "Threat Analytics",
+      "description": "Alert volume by severity from Sentinel/Defender",
+      "generator": "magenta_artifact_generator_pipeline",
+      "version": "1.0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "critical": {"type": "integer"},
+          "high": {"type": "integer"},
+          "medium": {"type": "integer"},
+          "low": {"type": "integer"}
+        }
+      }
+    },
+    "blue_team_ops": {
+      "name": "Blue Team Ops",
+      "description": "Containment actions taken (isolations, account disablements)",
+      "generator": "magenta_artifact_generator_pipeline",
+      "version": "1.0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "hosts_isolated": {"type": "integer"},
+          "accounts_disabled": {"type": "integer"},
+          "recent_actions": {"type": "array"}
+        }
+      }
+    },
+    "directive_timeline": {
+      "name": "Directive Timeline",
+      "description": "Recent Dictator directives in table format",
+      "generator": "magenta_artifact_generator_pipeline",
+      "version": "1.0",
+      "schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "type": {"type": "string"},
+            "target": {"type": "string"},
+            "reason": {"type": "string"},
+            "priority": {"type": "string"}
+          }
+        }
+      }
+    },
+    "policy_status": {
+      "name": "Policy Status",
+      "description": "Active orchestration policies and overrides",
+      "generator": "magenta_artifact_generator_pipeline",
+      "version": "1.0",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "policies": {"type": "array"},
+          "overrides": {"type": "array"}
+        }
+      }
+    },
+    "dead_letter": {
+      "name": "Dead Letter Queue",
+      "description": "Failed directives requiring review",
+      "generator": "magenta_artifact_generator_pipeline",
+      "version": "1.0",
+      "schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "type": {"type": "string"},
+            "target": {"type": "string"},
+            "reason": {"type": "string"}
+          }
+        }
+      }
+    }
+  },
+  "changelog": [
+    {
+      "version": "1.0",
+      "date": "2026-06-14",
+      "changes": [
+        "Initial artifact registry for all 6 artifact types",
+        "Schema definitions for each artifact"
+      ]
+    }
+  ]
+}

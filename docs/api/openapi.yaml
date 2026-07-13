@@ -1,0 +1,967 @@
+openapi: 3.1.0
+info:
+  title: Magenta ASOAR API
+  description: |
+    Agentic System Orchestration Automation and Response — REST API.
+
+    Provides endpoints for agent management, mission orchestration,
+    log ingestion, data mesh queries, memory operations, and system health.
+  version: 0.1.0
+  contact:
+    name: Magenta SOC Team
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: https://magenta-api.magenta-soa.svc.cluster.local
+    description: Kubernetes cluster
+
+tags:
+  - name: Agents
+    description: Agent registration and lifecycle
+  - name: Missions
+    description: Mission creation and execution
+  - name: Playbooks
+    description: Playbook registration and validation
+  - name: Health
+    description: System health checks
+  - name: Search
+    description: Cross-registry search
+  - name: Dictator
+    description: Orchestration governance and oversight
+  - name: Approvals
+    description: Human approval gating
+  - name: Monitoring
+    description: Probes and telemetry
+  - name: Instrumentation
+    description: Version manifest and artifacts
+  - name: Ingest
+    description: Log and event ingestion (HMAC auth)
+  - name: Data Mesh
+    description: Vectorized data mesh gateway
+  - name: Memory
+    description: Agent memory operations (episodic, semantic, procedural)
+
+paths:
+  /:
+    get:
+      tags: [Health]
+      summary: Service root
+      operationId: root
+      responses:
+        "200":
+          description: Service info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service:
+                    type: string
+                  version:
+                    type: string
+                  docs:
+                    type: string
+                  health:
+                    type: string
+
+  /api/v1/health:
+    get:
+      tags: [Health]
+      summary: Full system health
+      operationId: healthCheck
+      responses:
+        "200":
+          description: System health status
+
+  /api/v1/health/agents:
+    get:
+      tags: [Health]
+      summary: Agent health status
+      operationId: agentHealth
+      responses:
+        "200":
+          description: Agent health with per-role counts
+
+  /api/v1/health/models:
+    get:
+      tags: [Health]
+      summary: Model health status
+      operationId: modelHealth
+      responses:
+        "200":
+          description: Model provider health
+
+  /api/v1/agents:
+    get:
+      tags: [Agents]
+      summary: List all agents
+      operationId: listAgents
+      responses:
+        "200":
+          description: List of registered agents
+
+  /api/v1/agents/{agent_id}:
+    get:
+      tags: [Agents]
+      summary: Get agent by ID
+      operationId: getAgent
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent details
+        "404":
+          description: Agent not found
+
+  /api/v1/agents/roles/{role}:
+    get:
+      tags: [Agents]
+      summary: Get agents by role
+      operationId: getAgentsByRole
+      parameters:
+        - name: role
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agents matching role
+
+  /api/v1/agents/register:
+    post:
+      tags: [Agents]
+      summary: Register a new agent
+      operationId: registerAgent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentConfig"
+      responses:
+        "201":
+          description: Agent registered
+
+  /api/v1/missions:
+    get:
+      tags: [Missions]
+      summary: List missions
+      operationId: listMissions
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Mission list
+
+    post:
+      tags: [Missions]
+      summary: Create a mission
+      operationId: createMission
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alert_id, source, description]
+              properties:
+                alert_id:
+                  type: string
+                source:
+                  type: string
+                description:
+                  type: string
+      responses:
+        "201":
+          description: Mission created
+
+  /api/v1/missions/{mission_id}:
+    get:
+      tags: [Missions]
+      summary: Get mission details
+      operationId: getMission
+      parameters:
+        - name: mission_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Mission details
+
+  /api/v1/missions/{mission_id}/start:
+    post:
+      tags: [Missions]
+      summary: Start mission execution
+      operationId: startMission
+      parameters:
+        - name: mission_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Mission started
+
+  /api/v1/missions/{mission_id}/stop:
+    post:
+      tags: [Missions]
+      summary: Stop mission execution
+      operationId: stopMission
+      parameters:
+        - name: mission_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Mission stopped
+
+  /api/v1/missions/{mission_id}/logs:
+    get:
+      tags: [Missions]
+      summary: Get mission logs
+      operationId: getMissionLogs
+      parameters:
+        - name: mission_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tail
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        "200":
+          description: Mission log lines
+
+  /api/v1/playbooks:
+    get:
+      tags: [Playbooks]
+      summary: List playbooks
+      operationId: listPlaybooks
+      parameters:
+        - name: tag
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Playbook list
+
+    post:
+      tags: [Playbooks]
+      summary: Register a playbook
+      operationId: registerPlaybook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Playbook registered
+
+  /api/v1/playbooks/{name}:
+    get:
+      tags: [Playbooks]
+      summary: Get playbook details
+      operationId: getPlaybook
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Playbook details
+
+  /api/v1/playbooks/validate:
+    post:
+      tags: [Playbooks]
+      summary: Validate a playbook
+      operationId: validatePlaybook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Validation result
+
+  /api/v1/search:
+    get:
+      tags: [Search]
+      summary: Search across registries
+      operationId: search
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: index
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Search results
+
+  /api/v1/search/activity:
+    get:
+      tags: [Search]
+      summary: Search automation activity
+      operationId: searchActivity
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Activity search results
+
+  /api/v1/dictator/status:
+    get:
+      tags: [Dictator]
+      summary: Dictator status
+      operationId: dictatorStatus
+      responses:
+        "200":
+          description: Dictator and framework status
+
+  /api/v1/dictator/oversight:
+    get:
+      tags: [Dictator]
+      summary: Full oversight board
+      operationId: oversightBoard
+      responses:
+        "200":
+          description: Oversight details
+
+  /api/v1/dictator/directives:
+    get:
+      tags: [Dictator]
+      summary: Directive log
+      operationId: listDirectives
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Directive log entries
+
+    post:
+      tags: [Dictator]
+      summary: Issue a directive
+      operationId: issueDirective
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Directive issued
+
+  /api/v1/dictator/halt/{mission_id}:
+    post:
+      tags: [Dictator]
+      summary: Halt a mission
+      operationId: haltMission
+      parameters:
+        - name: mission_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Mission halted
+
+  /api/v1/dictator/escalate/{mission_id}:
+    post:
+      tags: [Dictator]
+      summary: Escalate to humans
+      operationId: escalateMission
+      parameters:
+        - name: mission_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Mission escalated
+
+  /api/v1/dictator/deploy/{role}:
+    post:
+      tags: [Dictator]
+      summary: Deploy agent by role
+      operationId: deployAgent
+      parameters:
+        - name: role
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: Agent deployed
+
+  /api/v1/dictator/agents/{agent_id}:
+    delete:
+      tags: [Dictator]
+      summary: Recall an agent
+      operationId: recallAgent
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent recalled
+
+  /api/v1/dictator/policies:
+    get:
+      tags: [Dictator]
+      summary: List orchestration policies
+      operationId: listPolicies
+      responses:
+        "200":
+          description: Policy list
+
+  /api/v1/dictator/policies/override:
+    post:
+      tags: [Dictator]
+      summary: Apply policy override
+      operationId: overridePolicy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Override applied
+
+  /api/v1/dictator/policies/overrides:
+    delete:
+      tags: [Dictator]
+      summary: Clear all overrides
+      operationId: clearOverrides
+      responses:
+        "200":
+          description: Overrides cleared
+
+  /api/v1/dictator/framework:
+    get:
+      tags: [Dictator]
+      summary: Framework status
+      operationId: frameworkStatus
+      responses:
+        "200":
+          description: Comprehensive framework status
+
+  /api/v1/approvals/pending:
+    get:
+      tags: [Approvals]
+      summary: List pending approvals
+      operationId: listPendingApprovals
+      responses:
+        "200":
+          description: Pending approval list
+
+  /api/v1/approvals/{approval_id}:
+    get:
+      tags: [Approvals]
+      summary: Get approval details
+      operationId: getApproval
+      parameters:
+        - name: approval_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Approval details
+
+  /api/v1/approvals/{approval_id}/respond:
+    post:
+      tags: [Approvals]
+      summary: Respond to approval
+      operationId: respondToApproval
+      parameters:
+        - name: approval_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [approve, deny]
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Approval responded
+
+  /api/v1/monitoring/probes:
+    get:
+      tags: [Monitoring]
+      summary: Run probes
+      operationId: runProbes
+      responses:
+        "200":
+          description: Probe results
+
+  /api/v1/monitoring/directives/rate:
+    get:
+      tags: [Monitoring]
+      summary: Directive issuance rate
+      operationId: directiveRate
+      responses:
+        "200":
+          description: Directive rate over time
+
+  /api/v1/monitoring/approvals/pending/count:
+    get:
+      tags: [Monitoring]
+      summary: Pending approval count
+      operationId: pendingApprovalCount
+      responses:
+        "200":
+          description: Count of pending approvals
+
+  /api/v1/instrumentation/version:
+    get:
+      tags: [Instrumentation]
+      summary: Version manifest
+      operationId: versionManifest
+      responses:
+        "200":
+          description: Integration layer version
+
+  /api/v1/instrumentation/artifacts:
+    get:
+      tags: [Instrumentation]
+      summary: List artifacts
+      operationId: listArtifacts
+      responses:
+        "200":
+          description: Artifact list
+
+  /api/v1/instrumentation/artifacts/{artifact_name}:
+    get:
+      tags: [Instrumentation]
+      summary: Get artifact details
+      operationId: getArtifact
+      parameters:
+        - name: artifact_name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Artifact details
+
+  /ingest/v1/logs:
+    post:
+      tags: [Ingest]
+      summary: Ingest a structured log event
+      operationId: ingestLog
+      security:
+        - hmacAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogEvent"
+      responses:
+        "200":
+          description: Log ingested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestResponse"
+        "401":
+          description: HMAC auth failed
+        "502":
+          description: Event Hubs publish failed
+
+  /ingest/v1/events:
+    post:
+      tags: [Ingest]
+      summary: Ingest a raw event (syslog/CEF/JSON)
+      operationId: ingestRawEvent
+      security:
+        - hmacAuth: []
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: Raw event ingested
+
+  /ingest/v1/health:
+    get:
+      tags: [Ingest]
+      summary: Ingest endpoint health
+      operationId: ingestHealth
+      responses:
+        "200":
+          description: Ingest health
+
+  /api/v1/mesh/health:
+    get:
+      tags: [Data Mesh]
+      summary: Mesh component health
+      operationId: meshHealth
+      responses:
+        "200":
+          description: Qdrant, OLLAMA, Redis health
+
+  /api/v1/mesh/products:
+    get:
+      tags: [Data Mesh]
+      summary: List data products
+      operationId: meshListProducts
+      responses:
+        "200":
+          description: Data product catalog
+
+  /api/v1/mesh/query:
+    post:
+      tags: [Data Mesh]
+      summary: Hybrid search across data products
+      operationId: meshQuery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                products:
+                  type: array
+                  items:
+                    type: string
+                filters:
+                  type: object
+                top_k:
+                  type: integer
+                  default: 10
+                hybrid:
+                  type: boolean
+                  default: true
+      responses:
+        "200":
+          description: Search results with federation metadata
+
+  /api/v1/mesh/ingest:
+    post:
+      tags: [Data Mesh]
+      summary: Ingest documents into a data product
+      operationId: meshIngest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [product, documents]
+              properties:
+                product:
+                  type: string
+                documents:
+                  type: array
+                  items:
+                    type: object
+                batch_size:
+                  type: integer
+                  default: 32
+      responses:
+        "200":
+          description: Ingest result
+
+  /api/v1/mesh/memory/write-episode:
+    post:
+      tags: [Memory]
+      summary: Write episodic memory
+      operationId: writeEpisode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agent_role, mission_id, turn_number, text]
+              properties:
+                agent_role:
+                  type: string
+                mission_id:
+                  type: string
+                turn_number:
+                  type: integer
+                text:
+                  type: string
+                correlation_id:
+                  type: string
+                metadata:
+                  type: object
+      responses:
+        "200":
+          description: Episode written
+
+  /api/v1/mesh/memory/search-episodes:
+    post:
+      tags: [Memory]
+      summary: Search episodic memory
+      operationId: searchEpisodes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                agent_role:
+                  type: string
+                mission_id:
+                  type: string
+                top_k:
+                  type: integer
+                  default: 5
+      responses:
+        "200":
+          description: Episodic memory results
+
+  /api/v1/mesh/memory/write-semantic:
+    post:
+      tags: [Memory]
+      summary: Write semantic memory
+      operationId: writeSemantic
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+                product:
+                  type: string
+                  default: agent.memory.semantic
+                source:
+                  type: string
+                  default: agent
+                tags:
+                  type: array
+                  items:
+                    type: string
+                metadata:
+                  type: object
+      responses:
+        "200":
+          description: Semantic memory written
+
+  /api/v1/mesh/memory/search-semantic:
+    post:
+      tags: [Memory]
+      summary: Search semantic memory
+      operationId: searchSemantic
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                product:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                top_k:
+                  type: integer
+                  default: 5
+      responses:
+        "200":
+          description: Semantic memory results
+
+  /api/v1/mesh/memory/write-procedure:
+    post:
+      tags: [Memory]
+      summary: Write procedural memory
+      operationId: writeProcedure
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tool_name, text]
+              properties:
+                tool_name:
+                  type: string
+                text:
+                  type: string
+                parameters:
+                  type: object
+                mission_id:
+                  type: string
+                metadata:
+                  type: object
+      responses:
+        "200":
+          description: Procedural memory written
+
+  /api/v1/mesh/memory/search-procedures:
+    post:
+      tags: [Memory]
+      summary: Search procedural memory
+      operationId: searchProcedures
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                tool_name:
+                  type: string
+                top_k:
+                  type: integer
+                  default: 5
+      responses:
+        "200":
+          description: Procedural memory results
+
+components:
+  securitySchemes:
+    hmacAuth:
+      type: apiKey
+      in: header
+      name: X-Magenta-Signature
+      description: HMAC-SHA256 signature
+
+  schemas:
+    AgentConfig:
+      type: object
+      required: [role, model_provider, model_name]
+      properties:
+        role:
+          type: string
+          description: Agent role (triage, enrichment, orchestrator, etc.)
+        model_provider:
+          type: string
+        model_name:
+          type: string
+        tools:
+          type: array
+          items:
+            type: string
+        instructions:
+          type: string
+
+    LogEvent:
+      type: object
+      required: [timestamp, source_system, payload]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        source_system:
+          type: string
+          pattern: "^(windows_event|linux_syslog|cloud\\.\\w+|customer\\.\\w+)$"
+        source_host:
+          type: string
+        event_id:
+          type: string
+        severity:
+          type: string
+          enum: [critical, high, medium, low, informational]
+        category:
+          type: string
+        payload:
+          type: object
+        tags:
+          type: array
+          items:
+            type: string
+
+    IngestResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [accepted, skipped]
+        event_id:
+          type: string
+        topic:
+          type: string
+        size_bytes:
+          type: integer
+        idempotent:
+          type: boolean

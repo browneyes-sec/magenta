@@ -1,0 +1,67 @@
+# Default Deny NetworkPolicy
+# Denies all ingress and egress traffic by default.
+# Allow specific rules are added per namespace as needed.
+#
+# Usage: kubectl apply -f soa/kubernetes/base/network/default-deny.yaml
+#
+# See ADR-009 for network architecture details.
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: magenta-agents
+  labels:
+    app.kubernetes.io/name: network-policy
+    app.kubernetes.io/component: default-deny
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: magenta-soa
+  labels:
+    app.kubernetes.io/name: network-policy
+    app.kubernetes.io/component: default-deny
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: magenta-mesh
+  labels:
+    app.kubernetes.io/name: network-policy
+    app.kubernetes.io/component: default-deny
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: magenta-finops
+  labels:
+    app.kubernetes.io/name: network-policy
+    app.kubernetes.io/component: default-deny
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress

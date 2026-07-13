@@ -1,0 +1,78 @@
+# Magenta Worker — Background task processor for missions, approvals, outbox
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: magenta-worker
+  namespace: magenta-soa
+  labels:
+    app: magenta-worker
+    role: worker
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: magenta-worker
+  template:
+    metadata:
+      labels:
+        app: magenta-worker
+        role: worker
+    spec:
+      serviceAccountName: magenta-worker-sa
+      containers:
+        - name: worker
+          image: magenta/worker:0.1.0
+          ports:
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: MAGENTA_ENV
+              value: "staging"
+            - name: MAGENTA_SQL__URL
+              valueFrom:
+                secretKeyRef:
+                  name: magenta-secrets
+                  key: sql-url
+            - name: MAGENTA_ELASTIC__HOSTS
+              value: "http://magenta-elasticsearch:9200"
+            - name: MAGENTA_REDIS_URL
+              value: "redis://magenta-redis:6379/0"
+            - name: MAGENTA_EVENTHUB__CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: magenta-secrets
+                  key: eventhub-connection-string
+            - name: MAGENTA_AZURE_AUTH__USE_DEFAULT_CREDENTIAL
+              value: "true"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "import magenta.orchestration.dag_executor; print('OK')"]
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            exec:
+              command: ["python", "-c", "import magenta.response.executor; print('OK')"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+      volumes:
+        - name: config
+          configMap:
+            name: soa-config
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: magenta-worker-sa
+  namespace: magenta-soa
+  annotations:
+    azure.workload.identity/client-id: "${MAGENTA_WORKER_CLIENT_ID}"

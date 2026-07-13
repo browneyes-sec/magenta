@@ -1,16 +1,21 @@
 """Magenta orchestrate CLI — Mission lifecycle management."""
 
-import typer
-from typing import Optional
 from datetime import datetime
 
-from magenta.core.mission import mission_manager
-from magenta.core.swarm import swarm_manager
-from magenta.core.playbook import playbook_manager
-from magenta.core.models import MissionStatus
+import typer
+
 from magenta.cli.utils import (
-    print_table, print_output, print_error, print_success, print_info, status_badge
+    print_error,
+    print_info,
+    print_json,
+    print_output,
+    print_success,
+    print_table,
+    status_badge,
 )
+from magenta.core.mission import mission_manager
+from magenta.core.playbook import playbook_manager
+from magenta.core.swarm import swarm_manager
 
 orchestrate_app = typer.Typer(
     name="orchestrate",
@@ -22,8 +27,10 @@ orchestrate_app = typer.Typer(
 @orchestrate_app.command()
 def start(
     playbook: str = typer.Argument(..., help="Playbook file path or incident ID"),
-    params: Optional[str] = typer.Option(None, "--params", help="JSON mission parameters"),
-    from_incident: bool = typer.Option(False, "--from-incident", help="Treat argument as incident ID"),
+    params: str | None = typer.Option(None, "--params", help="JSON mission parameters"),
+    from_incident: bool = typer.Option(
+        False, "--from-incident", help="Treat argument as incident ID"
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Validate without executing"),
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
@@ -57,16 +64,20 @@ def start(
             return
 
         import asyncio
+
         asyncio.run(swarm_manager.execute_mission(mission.mission_id))
 
         print_success(f"Mission started: {mission.mission_id}")
-        print_output({
-            "mission_id": mission.mission_id,
-            "status": mission.status.value,
-            "tasks": len(mission.tasks),
-            "agents": len(mission.team),
-            "created_at": mission.created_at.isoformat(),
-        }, format=format)
+        print_output(
+            {
+                "mission_id": mission.mission_id,
+                "status": mission.status.value,
+                "tasks": len(mission.tasks),
+                "agents": len(mission.team),
+                "created_at": mission.created_at.isoformat(),
+            },
+            format=format,
+        )
 
     except Exception as e:
         print_error(str(e))
@@ -81,6 +92,7 @@ def stop(
     """Stop a running mission."""
     try:
         import asyncio
+
         asyncio.run(swarm_manager.cancel_mission(mission_id))
         print_success(f"Mission {mission_id} stopped")
     except Exception as e:
@@ -118,9 +130,13 @@ def status(
             print_table(
                 ["Task ID", "Type", "Role", "Agent", "Status"],
                 [
-                    [a["task_id"][:16], a["task_type"], a["role"],
-                     a["agent_id"][:16] if a["agent_id"] else "unassigned",
-                     status_badge(a["status"])]
+                    [
+                        a["task_id"][:16],
+                        a["task_type"],
+                        a["role"],
+                        a["agent_id"][:16] if a["agent_id"] else "unassigned",
+                        status_badge(a["status"]),
+                    ]
                     for a in agents
                 ],
                 title="Agent Assignments",
@@ -133,7 +149,9 @@ def status(
 
 @orchestrate_app.command()
 def list_(
-    status_filter: Optional[str] = typer.Option(None, "--status", help="Filter: active/completed/failed/all"),
+    status_filter: str | None = typer.Option(
+        None, "--status", help="Filter: active/completed/failed/all"
+    ),
     limit: int = typer.Option(50, "--limit", help="Max results"),
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
@@ -164,17 +182,29 @@ def list_(
 @orchestrate_app.command()
 def logs(
     mission_id: str = typer.Argument(..., help="Mission ID"),
-    tail: Optional[int] = typer.Option(None, "--tail", help="Show last N lines"),
-    level: Optional[str] = typer.Option(None, "--level", help="Filter: DEBUG/INFO/WARN/ERROR"),
+    tail: int | None = typer.Option(None, "--tail", help="Show last N lines"),
+    level: str | None = typer.Option(None, "--level", help="Filter: DEBUG/INFO/WARN/ERROR"),
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
     """View mission execution logs."""
     mission = mission_manager.get(mission_id)
     print_info(f"Logs for mission {mission_id[:8]} (stub — registry integration pending)")
-    print_output([
-        {"timestamp": datetime.utcnow().isoformat(), "level": "INFO", "message": "Mission created"},
-        {"timestamp": mission.created_at.isoformat(), "level": "INFO", "message": f"Status: {mission.status.value}"},
-    ], format=format, columns=["Timestamp", "Level", "Message"])
+    print_output(
+        [
+            {
+                "timestamp": datetime.utcnow().isoformat(),
+                "level": "INFO",
+                "message": "Mission created",
+            },
+            {
+                "timestamp": mission.created_at.isoformat(),
+                "level": "INFO",
+                "message": f"Status: {mission.status.value}",
+            },
+        ],
+        format=format,
+        columns=["Timestamp", "Level", "Message"],
+    )
 
 
 # Alias for list since 'list' is a reserved word

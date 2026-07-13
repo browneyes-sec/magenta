@@ -10,10 +10,11 @@ Usage:
 
 from __future__ import annotations
 
-from typing import Any, Callable, Awaitable, Optional
-from datetime import datetime, timedelta
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
+from datetime import datetime
+from typing import Any
 
 from magenta.exceptions import IntegrationError
 
@@ -47,7 +48,7 @@ class CircuitBreaker:
 
         self._state: str = "CLOSED"
         self._failure_count: int = 0
-        self._last_failure_time: Optional[datetime] = None
+        self._last_failure_time: datetime | None = None
         self._half_open_calls: int = 0
         self._lock = asyncio.Lock()
 
@@ -60,16 +61,13 @@ class CircuitBreaker:
                 self._state = "HALF_OPEN"
                 self._half_open_calls = 0
                 logger.info(
-                    "CircuitBreaker[%s]: OPEN → HALF_OPEN "
-                    "(reset_timeout=%.1fs elapsed)",
+                    "CircuitBreaker[%s]: OPEN → HALF_OPEN (reset_timeout=%.1fs elapsed)",
                     self.name,
                     elapsed,
                 )
         return self._state
 
-    async def call(
-        self, fn: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any
-    ) -> Any:
+    async def call(self, fn: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any) -> Any:
         """
         Execute an async function through the circuit breaker.
 
@@ -105,7 +103,7 @@ class CircuitBreaker:
         # Execute outside the lock to avoid holding it during the call
         try:
             result = await fn(*args, **kwargs)
-        except Exception as e:
+        except Exception:
             await self._record_failure()
             raise
 
@@ -138,8 +136,7 @@ class CircuitBreaker:
             elif self._failure_count >= self.failure_threshold:
                 self._state = "OPEN"
                 logger.warning(
-                    "CircuitBreaker[%s]: CLOSED → OPEN "
-                    "(%d consecutive failures, threshold=%d)",
+                    "CircuitBreaker[%s]: CLOSED → OPEN (%d consecutive failures, threshold=%d)",
                     self.name,
                     self._failure_count,
                     self.failure_threshold,
@@ -161,6 +158,8 @@ class CircuitBreaker:
             "state": self._state,
             "failure_count": self._failure_count,
             "failure_threshold": self.failure_threshold,
-            "last_failure_time": self._last_failure_time.isoformat() if self._last_failure_time else None,
+            "last_failure_time": self._last_failure_time.isoformat()
+            if self._last_failure_time
+            else None,
             "reset_timeout": self.reset_timeout,
         }

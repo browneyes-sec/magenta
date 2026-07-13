@@ -1,0 +1,30 @@
+name: 'Setup Infracost'
+description: 'Install and configure Infracost for Terraform cost estimation'
+inputs:
+  infracost_version:
+    description: 'Infracost version'
+    required: false
+    default: '0.10.39'
+  api_key:
+    description: 'Infracost API key (optional — free tier works without it)'
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Download Infracost
+      run: |
+        curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh
+      shell: bash
+      env:
+        INFRACOST_VERSION: ${{ inputs.infracost_version }}
+
+    - name: Configure API Key
+      if: inputs.api_key != ''
+      run: |
+        infracost configure set api_key ${{ inputs.api_key }}
+      shell: bash
+
+    - name: Verify
+      run: infracost --version
+      shell: bash

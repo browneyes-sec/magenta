@@ -1,0 +1,20 @@
+{
+  "magenta_dictator_langchain_pipeline": {
+    "enabled": true,
+    "priority": 10,
+    "name": "Magenta Dictator Pipeline",
+    "description": "Issue Dictator directives, query status, manage agents, generate artifacts"
+  },
+  "magenta_approval_card": {
+    "enabled": true,
+    "priority": 5,
+    "name": "Magenta Approval Card",
+    "description": "Interactive approval card for high-risk actions"
+  },
+  "magenta_artifact_generator": {
+    "enabled": true,
+    "priority": 8,
+    "name": "Magenta Artifact Generator",
+    "description": "Generate HTML dashboard artifacts for mission state, threats, and policies"
+  }
+}

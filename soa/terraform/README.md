@@ -1,65 +1,92 @@
-# Magenta SOA — Terraform IaC
-# Multi-cloud infrastructure provisioning for the SOA layer.
+# Magenta — Terraform Multi-Cloud IaC
+
+Multi-cloud infrastructure provisioning for the Magenta ASOAR platform.
 
 ## Directory Structure
 
 ```
 terraform/
-├── main.tf                        # Root module — orchestrates all providers
-├── providers.tf                   # Cloud provider configs + shared variables
+├── main.tf                        # Root module — orchestrates all providers + modules
+├── providers.tf                   # Cloud provider configurations (Azure, AWS, GCP, vSphere)
+├── variables.tf                   # Consolidated root variable catalog (65 vars)
+├── outputs.tf                     # Consolidated root outputs
 ├── modules/
-│   ├── compute/                   # VM + K8s compute (Azure AKS, AWS EKS, GCP GKE)
-│   │   ├── main.tf
-│   │   └── variables.tf
-│   └── kubernetes/                # K8s cluster + Helm add-ons (MCP bridge, Qdrant, Redis)
-│       ├── main.tf
-│       └── variables.tf
+│   ├── compute/                   # Legacy monolithic compute module (deprecated)
+│   ├── kubernetes/                # Legacy monolithic K8s module (deprecated)
+│   ├── aks/                       # Azure AKS — AD RBAC, private cluster, node pools
+│   ├── eks/                       # AWS EKS — IRSA/OIDC, managed node groups, VPC CNI
+│   ├── gke/                       # GCP GKE — Workload Identity, VPC-native, shielded nodes
+│   ├── vsphere/                   # vSphere — VM templates, static IP, IL5 isolation
+│   ├── network/                   # Hub-and-spoke networking (Azure VNet, AWS TGW, GCP VPC)
+│   └── budget/                    # Azure budget + provider-scoped budgets with Slack alerts
 └── environments/
-    └── dev/
-        ├── terraform.tfvars       # Dev-specific values
-        └── backend.tf             # Remote state backend
+    ├── staging/
+    │   ├── backend.tf             # Remote state in Azure Storage (stage container)
+    │   └── terraform.tfvars       # Staging-specific values
+    └── production/
+        ├── backend.tf             # Remote state in Azure Storage (prod container)
+        └── terraform.tfvars       # Production-specific values
 ```
+
+## Module Migration
+
+The root `main.tf` supports dual-path module selection via `use_new_k8s_modules`:
+
+| Flag | Legacy Path | New Path |
+|---|---|---|
+| `false` (default) | `compute/` + `kubernetes/` | — |
+| `true` | — | `aks/`, `eks/`, `gke/`, `vsphere/`, `network/` |
+
+This allows zero-downtime migration from the monolithic modules to per-provider modules.
+
+## Environments
+
+| Environment | State Backend | Purpose |
+|---|---|---|
+| `staging` | Azure Storage (account: `magentaterraform`) | Integration testing, CI validation |
+| `production` | Azure Storage (account: `magentaterraform`) | Production workloads on AKS + EKS |
 
 ## Usage
 
 ```bash
-# 1. Initialize dev environment
-cd terraform/environments/dev
-terraform init
+# Init — backend-free for local validation
+make tf-init
 
-# 2. Validate configuration
-terraform validate
+# Validate
+make tf-validate
 
-# 3. Plan infrastructure
-terraform plan -var-file=terraform.tfvars
+# Plan (staging)
+make tf-plan-staging
 
-# 4. Apply via Agent Ops (MCP tool) or directly
-terraform apply -var-file=terraform.tfvars
+# Plan (production)
+make tf-plan-prod
 
-# 5. Agent Ops drift detection
-mcp call agent-ops.iac_drift_detect --environment dev
+# Apply via Agent Ops or directly
+terraform apply -var-file=environments/staging/terraform.tfvars
+
+# Drift detection via Agent Ops
+mcp call agent-ops.iac_drift_detect --environment staging
 ```
 
-## Provider Agnostic Design
+## Budget & Cost Governance
 
-- All modules accept a `provider` parameter (`azure`, `aws`, `gcp`, `vsphere`)
-- Common variables: `environment`, `location`, `vm_sku`, `node_count`, `tags`
-- Tagging follows FinOps standards: `cost-center`, `environment`, `project`, `managed-by`
-- Conditional resource creation via `count` + `enable_*` booleans
+The `budget` module creates:
+- **Subscription-level budget**: 50/80/95% alerts to Slack
+- **Provider-scoped budgets**: Per-provider cost limits managed via `provider_budgets` variable
 
-## Cost Governance
-
-Every resource is tagged with:
+Every resource must be tagged with:
 - `cost-center` — maps to budget owner
 - `environment` — dev/staging/production
 - `project` — aggregates all magenta resources
-- `managed-by` — allows Agent Ops to discover and manage
+- `owner` — team or individual responsible
+- `data-classification` — public/internal/confidential/il5
 
 Agent Ops `finops_tag_compliance` validates these tags across all providers.
 
-## Adding a Provider
+## Adding a New Provider Module
 
-1. Add provider config in `providers.tf`
-2. Add `enable_<provider>` variable
-3. Add module instantiation in `main.tf` with `count = var.enable_<provider> ? 1 : 0`
-4. Add environment-specific values in `environments/<env>/terraform.tfvars`
+1. Create `modules/<provider>/` with `main.tf`, `variables.tf`, `outputs.tf`
+2. Wire into root `main.tf` with `count = var.enable_<provider> ? 1 : 0`
+3. Add feature flag `enable_<provider>` to `variables.tf`
+4. Add provider-scoped budget entry in `modules/budget/variables.tf`
+5. Add environment values in both `terraform.tfvars` files

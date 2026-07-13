@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Magenta Agent Configuration",
+  "description": "JSON Schema for soa/config/agents.toml",
+  "type": "object",
+  "required": ["schema", "agents"],
+  "properties": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "version": { "type": "string" }
+      }
+    },
+    "agents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "mcp_service"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^agent-" },
+          "name": { "type": "string" },
+          "mcp_service": { "type": "string", "pattern": "^mcp-" },
+          "mcp_port": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+          "transport": { "type": "string", "enum": ["grpc", "http"] },
+          "model": {
+            "type": "object",
+            "properties": {
+              "provider": { "type": "string", "enum": ["ollama", "openrouter", "gemini"] },
+              "primary": { "type": "string" }
+            }
+          },
+          "resources": {
+            "type": "object",
+            "properties": {
+              "cpu": { "type": "string", "pattern": "^\\d+\\.?\\d*$" },
+              "memory": { "type": "string", "pattern": "^\\d+Gi$" }
+            }
+          },
+          "capabilities": {
+            "type": "object",
+            "additionalProperties": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

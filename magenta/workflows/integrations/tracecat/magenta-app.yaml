@@ -1,0 +1,216 @@
+# Tracecat App Manifest — Magenta ASOAR Integration
+# Deploy as a Tracecat workflow app for hybrid orchestration
+# Docs: https://docs.tracecat.com/apps
+
+name: magenta-asoar
+display_name: Magenta ASOAR
+description: >
+  Bi-directional integration with Magenta ASOAR for advanced threat analysis,
+  AI-driven root cause analysis, and automated playbook execution.
+version: 1.0.0
+author: magenta-asoar
+tags: [soar, automation, threat-intelligence, ai]
+
+# ── Registry Actions ────────────────────────────────────────────────────
+actions:
+  - name: magenta_analyze_iocs
+    display_name: Analyze IOCs with Magenta AI
+    description: >
+      Sends IOCs to Magenta ASOAR for AI-powered threat intelligence enrichment,
+      MITRE ATT&CK mapping, and root cause analysis.
+    inputs:
+      - name: iocs
+        type: array
+        description: "List of IOC objects [{type, value, confidence}]"
+        required: true
+      - name: alert_context
+        type: object
+        description: "Alert context (source, alert_id, severity)"
+        required: false
+    outputs:
+      - name: enriched_iocs
+        type: array
+      - name: mitre_techniques
+        type: array
+      - name: root_cause
+        type: string
+      - name: confidence_score
+        type: number
+    endpoint: POST /api/v1/iocs/enrich
+    timeout: 60
+
+  - name: magenta_execute_playbook
+    display_name: Execute Magenta Playbook
+    description: >
+      Executes a Magenta ASOAR playbook (v2 YAML or Graph) with given context
+      and returns execution results.
+    inputs:
+      - name: playbook_name
+        type: string
+        description: "Playbook name or path"
+        required: true
+      - name: context
+        type: object
+        description: "Execution context (alert, iocs, scope)"
+        required: true
+      - name: dry_run
+        type: boolean
+        description: "Validate without executing"
+        required: false
+    outputs:
+      - name: mission_id
+        type: string
+      - name: status
+        type: string
+      - name: findings
+        type: object
+      - name: artifacts
+        type: object
+    endpoint: POST /api/v1/playbooks/execute
+    timeout: 300
+
+  - name: magenta_triage_alert
+    display_name: AI Triage Alert
+    description: >
+      Uses Magenta's LLM triage subgraph to classify and prioritize alerts
+      based on context, IOCs, and threat intelligence.
+    inputs:
+      - name: alert
+        type: object
+        description: "Full alert object (id, source, severity, description, iocs)"
+        required: true
+    outputs:
+      - name: classification
+        type: string
+      - name: severity
+        type: string
+      - name: priority
+        type: string
+      - name: recommended_playbook
+        type: string
+    endpoint: POST /api/v1/subgraphs/triage
+    timeout: 30
+
+  - name: magenta_get_mission_status
+    display_name: Get Mission Status
+    description: >
+      Returns the current status, findings, and artifacts of a running or
+      completed Magenta ASOAR mission.
+    inputs:
+      - name: mission_id
+        type: string
+        description: "Mission ID"
+        required: true
+    outputs:
+      - name: status
+        type: string
+      - name: progress
+        type: number
+      - name: findings
+        type: object
+    endpoint: GET /api/v1/missions/{mission_id}
+    timeout: 10
+
+  - name: magenta_generate_report
+    display_name: Generate Incident Report
+    description: >
+      Generates a LaTeX or Markdown incident report from mission results
+      using Magenta's paper publisher.
+    inputs:
+      - name: mission_id
+        type: string
+        description: "Completed mission ID"
+        required: true
+      - name: format
+        type: string
+        description: "Output format: markdown, latex, or both"
+        required: false
+      - name: template
+        type: string
+        description: "Report template: incident-report, threat-analysis, post-mortem"
+        required: false
+    outputs:
+      - name: report_markdown
+        type: string
+      - name: report_latex
+        type: string
+      - name: paper_id
+        type: string
+    endpoint: POST /api/v1/missions/{mission_id}/report
+    timeout: 60
+
+# ── Workflow Templates ──────────────────────────────────────────────────
+workflows:
+  - name: magenta-full-analysis
+    display_name: Full Magenta Analysis Pipeline
+    description: >
+      Complete analysis pipeline: triage → investigate → contain → report.
+      Leverages Magenta's parallel DAG execution and human approval gates.
+    nodes:
+      - id: triage
+        action: magenta_triage_alert
+        inputs:
+          alert: $trigger.alert
+      - id: analyze
+        action: magenta_analyze_iocs
+        inputs:
+          iocs: $trigger.alert.iocs
+          alert_context: $trigger.alert
+        depends_on: [triage]
+      - id: playbooks
+        action: magenta_execute_playbook
+        inputs:
+          playbook_name: triage.recommended_playbook
+          context:
+            alert: $trigger.alert
+            iocs: analyze.enriched_iocs
+            mitre: analyze.mitre_techniques
+        depends_on: [analyze]
+      - id: report
+        action: magenta_generate_report
+        inputs:
+          mission_id: playbooks.mission_id
+          format: markdown
+          template: incident-report
+        depends_on: [playbooks]
+    entry_node: triage
+    exit_node: report
+
+  - name: magenta-containment
+    display_name: Magenta Containment Workflow
+    description: >
+      Immediate containment workflow: validate → contain → verify → notify.
+    nodes:
+      - id: validate
+        action: magenta_triage_alert
+        inputs:
+          alert: $trigger.alert
+      - id: contain
+        action: magenta_execute_playbook
+        inputs:
+          playbook_name: containment-playbook
+          context:
+            alert: $trigger.alert
+            classification: validate.classification
+        depends_on: [validate]
+    entry_node: validate
+    exit_node: contain
+
+# ── Triggers ────────────────────────────────────────────────────────────
+triggers:
+  - name: webhook
+    type: webhook
+    description: "Receive alerts from external SIEM/XDR"
+    auth: api_key
+  - name: scheduled
+    type: schedule
+    cron: "0 */6 * * *"
+    description: "Periodic threat intel refresh"
+
+# ── Configuration ───────────────────────────────────────────────────────
+config:
+  magenta_api_base_url: http://localhost:8000/api/v1
+  magenta_api_key: ${MAGENTA_API_KEY}
+  timeout: 300
+  retry_count: 3
+  retry_delay: 5

@@ -1,9 +1,15 @@
 # Agent Ops — Configuration, IaC, Multi-Cloud, FinOps Runtime
-# The official agent operations service for Magenta SOA.
-# Manages configuration analysis, Terraform execution, multi-cloud API integration,
-# and FinOps cost analysis — all exposed as MCP tools.
+# Distroless base image (~80MB vs ~1.5GB with full agent-ops)
+#
+# This is the CORE image only. Terraform + cloud CLIs are in the sidecar image.
+# For the full agent-ops with Terraform, use Dockerfile.tf-sidecar.
+#
+# Build: docker build -t magenta/agent-ops:latest -f soa/docker/Dockerfile.agent-ops .
+# Size: ~150MB (distroless base + app)
+#
+# K8s: Deploy as separate pods with sidecar for Terraform operations.
 
-FROM python:3.12-slim AS builder
+FROM magenta/base:distroless AS builder
 
 WORKDIR /app
 
@@ -11,53 +17,29 @@ WORKDIR /app
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Python dependencies
-COPY pyproject.toml /app/
-RUN uv sync --frozen
-
-# Install Terraform
-ARG TERRAFORM_VERSION=1.10.0
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    wget \
-    unzip \
-    && wget -q https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
-    && unzip terraform_${TERRAFORM_VERSION}_linux_amd64.zip -d /usr/local/bin/ \
-    && rm terraform_${TERRAFORM_VERSION}_linux_amd64.zip
-
-# Install cloud CLIs
-RUN curl -sL https://aka.ms/InstallAzureCLIDeb | bash \
-    && curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
-    && unzip awscliv2.zip && ./aws/install && rm -rf aws awscliv2.zip \
-    && curl -sSL https://sdk.cloud.google.com | bash
+COPY pyproject.toml uv.lock README.md /app/
+RUN uv sync --frozen --no-dev
 
 # ── Runtime ───────────────────────────────────────────────────────────────
 
-FROM python:3.12-slim
+FROM magenta/base:distroless
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    git \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /usr/local/bin/terraform /usr/local/bin/terraform
-COPY --from=builder /usr/local/bin/az /usr/local/bin/az
-COPY --from=builder /usr/local/bin/aws /usr/local/bin/aws
-COPY --from=builder /root/google-cloud-sdk /root/google-cloud-sdk
+# Copy venv from builder
 COPY --from=builder /app/.venv /app/.venv
 
-COPY agent_ops/ /app/agent_ops/
+# Copy application code
+COPY magenta/ /app/magenta/
 COPY soa/config/ /app/config/
-COPY soa/terraform/ /app/terraform/
 
-ENV PATH="/app/.venv/bin:/root/google-cloud-sdk/bin:$PATH"
-ENV PYTHONUNBUFFERED=1
+# Non-root user (inherited from base)
+USER 10001:10001
 
 EXPOSE 50060 9090
 
 HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
-    CMD curl -sf http://localhost:50060/mcp/agent-ops/health || exit 1
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:50060/mcp/agent-ops/health')"]
 
-ENTRYPOINT ["python", "-m", "agent_ops.server"]
+ENTRYPOINT ["python", "-m", "magenta.agent_ops.server"]
 CMD ["--config", "/app/config/agents.toml", "--port", "50060"]

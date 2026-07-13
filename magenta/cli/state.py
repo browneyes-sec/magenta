@@ -4,15 +4,20 @@ Launches the magnet probe/attestation framework and regression test suite.
 Integrates with Dictator oversight for live system validation.
 """
 
-import typer
 import sys
-import json as json_mod
-from pathlib import Path
-from typing import Optional
 from datetime import datetime
+from pathlib import Path
+
+import typer
 
 from magenta.cli.utils import (
-    print_table, print_output, print_error, print_success, print_info, print_warning, status_badge,
+    print_error,
+    print_info,
+    print_output,
+    print_success,
+    print_table,
+    print_warning,
+    status_badge,
 )
 
 state_app = typer.Typer(
@@ -39,6 +44,7 @@ def _discover_probes() -> dict[str, str]:
 def _load_probe(name: str) -> dict:
     """Load and execute a probe module, returning its results."""
     import importlib.util
+
     path = PROBE_REGISTRY.get(name)
     if not path:
         return {"probe": name, "status": "error", "error": f"Probe '{name}' not found"}
@@ -56,7 +62,7 @@ def _load_probe(name: str) -> dict:
 
 @state_app.command()
 def probe(
-    name: Optional[str] = typer.Option(None, "--name", "-n", help="Run a specific probe"),
+    name: str | None = typer.Option(None, "--name", "-n", help="Run a specific probe"),
     list_probes: bool = typer.Option(False, "--list", "-l", help="List available probes"),
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
@@ -110,11 +116,11 @@ def probe(
 
 @state_app.command()
 def regression(
-    path: Optional[str] = typer.Option(None, "--path", "-p", help="Specific test path or module"),
+    path: str | None = typer.Option(None, "--path", "-p", help="Specific test path or module"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose pytest output"),
     coverage: bool = typer.Option(False, "--coverage", "-c", help="Run with coverage report"),
     junit: bool = typer.Option(False, "--junit", "-j", help="Generate JUnit XML report"),
-    k: Optional[str] = typer.Option(None, "--k", help="Filter tests by keyword expression"),
+    k: str | None = typer.Option(None, "--k", help="Filter tests by keyword expression"),
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
     """Run the full regression test suite via pytest.
@@ -161,9 +167,9 @@ def report(
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
     """Generate a consolidated state report from probes + Dictator oversight."""
-    from magenta.agents.dictator import dictator
-
     import asyncio
+
+    from magenta.agents.dictator import dictator
 
     # Gather Dictator oversight
     board = asyncio.run(dictator.get_oversight_board())
@@ -215,8 +221,11 @@ def report(
         print_table(
             ["Probe", "Status", "Details"],
             [
-                [r["probe"], status_badge("completed" if r["status"] == "completed" else "failed"),
-                 str(r.get("result", r.get("error", "")))[:40]]
+                [
+                    r["probe"],
+                    status_badge("completed" if r["status"] == "completed" else "failed"),
+                    str(r.get("result", r.get("error", "")))[:40],
+                ]
                 for r in probe_results
             ],
             title="Probe Results",
@@ -225,7 +234,9 @@ def report(
 
 @state_app.command()
 def attest(
-    mission_id: Optional[str] = typer.Option(None, "--mission", "-m", help="Attest a specific mission"),
+    mission_id: str | None = typer.Option(
+        None, "--mission", "-m", help="Attest a specific mission"
+    ),
     all_missions: bool = typer.Option(False, "--all", help="Attest all completed missions"),
     format: str = typer.Option("text", "--format", "-f", help="Output format"),
 ):
@@ -234,9 +245,10 @@ def attest(
     Attestation validates that every action in a mission has a complete,
     tamper-evident audit trail through the Data Lake.
     """
+    import asyncio
+
     from magenta.core.mission import mission_manager
     from magenta.dictator.state import dictator_state
-    import asyncio
 
     missions_to_check = []
 
@@ -270,7 +282,9 @@ def attest(
         entry = {
             "mission_id": mission.mission_id[:12],
             "alert_id": mission.alert_id[:20],
-            "severity": mission.severity.value if hasattr(mission.severity, "value") else mission.severity,
+            "severity": mission.severity.value
+            if hasattr(mission.severity, "value")
+            else mission.severity,
             "status": mission.status.value if hasattr(mission.status, "value") else mission.status,
             "tasks": task_count,
             "directives": directive_count,

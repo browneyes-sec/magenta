@@ -1,0 +1,136 @@
+apiVersion: magenta.soar/v1
+kind: Playbook
+
+metadata:
+  name: phishing-investigation
+  version: "1.0.0"
+  description: "End-to-end phishing investigation with agentic triage, enrichment, containment, and compliance"
+  tags: [phishing, email, auto-triage, investigation]
+  author: magenta-team
+  created: "2026-06-19"
+
+spec:
+  trigger:
+    type: alert
+    source: [sentinel, splunk, wazuh]
+    condition:
+      rule_id: ["5760", "5761"]
+      severity: [high, critical]
+
+  parameters:
+    auto_contain_threshold: 70
+    require_approval_above: 60
+    sentinel_workspace: "default-workspace"
+
+  workflow:
+    nodes:
+      - id: ingest
+        type: ingest
+        label: "Ingest Alert"
+        agent: triage
+        config:
+          enrich_iocs: true
+          lookup_cmdb: true
+
+      - id: agentic_triage
+        type: subgraph
+        label: "Agentic Triage"
+        subgraph: triage_subgraph
+        depends_on: [ingest]
+        config:
+          model_tier: speed
+          max_turns: 5
+
+      - id: enrichment
+        type: agentic
+        label: "Enrichment"
+        agent: enrich
+        depends_on: [agentic_triage]
+        config:
+          sources: [sentinel, entra, defender]
+          parallel: true
+
+      - id: containment_decision
+        type: decision
+        label: "Auto-contain?"
+        condition: "enrichment.risk_score > 70"
+        depends_on: [enrichment]
+
+      - id: auto_contain
+        type: action
+        label: "Auto Contain"
+        agent: contain
+        depends_on: [containment_decision]
+        config:
+          action: isolate_host
+          target_host: "enrichment.affected_host"
+
+      - id: human_approval
+        type: approval
+        label: "Human Approval Required"
+        depends_on: [containment_decision]
+        config:
+          action: manual_containment
+          risk_score: 65
+          reasoning: "Risk score below auto-contain threshold, requires human review"
+          timeout_minutes: 30
+
+      - id: investigation
+        type: subgraph
+        label: "Deep Investigation"
+        subgraph: investigation_subgraph
+        depends_on: [auto_contain, human_approval]
+        config:
+          model_tier: reasoning
+          max_turns: 20
+
+      - id: compliance_check
+        type: agentic
+        label: "Compliance Check"
+        agent: compliance
+        depends_on: [investigation]
+        config:
+          frameworks: [SOC2, ISO27001, NIS2]
+
+      - id: generate_report
+        type: agentic
+        label: "Generate Report"
+        agent: report
+        depends_on: [compliance_check]
+        config:
+          formats: [executive, technical]
+
+    edges:
+      - source: ingest
+        target: agentic_triage
+      - source: agentic_triage
+        target: enrichment
+      - source: enrichment
+        target: containment_decision
+      - source: containment_decision
+        target: auto_contain
+        label: "risk > threshold"
+      - source: containment_decision
+        target: human_approval
+        label: "risk <= threshold"
+      - source: auto_contain
+        target: investigation
+      - source: human_approval
+        target: investigation
+      - source: investigation
+        target: compliance_check
+      - source: compliance_check
+        target: generate_report
+
+  governance:
+    approval_required:
+      - action: isolate_host
+        risk_threshold: 60
+      - action: block_ip
+        risk_threshold: 50
+      - action: disable_account
+        risk_threshold: 70
+    audit:
+      log_all_decisions: true
+      preserve_evidence: true
+    compliance_frameworks: [SOC2, ISO27001, NIS2]

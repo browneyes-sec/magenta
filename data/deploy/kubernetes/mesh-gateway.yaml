@@ -1,0 +1,142 @@
+# Mesh Gateway — Vectorized Data Mesh API
+# Extends the existing Magenta FastAPI service with /api/v1/mesh/* endpoints.
+# Performs query federation, vector search, and ingestion routing.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mesh-gateway
+  namespace: magenta-mesh
+  labels:
+    app: mesh-gateway
+    component: api
+spec:
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+    - name: grpc
+      port: 50055
+      targetPort: 50055
+  selector:
+    app: mesh-gateway
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mesh-gateway
+  namespace: magenta-mesh
+  labels:
+    app: mesh-gateway
+    component: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mesh-gateway
+  template:
+    metadata:
+      labels:
+        app: mesh-gateway
+        component: api
+    spec:
+      serviceAccountName: mesh-gateway-sa
+      initContainers:
+        - name: wait-for-qdrant
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z qdrant.magenta-mesh.svc.cluster.local 6334; do sleep 2; done']
+        - name: wait-for-ollama
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z ollama-embed.magenta-mesh.svc.cluster.local 11434; do sleep 2; done']
+        - name: wait-for-redis
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z redis.magenta-mesh.svc.cluster.local 6379; do sleep 2; done']
+      containers:
+        - name: gateway
+          image: magenta/mesh-gateway:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+            - containerPort: 50055
+              name: grpc
+          env:
+            - name: MESH__QDRANT_HOST
+              value: qdrant.magenta-mesh.svc.cluster.local
+            - name: MESH__QDRANT_PORT
+              value: "6334"
+            - name: MESH__QDRANT_USE_GRPC
+              value: "true"
+            - name: MESH__OLLAMA_HOST
+              value: http://ollama-embed.magenta-mesh.svc.cluster.local:11434
+            - name: MESH__OLLAMA_MODEL
+              value: bge-m3
+            - name: MESH__REDIS_HOST
+              value: redis.magenta-mesh.svc.cluster.local
+            - name: MESH__REDIS_PORT
+              value: "6379"
+            - name: MESH__EMBEDDING_DIMENSION
+              value: "1024"
+            - name: MESH__LOG_LEVEL
+              value: INFO
+            - name: MESH__COLLECTIONS_AUTO_CREATE
+              value: "true"
+          resources:
+            requests:
+              cpu: "1000m"
+              memory: "1Gi"
+            limits:
+              cpu: "4"
+              memory: "4Gi"
+          readinessProbe:
+            httpGet:
+              path: /api/v1/mesh/health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/mesh/health
+              port: 8000
+            initialDelaySeconds: 45
+            periodSeconds: 20
+      volumes:
+        - name: config
+          configMap:
+            name: mesh-config
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mesh-gateway-sa
+  namespace: magenta-mesh
+  annotations:
+    azure.workload.identity/client-id: "${MESH_GATEWAY_CLIENT_ID}"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mesh-gateway-role
+  namespace: magenta-mesh
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "endpoints"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mesh-gateway-rolebinding
+  namespace: magenta-mesh
+subjects:
+  - kind: ServiceAccount
+    name: mesh-gateway-sa
+    namespace: magenta-mesh
+roleRef:
+  kind: Role
+  name: mesh-gateway-role
+  apiGroup: rbac.authorization.k8s.io

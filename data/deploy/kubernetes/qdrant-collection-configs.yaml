@@ -1,0 +1,62 @@
+# Qdrant Collection Configurations — Data Mesh Spec §4.3
+# HNSW configs per collection for optimal vector search performance
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qdrant-collection-configs
+  namespace: magenta-mesh
+data:
+  siem_alerts.json: |
+    {
+      "vectors": { "size": 1024, "distance": "Cosine" },
+      "hnsw_config": { "m": 16, "ef_construct": 200 },
+      "optimizers_config": { "default_segment_number": 2, "memmap_threshold_kb": 20000 },
+      "payload_schema": {
+        "product": { "type": "keyword", "index": true },
+        "source": { "type": "keyword", "index": true },
+        "incident_id": { "type": "keyword", "index": true },
+        "severity": { "type": "keyword", "index": true },
+        "timestamp": { "type": "datetime", "index": true },
+        "correlation_id": { "type": "keyword", "index": true },
+        "mitre_tactics": { "type": "keyword", "index": true },
+        "entities": { "type": "keyword", "index": true }
+      }
+    }
+  mem_episodic.json: |
+    {
+      "vectors": { "size": 1024, "distance": "Cosine" },
+      "hnsw_config": { "m": 16, "ef_construct": 200 },
+      "optimizers_config": { "default_segment_number": 2, "memmap_threshold_kb": 20000 },
+      "payload_schema": {
+        "agent_role": { "type": "keyword", "index": true },
+        "mission_id": { "type": "keyword", "index": true },
+        "turn_number": { "type": "integer", "index": true },
+        "timestamp": { "type": "datetime", "index": true },
+        "correlation_id": { "type": "keyword", "index": true }
+      }
+    }
+  mem_semantic.json: |
+    {
+      "vectors": { "size": 1024, "distance": "Cosine" },
+      "hnsw_config": { "m": 16, "ef_construct": 200 },
+      "optimizers_config": { "default_segment_number": 2, "memmap_threshold_kb": 20000 },
+      "payload_schema": {
+        "product": { "type": "keyword", "index": true },
+        "source": { "type": "keyword", "index": true },
+        "timestamp": { "type": "datetime", "index": true },
+        "tags": { "type": "keyword", "index": true }
+      }
+    }
+  mem_procedural.json: |
+    {
+      "vectors": { "size": 1024, "distance": "Cosine" },
+      "hnsw_config": { "m": 16, "ef_construct": 200 },
+      "optimizers_config": { "default_segment_number": 2, "memmap_threshold_kb": 20000 },
+      "payload_schema": {
+        "tool_name": { "type": "keyword", "index": true },
+        "parameters_hash": { "type": "keyword", "index": true },
+        "timestamp": { "type": "datetime", "index": true },
+        "mission_id": { "type": "keyword", "index": true }
+      }
+    }

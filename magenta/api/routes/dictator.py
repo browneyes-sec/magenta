@@ -1,6 +1,5 @@
 """API routes — Dictator super-agent oversight and directives."""
 
-from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 
 from magenta.agents.dictator import dictator
@@ -41,7 +40,7 @@ async def get_directives(limit: int = Query(50, ge=1, le=500)):
 async def issue_directive(
     directive_type: str,
     target: str,
-    mission_id: Optional[str] = None,
+    mission_id: str | None = None,
     payload: dict = {},
     reason: str = "",
 ):
@@ -74,7 +73,7 @@ async def escalate_mission(mission_id: str, reason: str = ""):
 
 
 @router.post("/deploy/{role}")
-async def deploy_agent(role: str, model: Optional[str] = None):
+async def deploy_agent(role: str, model: str | None = None):
     """Deploy a new agent by role."""
     kwargs = {}
     if model:
@@ -102,7 +101,9 @@ async def override_teaming(mission_id: str, structure: str):
     """Override the teaming structure for a mission."""
     valid_structures = ["pipeline", "supervisor", "debate", "mesh", "referee"]
     if structure not in valid_structures:
-        raise HTTPException(status_code=400, detail=f"Invalid structure. Must be one of: {valid_structures}")
+        raise HTTPException(
+            status_code=400, detail=f"Invalid structure. Must be one of: {valid_structures}"
+        )
     return await dictator.override_teaming(mission_id, structure)
 
 
@@ -122,6 +123,7 @@ async def clear_policy_overrides():
 async def list_policies():
     """List all orchestration policies."""
     from magenta.dictator.policies import policy_engine
+
     return {
         "policies": [p.model_dump() for p in policy_engine._policies],
         "overrides": {n: p.model_dump() for n, p in policy_engine._overrides.items()},

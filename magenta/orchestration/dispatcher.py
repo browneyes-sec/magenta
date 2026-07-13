@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
-from datetime import datetime
 import asyncio
 import logging
+from typing import Any
 
-from magenta.core.models import Mission, AgentConfig, AutomationActivity, ActionStatus
 from magenta.core.agent import agent_registry
+from magenta.core.models import ActionStatus, AutomationActivity, Mission
 from magenta.core.playbook import playbook_manager
 from magenta.core.registry import registry_writer
 from magenta.exceptions import AgentError, IntegrationError
@@ -20,7 +19,7 @@ logger = logging.getLogger(__name__)
 class Dispatcher:
     """Dispatches tasks to agents based on role, load, and availability."""
 
-    async def dispatch(self, task: dict, mission: Mission) -> Optional[str]:
+    async def dispatch(self, task: dict, mission: Mission) -> str | None:
         """Dispatch a task to an available agent. Returns agent_id or None."""
         role = task.get("role")
         if not role:
@@ -45,14 +44,16 @@ class Dispatcher:
         for task in tasks:
             if task.get("status") == "pending":
                 agent_id = await self.dispatch(task, mission)
-                results.append({
-                    "task_id": task["task_id"],
-                    "agent_id": agent_id or "unassigned",
-                    "status": "assigned" if agent_id else "unassigned",
-                })
+                results.append(
+                    {
+                        "task_id": task["task_id"],
+                        "agent_id": agent_id or "unassigned",
+                        "status": "assigned" if agent_id else "unassigned",
+                    }
+                )
         return results
 
-    async def retry_failed(self, task: dict, mission: Mission) -> Optional[str]:
+    async def retry_failed(self, task: dict, mission: Mission) -> str | None:
         """Retry a failed task with a different agent."""
         return await self.dispatch(task, mission)
 
@@ -70,7 +71,7 @@ class SOARDispatcher:
         6. Register each state transition as automation.activity
     """
 
-    def __init__(self, soar_connector: Optional[SOARConnector] = None):
+    def __init__(self, soar_connector: SOARConnector | None = None):
         self.soar = soar_connector or SOARConnector()
         self._active_polls: dict[str, asyncio.Task] = {}
 
@@ -104,20 +105,22 @@ class SOARDispatcher:
         )
 
         # Step 2: Create SOAR container
-        container = await self.soar.create_container({
-            "correlation_id": mission.correlation_id,
-            "alert_id": mission.alert_id,
-            "source_system": mission.source_system.value,
-            "severity": mission.severity.value,
-            "risk_score": mission.risk_score,
-            "description": mission.description,
-            "playbook_id": playbook_name,
-            "tags": [
-                f"correlation_id:{mission.correlation_id}",
-                f"severity:{mission.severity.name}",
-                f"source:{mission.source_system.value}",
-            ],
-        })
+        container = await self.soar.create_container(
+            {
+                "correlation_id": mission.correlation_id,
+                "alert_id": mission.alert_id,
+                "source_system": mission.source_system.value,
+                "severity": mission.severity.value,
+                "risk_score": mission.risk_score,
+                "description": mission.description,
+                "playbook_id": playbook_name,
+                "tags": [
+                    f"correlation_id:{mission.correlation_id}",
+                    f"severity:{mission.severity.name}",
+                    f"source:{mission.source_system.value}",
+                ],
+            }
+        )
         container_id = container.get("id", "")
         logger.info(
             "SOARDispatcher[%s]: created container %s",
@@ -139,9 +142,7 @@ class SOARDispatcher:
         )
 
         # Step 4: Trigger playbook
-        playbook_run = await self.soar.trigger_playbook(
-            container_id, playbook_name
-        )
+        playbook_run = await self.soar.trigger_playbook(container_id, playbook_name)
         run_id = playbook_run.get("run_id", "")
 
         # Register playbook trigger
@@ -176,9 +177,7 @@ class SOARDispatcher:
 
         # Step 6: Start async polling for run status
         poll_key = f"{container_id}:{run_id}"
-        poll_task = asyncio.create_task(
-            self._poll_run_status(container_id, run_id, mission)
-        )
+        poll_task = asyncio.create_task(self._poll_run_status(container_id, run_id, mission))
         self._active_polls[poll_key] = poll_task
 
         return {
@@ -216,9 +215,7 @@ class SOARDispatcher:
                             "failed": ActionStatus.failed,
                             "cancelled": ActionStatus.rejected,
                         }
-                        action_status = status_map.get(
-                            status, ActionStatus.executing
-                        )
+                        action_status = status_map.get(status, ActionStatus.executing)
 
                         await registry_writer.write_activity(
                             AutomationActivity(
@@ -237,8 +234,7 @@ class SOARDispatcher:
 
                         if status in ("succeeded", "completed", "failed", "cancelled"):
                             logger.info(
-                                "SOARDispatcher[%s]: playbook run %s → %s "
-                                "(after %d polls)",
+                                "SOARDispatcher[%s]: playbook run %s → %s (after %d polls)",
                                 mission.correlation_id[:8],
                                 run_id,
                                 status,

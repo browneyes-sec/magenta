@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-bridge
+  namespace: magenta-staging
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: mcp-bridge
+          env:
+            - name: MAGENTA_ENV
+              value: "staging"
+            - name: MAGENTA_LOG_LEVEL
+              value: "INFO"
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

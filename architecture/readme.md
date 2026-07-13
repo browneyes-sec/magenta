@@ -400,3 +400,30 @@ Architecture compliance is enforced at each phase gate through defined acceptanc
 5. **Splunk REST API access**: validate API token generation, firewall rules, and rate limit quotas for the Splunk Source Agent
 6. **Splunk SOAR audit trail**: enable audit tracking for Containers, Playbooks, and Users in SOAR Administration > System Health > Audit Trail
 7. **Define YAML routing rules v0**: SOC team drafts initial playbook routing policy for pilot (two use cases: identity compromise, phishing)
+
+***
+
+## 12. Architecture Decision Records (ADR Index)
+
+| # | Title | Status | Date |
+|---|---|---|---|
+| 001 | Multi-Cloud Provider Strategy | Accepted | 2026-06-14 |
+| 002 | MCP Service Integration Protocol | Accepted | 2026-06-14 |
+| 003 | TOML Configuration Plane | Accepted | 2026-06-14 |
+| 004 | Terraform CLI Subprocess Pattern | Accepted | 2026-06-14 |
+| 005 | Per-Provider K8s Modules | Accepted | 2026-06-14 |
+| 006 | Kustomize Overlay Structure | Accepted | 2026-06-14 |
+| 007 | Agent Ops Tool Registry | Accepted | 2026-06-14 |
+| 008 | CI/FinOps Gates | Accepted | 2026-06-14 |
+| 009 | Hub-Spoke Multi-Cloud Networking | Accepted | 2026-06-14 |
+| 010 | Vectorized Data Mesh | Accepted | 2026-06-14 |
+| 011 | Telemetry Collection Plane | Accepted | 2026-06-15 |
+| 012 | Parallel DAG Execution | Accepted | 2026-06-16 |
+| 013 | Sync Fallback Path | Accepted | 2026-06-16 |
+| 014 | Mesh Memory Integration | Accepted | 2026-06-16 |
+| 015 | Minimum Viable Subset | Accepted | 2026-06-17 |
+| 016 | Golden Image Strategy | Accepted | 2026-06-18 |
+| 017 | Open WebUI Operator Control Plane | Accepted | 2026-06-18 |
+| **018** | **LLM-RAG Hybrid Memory Architecture** | **Accepted** | **2026-06-19** |
+
+> ADR-018 supersedes ADR-010 §4 and ADR-014 §2 where they conflict. See `architecture/ADR/ADR-018-llm-rag-hybrid-memory.md` for the full decision record.

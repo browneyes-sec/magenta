@@ -1,17 +1,46 @@
 """Tiered model router with fallback chains."""
 
 from __future__ import annotations
-from typing import Optional, Any
-from datetime import datetime
-import random
 
-from magenta.models.base import BaseModelClient, ModelRequest, ModelResponse
-from magenta.models.ollama import OllamaClient
-from magenta.models.openrouter import OpenRouterClient
-from magenta.models.gemini import GeminiClient
-from magenta.models.groq import GroqClient
+import random
+import time
+from datetime import datetime
+
 from magenta.config import settings
 from magenta.exceptions import ModelError, ModelTimeout
+from magenta.models.base import BaseModelClient, ModelRequest, ModelResponse, PolicyDecision
+from magenta.models.gemini import GeminiClient
+from magenta.models.groq import GroqClient
+from magenta.models.ollama import OllamaClient
+from magenta.models.openrouter import OpenRouterClient
+
+
+class CircuitBreaker:
+    """Simple circuit breaker per model client."""
+
+    def __init__(self, failure_threshold: int = 5, cooldown_seconds: float = 60.0):
+        self._failure_threshold = failure_threshold
+        self._cooldown_seconds = cooldown_seconds
+        self._failures: dict[str, int] = {}
+        self._open_until: dict[str, float] = {}
+
+    def record_success(self, client_name: str) -> None:
+        self._failures.pop(client_name, None)
+        self._open_until.pop(client_name, None)
+
+    def record_failure(self, client_name: str) -> None:
+        self._failures[client_name] = self._failures.get(client_name, 0) + 1
+        if self._failures[client_name] >= self._failure_threshold:
+            self._open_until[client_name] = time.monotonic() + self._cooldown_seconds
+
+    def is_open(self, client_name: str) -> bool:
+        open_until = self._open_until.get(client_name)
+        if open_until is None:
+            return False
+        if time.monotonic() >= open_until:
+            self._open_until.pop(client_name, None)
+            return False
+        return True
 
 
 class ModelRouter:
@@ -26,6 +55,7 @@ class ModelRouter:
 
     def __init__(self):
         self._clients: dict[str, BaseModelClient] = {}
+        self._circuit_breaker = CircuitBreaker(failure_threshold=5, cooldown_seconds=60.0)
         self._init_clients()
 
     def _init_clients(self) -> None:
@@ -67,7 +97,7 @@ class ModelRouter:
         },
     }
 
-    def get_client(self, name: str) -> Optional[BaseModelClient]:
+    def get_client(self, name: str) -> BaseModelClient | None:
         return self._clients.get(name)
 
     async def route(
@@ -78,13 +108,15 @@ class ModelRouter:
     ) -> ModelResponse:
         """Route a request through the model tier with fallback.
 
-        Policy enforcement (llm-policy.md):
-            - HIGH sensitivity → Ollama-only (no external egress)
-            - MEDIUM sensitivity → local preferred, hosted allowed with policy override
-            - LOW sensitivity → normal routing by tier
+        Policy enforcement:
+            - high sensitivity -> Ollama-only (no external egress)
+            - medium sensitivity -> local preferred, hosted allowed with policy override
+            - low sensitivity -> normal routing by tier
         """
-        # ─── POLICY: HIGH-sensitivity → Ollama-only ──────────────────────
-        if request.sensitivity_level == "HIGH":
+        sensitivity = getattr(request, "sensitivity_level", "low").lower()
+
+        # ─── POLICY: HIGH-sensitivity -> Ollama-only ─────────────────────
+        if sensitivity == "high":
             ollama_clients = {
                 name: client
                 for name, client in self._clients.items()
@@ -112,13 +144,25 @@ class ModelRouter:
                 "HIGH-sensitivity request failed: "
                 f"all {len(ollama_clients)} local Ollama models exhausted"
             )
-
         tier_config = self.TIERS.get(tier, self.TIERS["speed"])
-        client_names = tier_config["clients"]
+        client_names = list(tier_config["clients"])  # copy to avoid mutating tier config
+
+        if sensitivity == "high":
+            client_names = [n for n in client_names if "ollama" in n]
+            if not client_names:
+                raise ModelError("HIGH sensitivity but no Ollama clients configured")
+        elif sensitivity == "medium":
+            ollama_first = [n for n in client_names if "ollama" in n]
+            external = [n for n in client_names if "ollama" not in n]
+            client_names = ollama_first + external
+
         random.shuffle(client_names)  # load balance
 
         for attempt in range(max_attempts):
             for name in client_names:
+                if self._circuit_breaker.is_open(name):
+                    continue
+
                 client = self._clients.get(name)
                 if not client:
                     continue
@@ -133,9 +177,11 @@ class ModelRouter:
                     if elapsed > tier_max.get(tier, 10000):
                         continue
 
+                    self._circuit_breaker.record_success(name)
                     return response
 
-                except (ModelError, ModelTimeout, Exception) as e:
+                except (ModelError, ModelTimeout, Exception):
+                    self._circuit_breaker.record_failure(name)
                     continue
 
         # All attempts exhausted → fallback tier
@@ -154,6 +200,39 @@ class ModelRouter:
             except Exception:
                 results[name] = False
         return results
+
+    async def route_with_policy(
+        self,
+        request: ModelRequest,
+        decision: PolicyDecision,
+    ) -> ModelResponse:
+        """Route a request based on a policy decision (used by the LLM Gateway)."""
+
+        provider_tier_map = {
+            "openrouter": "cost_save",
+            "gemini": "cost_save",
+            "groq": "cost_save",
+            "ollama": "speed",
+        }
+        tier = provider_tier_map.get(decision.provider, "speed")
+
+        if decision.provider == "ollama":
+            return await self.route(request, tier=tier)
+
+        client_key = None
+        for name, client in self._clients.items():
+            if decision.provider in name:
+                client_key = name
+                break
+
+        if client_key:
+            client = self._clients[client_key]
+            try:
+                return await client.generate(request)
+            except Exception:
+                pass
+
+        return await self.route(request, tier=tier)
 
     def get_available_models(self) -> list[dict]:
         """Get list of all configured models."""

@@ -1,11 +1,10 @@
 """Microsoft Sentinel integration connector."""
 
-from typing import Any, Optional
 from datetime import datetime, timedelta
+
 import httpx
 
 from magenta.config import settings
-from magenta.exceptions import IntegrationError
 
 
 class SentinelConnector:
@@ -28,8 +27,8 @@ class SentinelConnector:
         self.client_id = client_id or settings.sentinel.client_id
         self.client_secret = client_secret or settings.sentinel.client_secret
         self.workspace_id = workspace_id or settings.sentinel.workspace_id
-        self._token: Optional[str] = None
-        self._token_expires_at: Optional[datetime] = None
+        self._token: str | None = None
+        self._token_expires_at: datetime | None = None
 
     async def _get_token(self) -> str:
         """Get Entra ID access token via client credentials with expiry-aware caching.
@@ -100,9 +99,12 @@ class SentinelConnector:
             return {"status": "no_records"}
 
         token = await self._get_token()
-        url = f"https://{self.workspace_id}.ods.opinsights.azure.com/api/logs?api-version=2016-04-01"
+        url = (
+            f"https://{self.workspace_id}.ods.opinsights.azure.com/api/logs?api-version=2016-04-01"
+        )
 
         import json
+
         body = json.dumps(records)
 
         async with httpx.AsyncClient(timeout=60.0) as client:

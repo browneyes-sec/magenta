@@ -1,13 +1,14 @@
 """Dictator directives — imperative commands issued to agents, probes, or subsystems."""
 
 from datetime import datetime
-from enum import Enum
-from typing import Any, Optional
+from enum import StrEnum
+from typing import Any
 from uuid import uuid4
+
 from pydantic import BaseModel, Field
 
 
-class DirectiveType(str, Enum):
+class DirectiveType(StrEnum):
     deploy_agent = "deploy_agent"
     recall_agent = "recall_agent"
     override_teaming = "override_teaming"
@@ -21,7 +22,7 @@ class DirectiveType(str, Enum):
     system_command = "system_command"
 
 
-class DirectivePriority(str, Enum):
+class DirectivePriority(StrEnum):
     critical = "critical"
     high = "high"
     normal = "normal"
@@ -35,12 +36,12 @@ class Directive(BaseModel):
     type: DirectiveType
     priority: DirectivePriority = DirectivePriority.normal
     target: str
-    mission_id: Optional[str] = None
+    mission_id: str | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
     reason: str = ""
     issued_at: datetime = Field(default_factory=datetime.utcnow)
     executed: bool = False
-    result: Optional[dict] = None
+    result: dict | None = None
 
     def dict(self) -> dict:
         return self.model_dump()
@@ -49,12 +50,15 @@ class Directive(BaseModel):
 def issue_directive(
     dtype: DirectiveType,
     target: str,
-    mission_id: Optional[str] = None,
-    payload: Optional[dict] = None,
+    mission_id: str | None = None,
+    payload: dict | None = None,
     reason: str = "",
     priority: DirectivePriority = DirectivePriority.normal,
 ) -> Directive:
-    """Create and log a new directive through the Dictator state."""
+    """Create and log a new directive through the Dictator state.
+
+    Emits OTel span and writes to Elasticsearch (best-effort).
+    """
     from magenta.dictator.state import dictator_state
 
     directive = Directive(
@@ -66,4 +70,19 @@ def issue_directive(
         reason=reason,
     )
     dictator_state.log_directive(directive.dict())
+
+    # Telemetry — best-effort, non-blocking
+    from magenta.dictator.telemetry import emit_directive_span
+
+    emit_directive_span(directive.dict())
+
+    try:
+        import asyncio
+
+        from magenta.dictator.telemetry import write_directive_to_elastic
+
+        asyncio.ensure_future(write_directive_to_elastic(directive.dict()))
+    except Exception:
+        pass
+
     return directive

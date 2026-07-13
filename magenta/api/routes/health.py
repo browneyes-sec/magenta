@@ -9,11 +9,14 @@ Endpoints:
 
 from __future__ import annotations
 
-from fastapi import APIRouter
 from datetime import datetime
 
+from fastapi import APIRouter
+
 from magenta.core.agent import agent_registry
+from magenta.core.mission import mission_manager
 from magenta.models.router import model_router
+from magenta.workflows.engine import workflow_engine
 
 router = APIRouter()
 
@@ -90,6 +93,7 @@ async def deep_dependency_check():
     # Check SOAR
     try:
         from magenta.integration.soar import SOARConnector
+
         soar = SOARConnector()
         ok = await soar.ping()
         checks["soar"] = {
@@ -104,8 +108,9 @@ async def deep_dependency_check():
 
     # Check Sentinel
     try:
-        from magenta.integration.sentinel import SentinelConnector
         from magenta.config import settings
+        from magenta.integration.sentinel import SentinelConnector
+
         if settings.sentinel.tenant_id:
             sentinel = SentinelConnector()
             ok = await sentinel.ping()
@@ -123,8 +128,9 @@ async def deep_dependency_check():
 
     # Check Splunk
     try:
-        from magenta.integration.splunk import SplunkConnector
         from magenta.config import settings
+        from magenta.integration.splunk import SplunkConnector
+
         if settings.splunk.host:
             splunk = SplunkConnector()
             ok = await splunk.ping()
@@ -169,6 +175,15 @@ async def full_health():
     agents = agent_registry.all_agents()
     models = model_router.get_available_models()
 
+    # Workflow engine health
+    active_workflows = len(workflow_engine._running_missions)
+    total_executions = len(workflow_engine._executions)
+    pending_approvals = sum(len(e.approvals_pending) for e in workflow_engine._executions.values())
+
+    # Mission manager health
+    active_missions = mission_manager.active_count()
+    total_missions = len(mission_manager._missions)
+
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
@@ -183,6 +198,21 @@ async def full_health():
             "models": {
                 "status": "healthy",
                 "available": len(models),
+            },
+            "pipeline": {
+                "status": "healthy",
+                "message": "Event Hubs stub — no actual connection",
+            },
+            "workflows": {
+                "status": "healthy",
+                "active_executions": active_workflows,
+                "total_executions": total_executions,
+                "pending_approvals": pending_approvals,
+            },
+            "missions": {
+                "status": "healthy",
+                "active_missions": active_missions,
+                "total_missions": total_missions,
             },
         },
     }

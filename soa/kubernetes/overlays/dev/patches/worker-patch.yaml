@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: magenta-dev
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: worker
+          env:
+            - name: MAGENTA_ENV
+              value: "dev"
+            - name: MAGENTA_LOG_LEVEL
+              value: "DEBUG"
+            - name: MAGENTA_WORKER__CONCURRENCY
+              value: "2"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

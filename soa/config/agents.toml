@@ -5,6 +5,36 @@
 [schema]
 version = "1.0"
 
+# ── Memory Configuration (ADR-018) ────────────────────────────────────────
+# Agent memory settings for LLM-RAG hybrid architecture.
+
+[memory]
+enabled = true
+pre_turn_rag = true
+episodic_injection = "auto"      # auto | manual | disabled
+semantic_injection = "tool"      # tool | auto | disabled
+procedural_injection = "tool"    # tool | auto | disabled
+embedding_model = "nomic-embed-text"
+embedding_dim = 768
+
+[memory.budget]
+speed = 1000          # tokens for speed tier
+reasoning = 3000      # tokens for reasoning tier
+cost_save = 500       # tokens for cost_save tier
+
+[memory.tenant]
+default_id = "default"
+
+[memory.cache]
+enabled = true
+ttl_seconds = 86400   # 24 hours
+max_entries = 100000
+
+[memory.collections]
+episodic = "mem_episodic"
+semantic = "mem_semantic"
+procedural = "mem_procedural"
+
 # ── Agent Ops — Configuration & Infrastructure Agent ─────────────────────
 # The official agent for config analysis, IaC, multi-cloud, and FinOps.
 

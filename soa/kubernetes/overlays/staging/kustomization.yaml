@@ -1,0 +1,48 @@
+# Kustomize Overlay — Staging
+# Staging environment overrides.
+# Uses pinned images (SHA), 2 replicas, INFO logging.
+#
+# Usage: kubectl apply -k soa/kubernetes/overlays/staging/
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+namespace: magenta-staging
+
+commonLabels:
+  environment: staging
+
+patches:
+  - path: patches/api-patch.yaml
+  - path: patches/worker-patch.yaml
+  - path: patches/scheduler-patch.yaml
+  - path: patches/agent-ops-patch.yaml
+  - path: patches/agent-orchestrator-patch.yaml
+  - path: patches/mcp-bridge-patch.yaml
+  - path: patches/web-gateway-patch.yaml
+  - path: patches/collector-patch.yaml
+
+images:
+  - name: ghcr.io/browneyes-sec/magenta/api
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/worker
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/scheduler
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/agent-ops
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/agent-ops-tf-sidecar
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/agent-orchestrator
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/mcp-bridge
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/web-gateway
+    newTag: sha-abc1234
+  - name: ghcr.io/browneyes-sec/magenta/collector
+    newTag: sha-abc1234
+  - name: ollama/ollama
+    newTag: "0.5.7"

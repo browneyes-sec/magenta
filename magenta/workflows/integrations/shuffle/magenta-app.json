@@ -1,0 +1,261 @@
+{
+  "name": "magenta-asoar",
+  "title": "Magenta ASOAR",
+  "description": "Bi-directional integration with Magenta ASOAR for AI-driven threat analysis, playbook execution, and automated incident reporting.",
+  "author": "magenta-asoar",
+  "version": "1.0.0",
+  "tags": ["soar", "automation", "threat-intelligence", "ai", "magenta"],
+  "categories": ["siem", "soar", "enrichment"],
+  "large_image": "https://magenta-asoar.dev/static/logo-large.png",
+  "small_image": "https://magenta-asoar.dev/static/logo-small.png",
+  "url": "https://magenta-asoar.dev",
+
+  "actions": [
+    {
+      "id": "magenta_analyze_iocs",
+      "name": "Analyze IOCs",
+      "description": "Send IOCs to Magenta for AI-powered enrichment and MITRE mapping.",
+      "parameters": [
+        {
+          "name": "iocs",
+          "type": "string",
+          "description": "JSON array of IOCs [{type, value, confidence}]",
+          "required": true,
+          "multiline": true
+        },
+        {
+          "name": "alert_context",
+          "type": "string",
+          "description": "JSON object with alert context",
+          "required": false,
+          "multiline": true
+        },
+        {
+          "name": "api_key",
+          "type": "string",
+          "description": "Magenta API key",
+          "required": true,
+          "encrypted": true
+        },
+        {
+          "name": "base_url",
+          "type": "string",
+          "description": "Magenta API base URL",
+          "required": false,
+          "default": "http://localhost:8000"
+        }
+      ],
+      "returns": {
+        "type": "json",
+        "schema": {
+          "enriched_iocs": "array",
+          "mitre_techniques": "array",
+          "root_cause": "string",
+          "confidence_score": "number"
+        }
+      }
+    },
+    {
+      "id": "magenta_execute_playbook",
+      "name": "Execute Playbook",
+      "description": "Execute a Magenta ASOAR playbook with given context.",
+      "parameters": [
+        {
+          "name": "playbook_name",
+          "type": "string",
+          "description": "Playbook name or path",
+          "required": true
+        },
+        {
+          "name": "context",
+          "type": "string",
+          "description": "JSON execution context (alert, iocs, scope)",
+          "required": true,
+          "multiline": true
+        },
+        {
+          "name": "dry_run",
+          "type": "checkbox",
+          "description": "Validate without executing",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "api_key",
+          "type": "string",
+          "description": "Magenta API key",
+          "required": true,
+          "encrypted": true
+        },
+        {
+          "name": "base_url",
+          "type": "string",
+          "description": "Magenta API base URL",
+          "required": false,
+          "default": "http://localhost:8000"
+        }
+      ],
+      "returns": {
+        "type": "json",
+        "schema": {
+          "mission_id": "string",
+          "status": "string",
+          "findings": "object",
+          "artifacts": "object"
+        }
+      }
+    },
+    {
+      "id": "magenta_triage_alert",
+      "name": "AI Triage Alert",
+      "description": "Classify and prioritize alerts using Magenta's LLM triage subgraph.",
+      "parameters": [
+        {
+          "name": "alert",
+          "type": "string",
+          "description": "JSON alert object (id, source, severity, description, iocs)",
+          "required": true,
+          "multiline": true
+        },
+        {
+          "name": "api_key",
+          "type": "string",
+          "description": "Magenta API key",
+          "required": true,
+          "encrypted": true
+        },
+        {
+          "name": "base_url",
+          "type": "string",
+          "description": "Magenta API base URL",
+          "required": false,
+          "default": "http://localhost:8000"
+        }
+      ],
+      "returns": {
+        "type": "json",
+        "schema": {
+          "classification": "string",
+          "severity": "string",
+          "priority": "string",
+          "recommended_playbook": "string"
+        }
+      }
+    },
+    {
+      "id": "magenta_get_mission_status",
+      "name": "Get Mission Status",
+      "description": "Check the status and findings of a Magenta mission.",
+      "parameters": [
+        {
+          "name": "mission_id",
+          "type": "string",
+          "description": "Mission ID",
+          "required": true
+        },
+        {
+          "name": "api_key",
+          "type": "string",
+          "description": "Magenta API key",
+          "required": true,
+          "encrypted": true
+        },
+        {
+          "name": "base_url",
+          "type": "string",
+          "description": "Magenta API base URL",
+          "required": false,
+          "default": "http://localhost:8000"
+        }
+      ],
+      "returns": {
+        "type": "json",
+        "schema": {
+          "status": "string",
+          "progress": "number",
+          "findings": "object"
+        }
+      }
+    },
+    {
+      "id": "magenta_generate_report",
+      "name": "Generate Incident Report",
+      "description": "Generate a LaTeX or Markdown report from mission results.",
+      "parameters": [
+        {
+          "name": "mission_id",
+          "type": "string",
+          "description": "Completed mission ID",
+          "required": true
+        },
+        {
+          "name": "format",
+          "type": "dropdown",
+          "description": "Output format",
+          "required": false,
+          "default": "markdown",
+          "options": ["markdown", "latex", "both"]
+        },
+        {
+          "name": "template",
+          "type": "dropdown",
+          "description": "Report template",
+          "required": false,
+          "default": "incident-report",
+          "options": ["incident-report", "threat-analysis", "post-mortem", "detection-engineering"]
+        },
+        {
+          "name": "api_key",
+          "type": "string",
+          "description": "Magenta API key",
+          "required": true,
+          "encrypted": true
+        },
+        {
+          "name": "base_url",
+          "type": "string",
+          "description": "Magenta API base URL",
+          "required": false,
+          "default": "http://localhost:8000"
+        }
+      ],
+      "returns": {
+        "type": "json",
+        "schema": {
+          "report_markdown": "string",
+          "report_latex": "string",
+          "paper_id": "string"
+        }
+      }
+    }
+  ],
+
+  "workflows": [
+    {
+      "name": "magenta-full-analysis",
+      "title": "Full Magenta Analysis Pipeline",
+      "description": "Complete pipeline: triage → investigate → contain → report.",
+      "tags": ["full-analysis", "ai", "playbook"]
+    },
+    {
+      "name": "magenta-containment",
+      "title": "Magenta Containment",
+      "description": "Immediate containment: validate → contain → verify → notify.",
+      "tags": ["containment", "incident-response"]
+    }
+  ],
+
+  "triggers": [
+    {
+      "name": "webhook",
+      "type": "webhook",
+      "description": "Receive alerts from external SIEM/XDR"
+    }
+  ],
+
+  "authentication": {
+    "type": "api_key",
+    "header": "X-Magenta-Api-Key",
+    "env_key": "MAGENTA_API_KEY"
+  }
+}
