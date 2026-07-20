@@ -54,7 +54,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Build & Push API
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: soa/docker/Dockerfile.api
@@ -76,7 +76,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Build & Push Worker
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: soa/docker/Dockerfile.worker
@@ -98,7 +98,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Build & Push Scheduler
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: soa/docker/Dockerfile.scheduler
@@ -120,7 +120,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Build & Push Agent Ops
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: soa/docker/Dockerfile.agent-ops
