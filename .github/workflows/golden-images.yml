@@ -105,7 +105,7 @@ jobs:
           cosign sign --yes ${{ env.IMAGE_PREFIX }}/${{ matrix.tag }}@${{ steps.meta.outputs.digest }}
 
       - name: Upload SBOM as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom-${{ matrix.tag }}
           path: sbom-${{ matrix.tag }}.spdx.json
@@ -198,7 +198,7 @@ jobs:
           cosign sign --yes ${{ env.IMAGE_PREFIX }}/${{ matrix.tag }}@${{ steps.meta.outputs.digest }}
 
       - name: Upload SBOM as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom-${{ matrix.tag }}
           path: sbom-${{ matrix.tag }}.spdx.json

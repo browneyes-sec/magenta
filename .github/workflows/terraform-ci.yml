@@ -71,7 +71,7 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
 
       - name: Upload Plan Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tfplan-${{ matrix.environment }}
           path: ${{ env.TF_DIR }}/tfplan-${{ matrix.environment }}
